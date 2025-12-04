@@ -21,7 +21,7 @@
 
     .container {
       width: 100%;
-      max-width: 1200px;
+      max-width: 100%;
       margin: 0 auto;
       padding: 0 20px;
       box-sizing: border-box;
@@ -335,7 +335,7 @@
     <!-- Main Content -->
     <article>
       <div class="container">
-        <div id="channels" style="clear:both">
+        <div id="channels" style="clear:both; width: 100%; max-width: 100%;">
           <a href="#" 
              @click.prevent="navigateTo('#')"
              class="btn btn-large"
@@ -345,7 +345,20 @@
             ⏹ Stop
           </a>
           
-          <template x-for="channel in sortedChannels" :key="channel.name">
+          <h2 style="width: 100%; margin: 30px 0 15px 0; font-size: 24px; font-weight: 300; color: #fff;">Other Stations</h2>
+          
+          <template x-for="channel in otherChannels" :key="channel.name">
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name"></span>
+            </a>
+          </template>
+          
+          <h2 style="width: 100%; margin: 30px 0 15px 0; font-size: 24px; font-weight: 300; color: #fff;">SomaFM</h2>
+          
+          <template x-for="channel in somaChannels" :key="channel.name">
             <a href="#"
                @click.prevent="navigateTo('#' + channel.name)"
                class="channel btn btn-large"
@@ -647,6 +660,40 @@
             return [];
           }
           return Object.keys(channels)
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
+        get somaChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              return channel.tags && channel.tags.indexOf('soma') > -1;
+            })
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
+        get otherChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              return !channel.tags || channel.tags.indexOf('soma') === -1;
+            })
             .sort()
             .map(name => ({
               name: name,

@@ -17,34 +17,6 @@ Channels are defined in `channels.js`. You're welcome to add channels and metada
 
 Active channels are in the main `channels` object. Broken/non-working channels are kept in comments for reference.
 
-## Local Development
-
-Simply serve the files with any static HTTP server:
-
-```bash
-# Using Python 3
-python3 -m http.server 8000
-
-# Using Node.js http-server
-npx http-server
-
-# Using PHP
-php -S localhost:8000
-```
-
-Then open http://localhost:8000 in your browser.
-
-## GitHub Pages Deployment
-
-1. Push the code to a GitHub repository
-2. Go to repository Settings → Pages
-3. Select the branch (usually `main` or `master`)
-4. Select the root directory (`/`)
-5. Save
-
-The site will be available at `https://username.github.io/radio-guaka/`
-
-The `404.html` file enables History API routing on GitHub Pages by redirecting all routes to `index.html`.
 
 ## Features
 
@@ -52,7 +24,7 @@ The `404.html` file enables History API routing on GitHub Pages by redirecting a
   - Arrow keys ← → : Change channels
   - Arrow keys ↑ ↓ : Change volume
   - Space : Stop/pause
-  - Alt + letter : Jump to channel starting with that letter
+  - Letter key : Jump to channel starting with that letter (no modifier needed)
 
 ## Background
 
@@ -61,4 +33,3 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 ## Links
 
 * [radio.guaka.org](http://radio.guaka.org/)
-* [Mozilla Dev resources](https://developer.mozilla.org/en-US/docs/DOM/HTMLMediaElement)
