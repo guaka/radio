@@ -15,7 +15,8 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       font-size: 16px;
       line-height: 1.6;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
     }
 
     .container {
@@ -24,11 +25,20 @@
       margin: 0 auto;
       padding: 0 20px;
       box-sizing: border-box;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     body {
       margin: 0;
-      padding-bottom: 100px; /* Space for fixed footer */
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
     }
 
     header {
@@ -89,7 +99,16 @@
     }
 
     article {
-      padding: 40px 0;
+      padding: 40px 0 80px 0; /* Extra bottom padding for fixed footer */
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-height: 0;
+    }
+    
+    article .container {
+      height: 100%;
+      overflow: visible;
     }
 
     #channels {
@@ -244,23 +263,6 @@
       font-weight: 500;
     }
 
-    /* Welcome message */
-    .welcome {
-      padding: 60px 20px;
-      text-align: center;
-      color: #bbb;
-      font-size: 18px;
-      line-height: 1.8;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .welcome::before {
-      content: "🎵";
-      display: block;
-      font-size: 48px;
-      margin-bottom: 20px;
-    }
 
     /* Responsive */
     @media (max-width: 768px) {
@@ -295,11 +297,6 @@
       footer p {
         font-size: 11px;
         line-height: 1.6;
-      }
-      
-      .welcome {
-        padding: 40px 15px;
-        font-size: 16px;
       }
     }
 
@@ -369,12 +366,6 @@
           </div>
         </template>
 
-        <template x-if="!currentChannel">
-          <div class="welcome">
-            Welcome to Radio Guaka. Click on a channel to listen, use left
-            and right keys, or use Alt+letter to change channels.
-          </div>
-        </template>
       </div>
     </article>
     
@@ -385,7 +376,7 @@
           ⌨ shortcuts:
           Change volume ↑ ↓
           Change channels ← →
-          or Alt key plus first letter of the name. ⏹ space bar.
+          or press first letter of the name. ⏹ space bar.
 
           &mdash;
           <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
@@ -394,52 +385,8 @@
     </footer>
   </div>
 
+  <script src="channels.js"></script>
   <script>
-    // Active channels
-    const channels = {
-      // SomaFM streams
-      'cliqhop': { tags: ['soma', 'idm'] },
-      'secretagent': { tags: ['soma'] },
-      'illstreet': { tags: ['soma'] },
-      'spacestation': { tags: ['soma'] },
-      'doomed': { tags: ['soma'] },
-      'missioncontrol': { tags: ['soma'] },
-      'beatblender': { tags: ['soma'] },
-      'bootliquor': { tags: ['soma'] },
-      'brfm': { tags: ['soma', 'burningman'] },
-      'covers': { tags: ['soma'] },
-      'digitalis': { tags: ['soma', 'indie'] },
-      'dronezone': { tags: ['soma'] },
-      'groovesalad': { tags: ['soma', 'indie'] },
-      'indiepop': { tags: ['soma', 'indie'] },
-      'lush': { tags: ['soma', 'female'] },
-      'poptron': { tags: ['soma'] },
-      'suburbsofgoa': { tags: ['soma', 'world'] },
-      'u80s': { tags: ['soma'] },
-      'sf1033': { tags: ['soma'] },
-      'dubstep': { tags: ['soma'] },
-      
-      // Malian music
-      'wassoulou': {
-        url: 'http://listen.radionomy.com/radio-wassoulou-internationale',
-        tags: ['mali', 'africa']
-      },
-      
-      // Paradise
-      'paradise': {
-        url: 'http://stream-uk1.radioparadise.com/mp3-128',
-        tags: ['US', 'rock', 'eclectic'],
-        site: 'https://www.radioparadise.com/'
-      },
-      
-      // French excellence
-      'meuh': {
-        url: 'http://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3',
-        tags: ['fr', 'eclectic', 'paris'],
-        site: 'https://www.radiomeuh.com/'
-      }
-    };
-
     // Network and ready state mappings
     const networkStates = {
       0: 'empty',
@@ -489,17 +436,60 @@
           appState.currentChannel = channel;
         }
         
-        const audio = this.audioTag();
-        if (audio) {
+        // Get the expected source URL
+        const expectedSrc = this.getExpectedSrc(channel);
+        
+        // Wait for audio element to be available (it's conditionally rendered by Alpine)
+        const waitForAudioAndPlay = () => {
+          const audio = this.audioTag();
+          
+          if (!audio) {
+            // Audio element not rendered yet, wait a bit and try again
+            if (expectedSrc) {
+              setTimeout(waitForAudioAndPlay, 50);
+            }
+            return;
+          }
+          
+          // Audio element exists, now set src and play
           audio.pause();
+          
+          if (expectedSrc) {
+            // Set src directly for immediate playback (Alpine binding will sync)
+            audio.src = expectedSrc;
+            setTimeout(() => {
+              audio.load();
+              // Try to play - may fail due to autoplay policy, but that's okay
+              const playPromise = audio.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                  // Autoplay was prevented - this is expected in some browsers
+                  // User can manually click play if needed
+                  console.log('Autoplay prevented:', error);
+                });
+              }
+            }, 10);
+          } else {
+            audio.src = '';
+          }
+        };
+        
+        // Start waiting for audio element
+        waitForAudioAndPlay();
+      }
+      
+      getExpectedSrc(channel) {
+        if (!channel) return null;
+        
+        const channelData = channels[channel];
+        if (!channelData) return null;
+        
+        // SomaFM streams use a pattern
+        if (channelData.tags && channelData.tags.indexOf('soma') > -1) {
+          return 'https://ice.somafm.com/' + channel;
         }
         
-        setTimeout(() => {
-          if (audio) {
-            audio.load();
-            this.play();
-          }
-        }, 10);
+        return channelData.url || null;
       }
       
       checkStatus() {
@@ -718,13 +708,46 @@
         const router = new Router(player, window.appState);
         window.router = router;
         
+        // Prevent scrolling with mouse wheel
+        document.body.addEventListener('wheel', (e) => {
+          e.preventDefault();
+        }, { passive: false });
+        
+        // Prevent scrolling with touch
+        document.body.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+        }, { passive: false });
+        
         // Keyboard shortcuts
         document.body.addEventListener('keydown', (e) => {
+          // Letter key to jump to channel (only if not typing in an input field)
+          const activeElement = document.activeElement;
+          const isInputField = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.isContentEditable
+          );
+          
+          if (!isInputField && e.key && e.key.length === 1 && /[a-z]/i.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            e.preventDefault();
+            const char = e.key.toLowerCase();
+            const channelKeys = Object.keys(channels).sort();
+            for (const channel of channelKeys) {
+              if (channel[0] === char) {
+                router.navigate('/' + channel);
+                break;
+              }
+            }
+            return;
+          }
+          
           switch (e.keyCode) {
             case 39: // Right arrow
+              e.preventDefault();
               nextChannel(1, window.appState, router);
               break;
             case 37: // Left arrow
+              e.preventDefault();
               nextChannel(-1, window.appState, router);
               break;
             case 38: // Up arrow
@@ -739,18 +762,6 @@
               e.preventDefault();
               router.navigate('/');
               break;
-            default:
-              // Alt + letter to jump to channel
-              if (e.keyCode >= 65 && e.keyCode <= 90 && e.altKey) {
-                const char = String.fromCharCode(e.keyCode + 32);
-                const channelKeys = Object.keys(channels).sort();
-                for (const channel of channelKeys) {
-                  if (channel[0] === char) {
-                    router.navigate('/' + channel);
-                    break;
-                  }
-                }
-              }
           }
         });
       };

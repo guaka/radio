@@ -40,6 +40,13 @@ const channels = {
     url: 'http://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3',
     tags: ['fr', 'eclectic', 'paris'],
     site: 'https://www.radiomeuh.com/'
+  },
+  
+  // Ambient Sleeping Pill
+  'ambientsleepingpill': {
+    url: 'http://radio.stereoscenic.com/asp-s',
+    tags: ['ambient', 'sleep', 'relaxation'],
+    site: 'https://ambientsleepingpill.com/'
   }
 };
 
