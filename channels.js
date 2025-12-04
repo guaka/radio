@@ -78,6 +78,68 @@ const channels = {
     site: 'https://ambientsleepingpill.com/'
   },
   
+  // FIP - Radio France
+  'fip': {
+    url: 'https://icecast.radiofrance.fr/fip-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'eclectic'],
+    site: 'https://www.radiofrance.fr/fip'
+  },
+  'fip_jazz': {
+    url: 'https://icecast.radiofrance.fr/fipjazz-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'jazz'],
+    site: 'https://www.radiofrance.fr/fip/radio-jazz'
+  },
+  'fip_rock': {
+    url: 'https://icecast.radiofrance.fr/fiprock-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'rock'],
+    site: 'https://www.radiofrance.fr/fip/radio-rock'
+  },
+  'fip_groove': {
+    url: 'https://icecast.radiofrance.fr/fipgroove-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'groove', 'soul', 'funk'],
+    site: 'https://www.radiofrance.fr/fip/radio-groove'
+  },
+  'fip_reggae': {
+    url: 'https://icecast.radiofrance.fr/fipreggae-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'reggae'],
+    site: 'https://www.radiofrance.fr/fip/radio-reggae'
+  },
+  'fip_pop': {
+    url: 'https://icecast.radiofrance.fr/fippop-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'pop'],
+    site: 'https://www.radiofrance.fr/fip/radio-pop'
+  },
+  'fip_electro': {
+    url: 'https://icecast.radiofrance.fr/fipelectro-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'electro', 'electronic'],
+    site: 'https://www.radiofrance.fr/fip/radio-electro'
+  },
+  'fip_monde': {
+    url: 'https://icecast.radiofrance.fr/fipworld-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'world'],
+    site: 'https://www.radiofrance.fr/fip/radio-monde'
+  },
+  'fip_nouveautes': {
+    url: 'https://icecast.radiofrance.fr/fipnouveautes-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'nouveautes'],
+    site: 'https://www.radiofrance.fr/fip/radio-nouveautes'
+  },
+  'fip_metal': {
+    url: 'https://icecast.radiofrance.fr/fipmetal-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'metal'],
+    site: 'https://www.radiofrance.fr/fip/radio-metal'
+  },
+  'fip_hiphop': {
+    url: 'https://icecast.radiofrance.fr/fiphiphop-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'hiphop', 'hip-hop'],
+    site: 'https://www.radiofrance.fr/fip/radio-hip-hop'
+  },
+  'fip_sacre_francais': {
+    url: 'https://icecast.radiofrance.fr/fipsacrefrancais-midfi.mp3?id=radiofrance',
+    tags: ['fr', 'fip', 'francais', 'french'],
+    site: 'https://www.radiofrance.fr/fip/radio-sacre-francais'
+  },
+  
   // RadioJAZZ.FM
   // 'radiojazz': {
   //   url: 'http://radiojazz.fm:8000/',

@@ -7,13 +7,17 @@
   <link rel="icon" type="image/png" href="favicon.ico">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
+    html {
+      font-size: 16px;
+    }
+    
     html, body {
       background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
       color: #e0e0e0;
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      font-size: 16px;
+      font-size: 1rem;
       line-height: 1.6;
       height: 100vh;
       overflow: hidden;
@@ -23,7 +27,7 @@
       width: 100%;
       max-width: 100%;
       margin: 0 auto;
-      padding: 0 20px;
+      padding: 0 clamp(8px, 1.5vw, 15px);
       box-sizing: border-box;
       flex: 1;
       display: flex;
@@ -42,7 +46,7 @@
     }
 
     header {
-      padding: 30px 0;
+      padding: clamp(8px, 1.5vh, 15px) 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       background: rgba(0, 0, 0, 0.3);
       backdrop-filter: blur(10px);
@@ -51,21 +55,27 @@
     header .container {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: clamp(6px, 1vh, 10px);
+    }
+    
+    header .container > div {
+      display: flex;
+      align-items: flex-start;
+      gap: clamp(8px, 2vw, 12px);
     }
 
     header h2 {
       margin: 0;
       display: flex;
       align-items: center;
-      gap: 15px;
-      font-size: 24px;
+      gap: clamp(6px, 1.5vw, 10px);
+      font-size: clamp(16px, 3.5vw, 20px);
       font-weight: 300;
       color: #fff;
     }
 
     header h2 .logo-icon {
-      font-size: 48px;
+      font-size: clamp(24px, 6vw, 36px);
       line-height: 1;
       display: inline-block;
     }
@@ -78,28 +88,29 @@
     header audio {
       width: 100%;
       max-width: 600px;
-      margin-top: 10px;
+      margin-top: clamp(4px, 1vh, 6px);
     }
 
     header > div > div {
       display: flex;
       align-items: center;
-      gap: 15px;
-      margin-top: 15px;
-      font-size: 14px;
+      gap: clamp(6px, 1.5vw, 10px);
+      margin-top: clamp(6px, 1vh, 8px);
+      font-size: clamp(11px, 2vw, 13px);
       color: #aaa;
+      flex-wrap: wrap;
     }
 
     #networkState, #readyState {
       font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 12px;
-      padding: 4px 8px;
+      font-size: clamp(10px, 2vw, 12px);
+      padding: clamp(3px, 0.5vw, 4px) clamp(6px, 1vw, 8px);
       background: rgba(255, 255, 255, 0.1);
       border-radius: 4px;
     }
 
     article {
-      padding: 40px 0 80px 0; /* Extra bottom padding for fixed footer */
+      padding: clamp(10px, 2vh, 20px) 0 clamp(40px, 6vh, 50px) 0; /* Extra bottom padding for fixed footer */
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
@@ -114,8 +125,8 @@
     #channels {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 40px;
+      gap: clamp(4px, 1vw, 8px);
+      margin-bottom: clamp(10px, 2vh, 20px);
     }
 
     /* Button styles - modernized */
@@ -123,20 +134,21 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 12px 20px;
-      font-size: 16px;
+      padding: clamp(4px, 0.8vh, 6px) clamp(8px, 1.5vw, 12px);
+      font-size: clamp(11px, 2vw, 13px);
       font-weight: 500;
-      line-height: 1.5;
+      line-height: 1.4;
       text-align: center;
       white-space: nowrap;
       cursor: pointer;
       user-select: none;
       border: none;
-      border-radius: 8px;
+      border-radius: clamp(4px, 1vw, 6px);
       text-decoration: none;
       color: white;
       transition: all 0.2s ease;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      min-height: 32px; /* Touch-friendly minimum height */
     }
 
     .btn:hover {
@@ -150,9 +162,10 @@
     }
 
     .btn-large {
-      padding: 14px 24px;
-      font-size: 18px;
-      border-radius: 10px;
+      padding: clamp(5px, 1vh, 7px) clamp(10px, 2vw, 14px);
+      font-size: clamp(11px, 2.2vw, 13px);
+      border-radius: clamp(4px, 1vw, 6px);
+      min-height: 32px; /* Touch-friendly minimum height */
     }
 
     .btn-primary {
@@ -185,13 +198,13 @@
     }
 
     h1 {
-      margin: 30px 0 20px 0;
-      font-size: 36px;
+      margin: clamp(10px, 2vh, 15px) 0 clamp(8px, 1.5vh, 12px) 0;
+      font-size: clamp(20px, 4.5vw, 28px);
       font-weight: 300;
       color: #fff;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: clamp(6px, 1.5vw, 10px);
     }
 
     h1 span {
@@ -201,20 +214,20 @@
     }
 
     #metadata {
-      margin-top: 20px;
+      margin-top: clamp(8px, 1.5vh, 12px);
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: clamp(8px, 2vw, 12px);
       flex-wrap: wrap;
     }
 
     #metadata a {
       color: #ffd700;
       text-decoration: none;
-      font-size: 14px;
-      padding: 6px 12px;
+      font-size: clamp(11px, 2vw, 13px);
+      padding: clamp(4px, 0.8vh, 5px) clamp(8px, 1.5vw, 10px);
       background: rgba(255, 215, 0, 0.1);
-      border-radius: 6px;
+      border-radius: clamp(3px, 0.8vw, 5px);
       transition: all 0.2s ease;
     }
 
@@ -228,7 +241,7 @@
       bottom: 0;
       left: 0;
       right: 0;
-      padding: 15px 0;
+      padding: clamp(6px, 1.2vh, 10px) 0;
       background: rgba(20, 20, 20, 0.95);
       backdrop-filter: blur(10px);
       border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -236,12 +249,12 @@
     }
 
     footer .container {
-      padding: 10px 20px;
+      padding: clamp(5px, 1vh, 7px) clamp(10px, 1.5vw, 15px);
     }
 
     footer p {
       margin: 0;
-      font-size: 13px;
+      font-size: clamp(11px, 2.5vw, 13px);
       line-height: 1.8;
       color: #aaa;
       text-align: center;
@@ -266,37 +279,70 @@
 
     /* Responsive */
     @media (max-width: 768px) {
-      .container {
-        padding: 0 15px;
+      html {
+        font-size: 15px;
       }
       
       header h2 {
-        font-size: 20px;
         flex-direction: column;
         align-items: flex-start;
       }
       
       header h2 img {
-        height: 50px;
+        height: clamp(40px, 10vw, 50px);
       }
       
       #channels {
-        justify-content: center;
-        gap: 8px;
+        justify-content: flex-start;
+      }
+      
+      .btn {
+        white-space: normal;
+        word-break: break-word;
+        hyphens: auto;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      html {
+        font-size: 14px;
+      }
+      
+      header {
+        padding: clamp(6px, 1.2vh, 12px) 0;
+      }
+      
+      header h2 {
+        gap: 6px;
+      }
+      
+      #channels {
+        gap: 4px;
       }
       
       .btn-large {
-        padding: 12px 18px;
-        font-size: 16px;
+        padding: 6px 10px;
+        font-size: 13px;
       }
       
       h1 {
-        font-size: 28px;
+        font-size: 20px;
       }
       
       footer p {
-        font-size: 11px;
-        line-height: 1.6;
+        line-height: 1.5;
+      }
+    }
+    
+    @media (min-width: 1200px) {
+      html {
+        font-size: 18px;
+      }
+    }
+    
+    @media (min-width: 1600px) {
+      html {
+        font-size: 20px;
       }
     }
 
@@ -316,19 +362,31 @@
           radio guaka
         </h2>
 
-        <template x-if="srcUrl">
-          <div>
-            <audio preload="auto" id="player" controls :src="srcUrl" x-ref="audioPlayer">
-            </audio>
+        <div style="display: flex; align-items: flex-start; gap: clamp(8px, 2vw, 12px); flex-wrap: wrap;">
+          <template x-if="srcUrl">
+            <div style="flex: 1; min-width: 200px;">
+              <audio preload="auto" id="player" controls :src="srcUrl" x-ref="audioPlayer">
+              </audio>
 
-            <div>
-              <span>📶</span>
-              <span id="networkState"></span>
-              <span>⏱</span>
-              <span id="readyState"></span>
+              <div>
+                <span>📶</span>
+                <span id="networkState"></span>
+                <span>⏱</span>
+                <span id="readyState"></span>
+              </div>
             </div>
-          </div>
-        </template>
+          </template>
+          
+          <a href="#" 
+             @click.prevent="navigateTo('#')"
+             class="btn"
+             :class="currentChannel ? 'btn-danger' : 'btn-success'"
+             id="stop"
+             title="Stop"
+             style="align-self: center;">
+            ⏹ Stop
+          </a>
+        </div>
       </div>
     </header>
 
@@ -336,16 +394,7 @@
     <article>
       <div class="container">
         <div id="channels" style="clear:both; width: 100%; max-width: 100%;">
-          <a href="#" 
-             @click.prevent="navigateTo('#')"
-             class="btn btn-large"
-             :class="currentChannel ? 'btn-danger' : 'btn-success'"
-             id="stop"
-             title="Stop">
-            ⏹ Stop
-          </a>
-          
-          <h2 style="width: 100%; margin: 30px 0 15px 0; font-size: 24px; font-weight: 300; color: #fff;">Other Stations</h2>
+          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Other Stations</h2>
           
           <template x-for="channel in otherChannels" :key="channel.name">
             <a href="#"
@@ -356,9 +405,20 @@
             </a>
           </template>
           
-          <h2 style="width: 100%; margin: 30px 0 15px 0; font-size: 24px; font-weight: 300; color: #fff;">SomaFM</h2>
+          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">SomaFM</h2>
           
           <template x-for="channel in somaChannels" :key="channel.name">
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name"></span>
+            </a>
+          </template>
+          
+          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">FIP</h2>
+          
+          <template x-for="channel in fipChannels" :key="channel.name">
             <a href="#"
                @click.prevent="navigateTo('#' + channel.name)"
                class="channel btn btn-large"
@@ -464,24 +524,55 @@
             return;
           }
           
+          // Remove any existing event listeners to prevent duplicates
+          const playWhenReady = () => {
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(error => {
+                // Autoplay was prevented - this is expected in some browsers
+                // User can manually click play if needed
+                console.log('Autoplay prevented:', error);
+              });
+            }
+          };
+          
+          // Remove old listeners if they exist
+          if (this._canPlayListener) {
+            audio.removeEventListener('canplay', this._canPlayListener);
+          }
+          if (this._loadedDataListener) {
+            audio.removeEventListener('loadeddata', this._loadedDataListener);
+          }
+          
           // Audio element exists, now set src and play
           audio.pause();
           
           if (expectedSrc) {
             // Set src directly for immediate playback (Alpine binding will sync)
             audio.src = expectedSrc;
+            
+            // Create event listeners for when audio is ready
+            this._canPlayListener = playWhenReady;
+            this._loadedDataListener = playWhenReady;
+            
+            // Add listeners for when audio is ready to play
+            audio.addEventListener('canplay', this._canPlayListener, { once: true });
+            audio.addEventListener('loadeddata', this._loadedDataListener, { once: true });
+            
+            // Load the audio
+            audio.load();
+            
+            // Try to play immediately (user interaction should allow this)
+            // If it fails, the event listeners will retry when ready
             setTimeout(() => {
-              audio.load();
-              // Try to play - may fail due to autoplay policy, but that's okay
               const playPromise = audio.play();
               if (playPromise !== undefined) {
                 playPromise.catch(error => {
-                  // Autoplay was prevented - this is expected in some browsers
-                  // User can manually click play if needed
-                  console.log('Autoplay prevented:', error);
+                  // Autoplay was prevented - event listeners will retry when ready
+                  console.log('Immediate autoplay prevented, will retry when ready:', error);
                 });
               }
-            }, 10);
+            }, 50);
           } else {
             audio.src = '';
           }
@@ -684,6 +775,23 @@
             }));
         },
         
+        get fipChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              return channel.tags && channel.tags.indexOf('fip') > -1;
+            })
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
         get otherChannels() {
           if (typeof channels === 'undefined') {
             console.error('channels is not defined');
@@ -692,7 +800,7 @@
           return Object.keys(channels)
             .filter(name => {
               const channel = channels[name];
-              return !channel.tags || channel.tags.indexOf('soma') === -1;
+              return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1);
             })
             .sort()
             .map(name => ({
@@ -713,6 +821,8 @@
           if (channel.tags && channel.tags.indexOf('soma') > -1) {
             data.site = 'https://somafm.com/';
           }
+          
+          // FIP channels already have site URLs in their channel data
           
           return data;
         },
