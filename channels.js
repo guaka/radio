@@ -66,7 +66,7 @@ const channels = {
   
   // French excellence
   'meuh': {
-    url: 'http://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3',
+    url: 'https://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3',
     tags: ['fr', 'eclectic', 'paris'],
     site: 'https://www.radiomeuh.com/'
   },
@@ -76,7 +76,70 @@ const channels = {
     url: 'http://radio.stereoscenic.com/asp-s',
     tags: ['ambient', 'sleep', 'relaxation'],
     site: 'https://ambientsleepingpill.com/'
-  }
+  },
+  
+  // RadioJAZZ.FM
+  // 'radiojazz': {
+  //   url: 'http://radiojazz.fm:8000/',
+  //   tags: ['jazz', 'poland'],
+  //   site: 'https://radiojazz.fm/'
+  // },
+  
+  // Radio Zinzine
+  // 'radiozinzine': {
+  //   url: 'http://live.francra.org:8000/radiozinzine',
+  //   tags: ['fr', 'associative', 'alternative'],
+  //   site: 'https://www.radiozinzine.org/'
+  // },
+  
+  // Radio Grenouille
+  // 'radiogrenouille': {
+  //   url: 'http://live.francra.org:8000/radiogrenouille',
+  //   tags: ['fr', 'marseille', 'cultural'],
+  //   site: 'https://www.radiogrenouille.com/'
+  // },
+  
+  // Radio Canut
+  // 'radiocanut': {
+  //   url: 'http://live.francra.org:8000/radiocanut',
+  //   tags: ['fr', 'lyon', 'alternative'],
+  //   site: 'https://www.radiocanut.org/'
+  // },
+  
+  // Radio Libertaire
+  // 'radiolibertaire': {
+  //   url: 'http://live.francra.org:8000/radiolibertaire',
+  //   tags: ['fr', 'paris', 'anarchist'],
+  //   site: 'https://www.radio-libertaire.net/'
+  // },
+  
+  // Radio Campus Lille
+  // 'radiocampuslille': {
+  //   url: 'http://live.francra.org:8000/radiocampuslille',
+  //   tags: ['fr', 'lille', 'student'],
+  //   site: 'https://www.campuslille.com/'
+  // },
+  
+  // Couleur 3
+  // 'couleur3': {
+  //   url: 'https://stream.srg-ssr.ch/m/couleur3/mp3_128',
+  //   tags: ['ch', 'switzerland', 'alternative'],
+  //   site: 'https://www.rts.ch/couleur3/'
+  // },
+  
+  // Neringa FM
+  // 'neringa': {
+  //   url: 'http://streamer.midiaudio.com:80/neringa',
+  //   tags: ['lt', 'eclectic', 'chill'],
+  //   site: 'https://www.neringafm.lt/'
+  // },
+  
+  // Vikerraadio
+  // 'vikerraadio': {
+  //   url: 'https://icecast.err.ee/vikerraadio',
+  //   tags: ['ee', 'estonia', 'news'],
+  //   site: 'https://vikerraadio.err.ee/'
+  // }
 };
 
 // Broken channels (for reference - commented out in channels.coffee.md)
