@@ -5,8 +5,309 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Radio Guaka</title>
   <link rel="icon" type="image/png" href="favicon.ico">
-  <link rel="stylesheet" href="style.css">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    html, body {
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+      color: #e0e0e0;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding-bottom: 100px; /* Space for fixed footer */
+    }
+
+    header {
+      padding: 30px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    header .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header h2 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      font-size: 24px;
+      font-weight: 300;
+      color: #fff;
+    }
+
+    header h2 .logo-icon {
+      font-size: 48px;
+      line-height: 1;
+      display: inline-block;
+    }
+
+    header h2 strike {
+      color: #666;
+      text-decoration: line-through;
+    }
+
+    header audio {
+      width: 100%;
+      max-width: 600px;
+      margin-top: 10px;
+    }
+
+    header > div > div {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-top: 15px;
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    #networkState, #readyState {
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      padding: 4px 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    article {
+      padding: 40px 0;
+    }
+
+    #channels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    /* Button styles - modernized */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 20px;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 1.5;
+      text-align: center;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      border: none;
+      border-radius: 8px;
+      text-decoration: none;
+      color: white;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-large {
+      padding: 14px 24px;
+      font-size: 18px;
+      border-radius: 10px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #5aa0f2 0%, #458acd 100%);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+    }
+
+    .btn-success:hover {
+      background: linear-gradient(135deg, #62d42a 0%, #48ae1d 100%);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
+    }
+
+    .btn-danger:hover {
+      background: linear-gradient(135deg, #ff5d5f 0%, #df2332 100%);
+    }
+
+    .channel {
+      text-transform: lowercase;
+      letter-spacing: 0.5px;
+    }
+
+    h1 {
+      margin: 30px 0 20px 0;
+      font-size: 36px;
+      font-weight: 300;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h1 span {
+      font-weight: 400;
+      text-transform: lowercase;
+      letter-spacing: 1px;
+    }
+
+    #metadata {
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    #metadata a {
+      color: #ffd700;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 12px;
+      background: rgba(255, 215, 0, 0.1);
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    #metadata a:hover {
+      background: rgba(255, 215, 0, 0.2);
+      transform: translateY(-1px);
+    }
+
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 15px 0;
+      background: rgba(20, 20, 20, 0.95);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 1000;
+    }
+
+    footer .container {
+      padding: 10px 20px;
+    }
+
+    footer p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #aaa;
+      text-align: center;
+    }
+
+    footer a {
+      color: #ffd700;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    footer a:hover {
+      color: #ffed4e;
+      text-decoration: underline;
+    }
+
+    footer strong {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    /* Welcome message */
+    .welcome {
+      padding: 60px 20px;
+      text-align: center;
+      color: #bbb;
+      font-size: 18px;
+      line-height: 1.8;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .welcome::before {
+      content: "🎵";
+      display: block;
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 0 15px;
+      }
+      
+      header h2 {
+        font-size: 20px;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      header h2 img {
+        height: 50px;
+      }
+      
+      #channels {
+        justify-content: center;
+        gap: 8px;
+      }
+      
+      .btn-large {
+        padding: 12px 18px;
+        font-size: 16px;
+      }
+      
+      h1 {
+        font-size: 28px;
+      }
+      
+      footer p {
+        font-size: 11px;
+        line-height: 1.6;
+      }
+      
+      .welcome {
+        padding: 40px 15px;
+        font-size: 16px;
+      }
+    }
+
+    /* Smooth transitions */
+    * {
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+  </style>
 </head>
 <body x-data="radioApp()" x-init="init()">
   <div class="container">
@@ -64,9 +365,6 @@
               <template x-if="currentChannelData.site">
                 <a :href="currentChannelData.site" target="_blank" x-text="currentChannelData.site"></a>
               </template>
-              <template x-if="currentChannelData.facebook">
-                <a :href="currentChannelData.facebook" target="_blank">📘 Facebook</a>
-              </template>
             </div>
           </div>
         </template>
@@ -90,17 +388,240 @@
           or Alt key plus first letter of the name. ⏹ space bar.
 
           &mdash;
-          <strong>Radio Guaka</strong> is a convenient way to listen to quality <a target="_blank" href="https://moneyless.org/tags/advertising">ad free</a> internet radio streams.
-          &mdash;
           <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
         </p>
       </div>
     </footer>
   </div>
 
-  <script src="channels.js"></script>
-  <script src="app.js"></script>
   <script>
+    // Active channels
+    const channels = {
+      // SomaFM streams
+      'cliqhop': { tags: ['soma', 'idm'] },
+      'secretagent': { tags: ['soma'] },
+      'illstreet': { tags: ['soma'] },
+      'spacestation': { tags: ['soma'] },
+      'doomed': { tags: ['soma'] },
+      'missioncontrol': { tags: ['soma'] },
+      'beatblender': { tags: ['soma'] },
+      'bootliquor': { tags: ['soma'] },
+      'brfm': { tags: ['soma', 'burningman'] },
+      'covers': { tags: ['soma'] },
+      'digitalis': { tags: ['soma', 'indie'] },
+      'dronezone': { tags: ['soma'] },
+      'groovesalad': { tags: ['soma', 'indie'] },
+      'indiepop': { tags: ['soma', 'indie'] },
+      'lush': { tags: ['soma', 'female'] },
+      'poptron': { tags: ['soma'] },
+      'suburbsofgoa': { tags: ['soma', 'world'] },
+      'u80s': { tags: ['soma'] },
+      'sf1033': { tags: ['soma'] },
+      'dubstep': { tags: ['soma'] },
+      
+      // Malian music
+      'wassoulou': {
+        url: 'http://listen.radionomy.com/radio-wassoulou-internationale',
+        tags: ['mali', 'africa']
+      },
+      
+      // Paradise
+      'paradise': {
+        url: 'http://stream-uk1.radioparadise.com/mp3-128',
+        tags: ['US', 'rock', 'eclectic'],
+        site: 'https://www.radioparadise.com/'
+      },
+      
+      // French excellence
+      'meuh': {
+        url: 'http://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3',
+        tags: ['fr', 'eclectic', 'paris'],
+        site: 'https://www.radiomeuh.com/'
+      }
+    };
+
+    // Network and ready state mappings
+    const networkStates = {
+      0: 'empty',
+      1: 'idle',
+      2: 'loading',
+      3: 'no source'
+    };
+
+    const readyStates = {
+      0: 'nothing',
+      1: 'metadata',
+      2: 'current',
+      3: 'future',
+      4: 'enough'
+    };
+
+    // Player class
+    class RadioPlayer {
+      constructor() {
+        this.readyState = null;
+        this.networkState = null;
+        
+        // Check status every 7 seconds
+        setInterval(() => {
+          if (this.audioTag()) {
+            this.checkStatus();
+          }
+        }, 7000);
+      }
+      
+      audioTag() {
+        return document.getElementById('player');
+      }
+      
+      play() {
+        const audio = this.audioTag();
+        if (audio) {
+          audio.play();
+        }
+      }
+      
+      setChannel(channel, appState) {
+        this.readyState = null;
+        this.networkState = null;
+        
+        if (appState) {
+          appState.currentChannel = channel;
+        }
+        
+        const audio = this.audioTag();
+        if (audio) {
+          audio.pause();
+        }
+        
+        setTimeout(() => {
+          if (audio) {
+            audio.load();
+            this.play();
+          }
+        }, 10);
+      }
+      
+      checkStatus() {
+        const audio = this.audioTag();
+        if (!audio) return;
+        
+        const newNetworkState = audio.networkState;
+        const newReadyState = audio.readyState;
+        this.play();
+        
+        // Check if we need to restart (stuck state)
+        if (this.readyState !== null &&
+            newReadyState === this.readyState &&
+            [0, 1].indexOf(newReadyState) > -1 &&
+            newNetworkState !== 2) {
+          console.log('Restart channel');
+          this.readyState = null;
+          this.networkState = null;
+          const currentChannel = window.appState?.currentChannel || '';
+          this.setChannel(currentChannel, window.appState);
+          if (audio) {
+            audio.load();
+            this.play();
+          }
+        } else {
+          // Update status display
+          const readyStateEl = document.getElementById('readyState');
+          const networkStateEl = document.getElementById('networkState');
+          
+          if (newReadyState !== null && readyStateEl) {
+            readyStateEl.textContent = readyStates[newReadyState] || '';
+          }
+          if (newNetworkState !== null && networkStateEl) {
+            networkStateEl.textContent = networkStates[newNetworkState] || '';
+          }
+          
+          this.readyState = newReadyState;
+          this.networkState = newNetworkState;
+        }
+      }
+    }
+
+    // Router - using hash-based routing for file:// compatibility
+    class Router {
+      constructor(player, appState) {
+        this.player = player;
+        this.appState = appState;
+        this.init();
+      }
+      
+      init() {
+        // Handle hash changes (browser back/forward)
+        window.addEventListener('hashchange', () => {
+          this.handleRoute();
+        });
+        
+        // Handle initial load
+        this.handleRoute();
+      }
+      
+      navigate(path) {
+        // Convert path format (/channel or /) to hash format (#channel or #)
+        const hash = path === '/' ? '#' : '#' + path.slice(1);
+        // Use replace to avoid adding to history if same hash
+        if (window.location.hash !== hash) {
+          window.location.hash = hash;
+        } else {
+          // If hash is already set, just handle the route
+          this.handleRoute();
+        }
+      }
+      
+      handleRoute() {
+        // Get channel from hash (remove #)
+        const hash = window.location.hash.slice(1); // Remove #
+        const channel = hash || '';
+        
+        if (this.appState) {
+          this.appState.currentChannel = channel;
+        }
+        
+        if (channel) {
+          document.title = channel + ' | Radio Guaka';
+          this.player.setChannel(channel, this.appState);
+        } else {
+          document.title = 'Radio Guaka';
+          this.player.setChannel('', this.appState);
+        }
+      }
+    }
+
+    // Helper functions
+    function volChange(delta) {
+      const audio = document.getElementById('player');
+      if (audio) {
+        audio.volume = Math.max(0, Math.min(audio.volume + delta, 1));
+      }
+    }
+
+    function nextChannel(offset, appState, router) {
+      const channelKeys = Object.keys(channels).sort();
+      channelKeys.unshift(''); // Silence at beginning
+      
+      const currentIndex = channelKeys.indexOf(appState.currentChannel || '');
+      let newIndex = currentIndex + offset;
+      
+      if (newIndex >= channelKeys.length) {
+        newIndex = 0;
+      }
+      if (newIndex < 0) {
+        newIndex = channelKeys.length - 1;
+      }
+      
+      const newChannel = channelKeys[newIndex];
+      if (newChannel === '') {
+        router.navigate('/');
+      } else {
+        router.navigate('/' + newChannel);
+      }
+    }
+
+    // Alpine.js app
     function radioApp() {
       return {
         currentChannel: '',
@@ -108,12 +629,6 @@
         init() {
           // Make appState available globally for app.js
           window.appState = this;
-          
-          // Verify channels are loaded
-          if (typeof channels === 'undefined') {
-            console.error('channels.js not loaded! Make sure channels.js is loaded before this script.');
-            return;
-          }
           
           console.log('Loaded channels:', Object.keys(channels).length);
           
@@ -129,13 +644,11 @@
         },
         
         navigateTo(hash) {
-          if (window.router) {
-            // Convert hash format to path format for router.navigate()
-            const path = hash === '#' ? '/' : '/' + hash.slice(1);
-            window.router.navigate(path);
-          } else {
+          // Directly set hash - works with both file:// and http://
+          if (window.location.hash !== hash) {
             window.location.hash = hash;
           }
+          // Router will handle the hashchange event
         },
         
         get sortedChannels() {
@@ -161,8 +674,7 @@
           
           // Set SomaFM metadata if needed
           if (channel.tags && channel.tags.indexOf('soma') > -1) {
-            data.site = 'http://somafm.com/';
-            data.facebook = 'https://facebook.com/somafm';
+            data.site = 'https://somafm.com/';
           }
           
           return data;
@@ -181,14 +693,70 @@
           
           // SomaFM streams use a pattern
           if (channel.tags && channel.tags.indexOf('soma') > -1) {
-            return 'http://ice.somafm.com/' + this.currentChannel;
+            return 'https://ice.somafm.com/' + this.currentChannel;
           }
           
           return channel.url || null;
         }
       };
     }
+
+    // Initialize app when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait for Alpine.js to initialize appState
+      const initApp = () => {
+        if (!window.appState) {
+          setTimeout(initApp, 50);
+          return;
+        }
+        
+        // Initialize player
+        const player = new RadioPlayer();
+        window.radioPlayer = player;
+        
+        // Initialize router
+        const router = new Router(player, window.appState);
+        window.router = router;
+        
+        // Keyboard shortcuts
+        document.body.addEventListener('keydown', (e) => {
+          switch (e.keyCode) {
+            case 39: // Right arrow
+              nextChannel(1, window.appState, router);
+              break;
+            case 37: // Left arrow
+              nextChannel(-1, window.appState, router);
+              break;
+            case 38: // Up arrow
+              e.preventDefault();
+              volChange(0.1);
+              break;
+            case 40: // Down arrow
+              e.preventDefault();
+              volChange(-0.1);
+              break;
+            case 32: // Space
+              e.preventDefault();
+              router.navigate('/');
+              break;
+            default:
+              // Alt + letter to jump to channel
+              if (e.keyCode >= 65 && e.keyCode <= 90 && e.altKey) {
+                const char = String.fromCharCode(e.keyCode + 32);
+                const channelKeys = Object.keys(channels).sort();
+                for (const channel of channelKeys) {
+                  if (channel[0] === char) {
+                    router.navigate('/' + channel);
+                    break;
+                  }
+                }
+              }
+          }
+        });
+      };
+      
+      initApp();
+    });
   </script>
 </body>
 </html>
-
