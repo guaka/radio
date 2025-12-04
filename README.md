@@ -5,12 +5,10 @@ Radio Guaka
 
 ## About
 
-This is a static site that can be deployed on GitHub Pages. It was converted from a Meteor.js application to a simpler static site using Alpine.js for reactivity.
-
-**Note:** The original Meteor.js codebase is preserved in the git history. The old Meteor-specific files (in `client/` and `server/` directories) are no longer used but kept for reference. The current implementation uses:
+This is a static site that can be deployed on GitHub Pages. The current implementation uses:
 - Alpine.js for reactivity
-- Vanilla JavaScript (converted from CoffeeScript)
-- Plain CSS (converted from Bootstrap)
+- Vanilla JavaScript
+- Plain CSS
 - History API for routing
 
 ## Channels
@@ -44,7 +42,7 @@ Then open http://localhost:8000 in your browser.
 4. Select the root directory (`/`)
 5. Save
 
-The site will be available at `https://username.github.io/radio-meteor/`
+The site will be available at `https://username.github.io/radio-guaka/`
 
 The `404.html` file enables History API routing on GitHub Pages by redirecting all routes to `index.html`.
 

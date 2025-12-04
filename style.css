@@ -1,149 +1,198 @@
 html, body {
-  background-color: black;
-  color: white;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  color: #e0e0e0;
   margin: 0;
   padding: 0;
-  font-family: Sans-Serif;
-  font-size: 90%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
 }
 
 .container {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 15px;
+  padding: 0 20px;
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  padding-bottom: 80px; /* Space for fixed footer */
+  padding-bottom: 100px; /* Space for fixed footer */
 }
 
 header {
-  padding: 20px 0;
-  border-bottom: 1px solid #333;
+  padding: 30px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+header .container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 header h2 {
   margin: 0;
-  float: left;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 24px;
+  font-weight: 300;
+  color: #fff;
+}
+
+header h2 .logo-icon {
+  font-size: 48px;
+  line-height: 1;
+  display: inline-block;
+}
+
+header h2 strike {
+  color: #666;
+  text-decoration: line-through;
 }
 
 header audio {
-  clear: both;
-  margin-top: 10px;
   width: 100%;
-  max-width: 500px;
+  max-width: 600px;
+  margin-top: 10px;
 }
 
 header > div > div {
-  margin-top: 10px;
-  margin-left: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 15px;
+  font-size: 14px;
+  color: #aaa;
 }
 
 #networkState, #readyState {
-  margin: 0 10px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
 }
 
 article {
-  padding: 20px 0;
+  padding: 40px 0;
 }
 
 #channels {
-  clear: both;
-  margin-bottom: 20px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 40px;
 }
 
-/* Button styles - converted from Bootstrap */
+/* Button styles - modernized */
 .btn {
-  display: inline-block;
-  padding: 10px 16px;
-  margin-bottom: 0;
-  font-size: 18px;
-  font-weight: normal;
-  line-height: 1.42857143;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
   text-align: center;
   white-space: nowrap;
-  vertical-align: middle;
   cursor: pointer;
   user-select: none;
-  background-image: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  border: none;
+  border-radius: 8px;
   text-decoration: none;
   color: white;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .btn:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .btn-large {
-  padding: 14px 20px;
-  font-size: 20px;
-  line-height: 1.33;
-  border-radius: 6px;
+  padding: 14px 24px;
+  font-size: 18px;
+  border-radius: 10px;
 }
 
 .btn-primary {
-  color: #fff;
-  background-color: #337ab7;
-  border-color: #2e6da4;
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
 }
 
 .btn-primary:hover {
-  background-color: #286090;
-  border-color: #204d74;
+  background: linear-gradient(135deg, #5aa0f2 0%, #458acd 100%);
 }
 
 .btn-success {
-  color: #fff;
-  background-color: #5cb85c;
-  border-color: #4cae4c;
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
 }
 
 .btn-success:hover {
-  background-color: #449d44;
-  border-color: #398439;
+  background: linear-gradient(135deg, #62d42a 0%, #48ae1d 100%);
 }
 
 .btn-danger {
-  color: #fff;
-  background-color: #d9534f;
-  border-color: #d43f3a;
+  background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
 }
 
 .btn-danger:hover {
-  background-color: #c9302c;
-  border-color: #ac2925;
+  background: linear-gradient(135deg, #ff5d5f 0%, #df2332 100%);
 }
 
 .channel {
-  margin-top: 8px;
+  text-transform: lowercase;
+  letter-spacing: 0.5px;
 }
 
 h1 {
-  margin: 20px 0;
-  font-size: 28px;
+  margin: 30px 0 20px 0;
+  font-size: 36px;
+  font-weight: 300;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+h1 span {
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: 1px;
 }
 
 #metadata {
-  margin-top: 10px;
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
 #metadata a {
-  color: #d8a24d;
+  color: #ffd700;
   text-decoration: none;
-  margin-right: 15px;
+  font-size: 14px;
+  padding: 6px 12px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 #metadata a:hover {
-  text-decoration: underline;
+  background: rgba(255, 215, 0, 0.2);
+  transform: translateY(-1px);
 }
 
 footer {
@@ -151,58 +200,101 @@ footer {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 10px 0;
-  background-color: #333;
-  border-top: 1px solid #444;
+  padding: 15px 0;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 1000;
 }
 
 footer .container {
-  padding: 10px 15px;
+  padding: 10px 20px;
 }
 
 footer p {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #aaa;
+  text-align: center;
 }
 
 footer a {
-  color: #d8a24d;
+  color: #ffd700;
   text-decoration: none;
+  transition: color 0.2s ease;
 }
 
 footer a:hover {
+  color: #ffed4e;
   text-decoration: underline;
+}
+
+footer strong {
+  color: #fff;
+  font-weight: 500;
 }
 
 /* Welcome message */
 .welcome {
-  padding: 20px;
+  padding: 60px 20px;
   text-align: center;
+  color: #bbb;
+  font-size: 18px;
+  line-height: 1.8;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.welcome::before {
+  content: "🎵";
+  display: block;
+  font-size: 48px;
+  margin-bottom: 20px;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
   .container {
-    padding: 0 10px;
+    padding: 0 15px;
   }
   
   header h2 {
-    float: none;
+    font-size: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  header h2 img {
+    height: 50px;
   }
   
   #channels {
     justify-content: center;
+    gap: 8px;
   }
   
   .btn-large {
-    padding: 10px 16px;
+    padding: 12px 18px;
     font-size: 16px;
+  }
+  
+  h1 {
+    font-size: 28px;
   }
   
   footer p {
     font-size: 11px;
+    line-height: 1.6;
+  }
+  
+  .welcome {
+    padding: 40px 15px;
+    font-size: 16px;
   }
 }
 
+/* Smooth transitions */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}

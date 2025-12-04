@@ -232,4 +232,3 @@ document.addEventListener('DOMContentLoaded', () => {
   
   initApp();
 });
-

@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Radio Guaka</title>
-  <link rel="icon" type="image/png" href="/favicon.ico">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" type="image/png" href="favicon.ico">
+  <link rel="stylesheet" href="style.css">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body x-data="radioApp()" x-init="init()">
@@ -13,21 +13,20 @@
     <!-- Player Header -->
     <header>
       <div class="container">
-        <h2 style="float:left">
-          <img src="/radio-meteor-wb.png" width="100" alt="Radio Meteor logo" /> 
-          radio <strike>meteor</strike> guaka
+        <h2>
+          <span class="logo-icon">📻</span>
+          radio guaka
         </h2>
 
         <template x-if="srcUrl">
           <div>
-            <audio preload id="player" controls>
-              <source :src="srcUrl" />
+            <audio preload="auto" id="player" controls :src="srcUrl" x-ref="audioPlayer">
             </audio>
 
             <div>
-              <span style="margin-left:15px">📶</span>
+              <span>📶</span>
               <span id="networkState"></span>
-              <span style="margin-left:15px">⏱</span>
+              <span>⏱</span>
               <span id="readyState"></span>
             </div>
           </div>
@@ -39,17 +38,18 @@
     <article>
       <div class="container">
         <div id="channels" style="clear:both">
-          <a href="/" 
-             @click.prevent="navigateTo('/')"
+          <a href="#" 
+             @click.prevent="navigateTo('#')"
              class="btn btn-large"
              :class="currentChannel ? 'btn-danger' : 'btn-success'"
-             id="stop">
-            ⏹
+             id="stop"
+             title="Stop">
+            ⏹ Stop
           </a>
           
           <template x-for="channel in sortedChannels" :key="channel.name">
-            <a :href="'/' + channel.name"
-               @click.prevent="navigateTo('/' + channel.name)"
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
                class="channel btn btn-large"
                :class="channel.playing ? 'btn-success' : 'btn-primary'">
               <span x-text="channel.name"></span>
@@ -59,13 +59,13 @@
 
         <template x-if="currentChannelData">
           <div>
-            <h1>▶ <span x-text="currentChannelData.name"></span></h1>
+            <h1><span x-text="currentChannelData.name"></span></h1>
             <div id="metadata">
               <template x-if="currentChannelData.site">
                 <a :href="currentChannelData.site" target="_blank" x-text="currentChannelData.site"></a>
               </template>
               <template x-if="currentChannelData.facebook">
-                <a :href="currentChannelData.facebook" target="_blank">📘</a>
+                <a :href="currentChannelData.facebook" target="_blank">📘 Facebook</a>
               </template>
             </div>
           </div>
@@ -92,17 +92,14 @@
           &mdash;
           <strong>Radio Guaka</strong> is a convenient way to listen to quality <a target="_blank" href="https://moneyless.org/tags/advertising">ad free</a> internet radio streams.
           &mdash;
-          Brought to you by <a target="_blank" href="http://guaka.org/">guaka</a>.
-          &mdash;
-          <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> free software,
-          <a target="_blank" href="https://github.com/guaka/radio-meteor/issues/new">feature requests welcome</a>
+          <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
         </p>
       </div>
     </footer>
   </div>
 
-  <script src="/channels.js"></script>
-  <script src="/app.js"></script>
+  <script src="channels.js"></script>
+  <script src="app.js"></script>
   <script>
     function radioApp() {
       return {
@@ -111,6 +108,14 @@
         init() {
           // Make appState available globally for app.js
           window.appState = this;
+          
+          // Verify channels are loaded
+          if (typeof channels === 'undefined') {
+            console.error('channels.js not loaded! Make sure channels.js is loaded before this script.');
+            return;
+          }
+          
+          console.log('Loaded channels:', Object.keys(channels).length);
           
           // Wait for router to be initialized by app.js
           const checkRouter = () => {
@@ -123,15 +128,21 @@
           checkRouter();
         },
         
-        navigateTo(path) {
+        navigateTo(hash) {
           if (window.router) {
+            // Convert hash format to path format for router.navigate()
+            const path = hash === '#' ? '/' : '/' + hash.slice(1);
             window.router.navigate(path);
           } else {
-            window.location.href = path;
+            window.location.hash = hash;
           }
         },
         
         get sortedChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
           return Object.keys(channels)
             .sort()
             .map(name => ({
@@ -159,6 +170,11 @@
         
         get srcUrl() {
           if (!this.currentChannel) return null;
+          
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return null;
+          }
           
           const channel = channels[this.currentChannel];
           if (!channel) return null;
