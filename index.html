@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radio Guaka</title>
+  <link rel="icon" type="image/png" href="/public/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="radioApp()" x-init="init()">
+  <div class="container">
+    <!-- Player Header -->
+    <header>
+      <div class="container">
+        <h2 style="float:left">
+          <img src="/public/radio-meteor-wb.png" width="100" alt="Radio Meteor logo" /> 
+          radio <strike>meteor</strike> guaka
+        </h2>
+
+        <template x-if="srcUrl">
+          <div>
+            <audio preload id="player" controls>
+              <source :src="srcUrl" />
+            </audio>
+
+            <div>
+              <span style="margin-left:15px">📶</span>
+              <span id="networkState"></span>
+              <span style="margin-left:15px">⏱</span>
+              <span id="readyState"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <article>
+      <div class="container">
+        <div id="channels" style="clear:both">
+          <a href="/" 
+             @click.prevent="navigateTo('/')"
+             class="btn btn-large"
+             :class="currentChannel ? 'btn-danger' : 'btn-success'"
+             id="stop">
+            ⏹
+          </a>
+          
+          <template x-for="channel in sortedChannels" :key="channel.name">
+            <a :href="'/' + channel.name"
+               @click.prevent="navigateTo('/' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name"></span>
+            </a>
+          </template>
+        </div>
+
+        <template x-if="currentChannelData">
+          <div>
+            <h1>▶ <span x-text="currentChannelData.name"></span></h1>
+            <div id="metadata">
+              <template x-if="currentChannelData.site">
+                <a :href="currentChannelData.site" target="_blank" x-text="currentChannelData.site"></a>
+              </template>
+              <template x-if="currentChannelData.facebook">
+                <a :href="currentChannelData.facebook" target="_blank">📘</a>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="!currentChannel">
+          <div class="welcome">
+            Welcome to Radio Guaka. Click on a channel to listen, use left
+            and right keys, or use Alt+letter to change channels.
+          </div>
+        </template>
+      </div>
+    </article>
+    
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+        <p>
+          ⌨ shortcuts:
+          Change volume ↑ ↓
+          Change channels ← →
+          or Alt key plus first letter of the name. ⏹ space bar.
+
+          &mdash;
+          <strong>Radio Guaka</strong> is a convenient way to listen to quality <a target="_blank" href="https://moneyless.org/tags/advertising">ad free</a> internet radio streams.
+          &mdash;
+          Brought to you by <a target="_blank" href="http://guaka.org/">guaka</a>.
+          &mdash;
+          <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> free software,
+          <a target="_blank" href="https://github.com/guaka/radio-meteor/issues/new">feature requests welcome</a>
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/channels.js"></script>
+  <script src="/app.js"></script>
+  <script>
+    function radioApp() {
+      return {
+        currentChannel: '',
+        
+        init() {
+          // Make appState available globally for app.js
+          window.appState = this;
+          
+          // Wait for router to be initialized by app.js
+          const checkRouter = () => {
+            if (window.router) {
+              window.router.handleRoute();
+            } else {
+              setTimeout(checkRouter, 50);
+            }
+          };
+          checkRouter();
+        },
+        
+        navigateTo(path) {
+          if (window.router) {
+            window.router.navigate(path);
+          } else {
+            window.location.href = path;
+          }
+        },
+        
+        get sortedChannels() {
+          return Object.keys(channels)
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
+        get currentChannelData() {
+          if (!this.currentChannel) return null;
+          
+          const channel = channels[this.currentChannel];
+          if (!channel) return null;
+          
+          const data = { ...channel, name: this.currentChannel };
+          
+          // Set SomaFM metadata if needed
+          if (channel.tags && channel.tags.indexOf('soma') > -1) {
+            data.site = 'http://somafm.com/';
+            data.facebook = 'https://facebook.com/somafm';
+          }
+          
+          return data;
+        },
+        
+        get srcUrl() {
+          if (!this.currentChannel) return null;
+          
+          const channel = channels[this.currentChannel];
+          if (!channel) return null;
+          
+          // SomaFM streams use a pattern
+          if (channel.tags && channel.tags.indexOf('soma') > -1) {
+            return 'http://ice.somafm.com/' + this.currentChannel;
+          }
+          
+          return channel.url || null;
+        }
+      };
+    }
+  </script>
+</body>
+</html>
+
