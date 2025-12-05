@@ -951,11 +951,11 @@
                 <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
                    onmouseover="this.style.color='#ffff00'"
                    onmouseout="this.style.color=''">
-                  <span x-text="currentChannelData.name"></span>
+                  <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
                 </a>
               </template>
               <template x-if="!currentChannelData.site">
-                <span x-text="currentChannelData.name"></span>
+                <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
               </template>
             </h2>
           </template>
@@ -984,6 +984,28 @@
                class="channel btn btn-large"
                :class="channel.playing ? 'btn-success' : 'btn-primary'">
               <span x-text="channel.name"></span>
+            </a>
+          </template>
+          
+          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Other Stations</h2>
+          
+          <template x-for="channel in otherStationsChannels" :key="channel.name">
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name.replace(/_/g, ' ')"></span>
+            </a>
+          </template>
+          
+          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Radio Paradise</h2>
+          
+          <template x-for="channel in paradiseChannels" :key="channel.name">
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name.replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
             </a>
           </template>
           
@@ -1033,7 +1055,6 @@
           Change channels ← →
           or press first letter of the name. ⏸ space bar to play/pause.
 
-          &mdash;
           <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
         </p>
       </div>
@@ -1195,8 +1216,10 @@
         const newNetworkState = audio.networkState;
         const newReadyState = audio.readyState;
         
-        // Only auto-play if user hasn't manually paused
-        if (!window.appState || !window.appState.userPaused) {
+        // Only auto-play if audio is paused, user hasn't manually paused, and we have a channel
+        if (audio.paused && 
+            (!window.appState || !window.appState.userPaused) &&
+            window.appState?.currentChannel) {
           this.play();
         }
         
@@ -1267,6 +1290,7 @@
           if (!channel) {
             const audio = document.getElementById('player');
             if (audio) {
+              this.appState._isProgrammaticPause = true;
               audio.pause();
               this.appState.userPaused = true;
             }
@@ -1310,11 +1334,29 @@
       // Get channels in visual order (as they appear on screen)
       const visualOrder = [];
       
-      // Other channels first
+      // Other Stations first
+      const otherStationsChannels = Object.keys(channels)
+        .filter(name => {
+          const channel = channels[name];
+          return channel.tags && channel.tags.indexOf('other') > -1;
+        })
+        .sort();
+      visualOrder.push(...otherStationsChannels);
+      
+      // Then Paradise channels
+      const paradiseChannels = Object.keys(channels)
+        .filter(name => {
+          const channel = channels[name];
+          return channel.tags && channel.tags.indexOf('paradise') > -1;
+        })
+        .sort();
+      visualOrder.push(...paradiseChannels);
+      
+      // Then other channels (without special tags)
       const otherChannels = Object.keys(channels)
         .filter(name => {
           const channel = channels[name];
-          return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1);
+          return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1 && channel.tags.indexOf('other') === -1 && channel.tags.indexOf('paradise') === -1);
         })
         .sort();
       visualOrder.push(...otherChannels);
@@ -1378,6 +1420,7 @@
         duration: 0,
         volume: 1,
         userPaused: false,
+        _isProgrammaticPause: false,
         
         init() {
           // Make appState available globally for app.js
@@ -1426,8 +1469,12 @@
             };
             this._pauseListener = () => {
               this.isPlaying = false;
-              // Don't set userPaused here - only set it when user explicitly pauses
-              // This allows system pauses (like navigating to empty hash) to work
+              // If pause was not programmatic (e.g., user paused via AirPods), set userPaused
+              if (!this._isProgrammaticPause) {
+                this.userPaused = true;
+              }
+              // Reset the flag after handling the pause event
+              this._isProgrammaticPause = false;
             };
             audio.addEventListener('play', this._playListener);
             audio.addEventListener('pause', this._pauseListener);
@@ -1465,6 +1512,7 @@
             this.userPaused = false;
             audio.play();
           } else {
+            this._isProgrammaticPause = true;
             this.userPaused = true;
             audio.pause();
           }
@@ -1577,6 +1625,40 @@
             }));
         },
         
+        get otherStationsChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              return channel.tags && channel.tags.indexOf('other') > -1;
+            })
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
+        get paradiseChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              return channel.tags && channel.tags.indexOf('paradise') > -1;
+            })
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
         get otherChannels() {
           if (typeof channels === 'undefined') {
             console.error('channels is not defined');
@@ -1585,7 +1667,7 @@
           return Object.keys(channels)
             .filter(name => {
               const channel = channels[name];
-              return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1);
+              return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1 && channel.tags.indexOf('other') === -1 && channel.tags.indexOf('paradise') === -1);
             })
             .sort()
             .map(name => ({

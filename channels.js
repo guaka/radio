@@ -51,31 +51,62 @@ const channels = {
   'xmasinfrisko': { tags: ['soma'] },
   'xmasrocks': { tags: ['soma'] },
   
-  // Malian music
-  'wassoulou': {
-    url: 'http://listen.radionomy.com/radio-wassoulou-internationale',
-    tags: ['mali', 'africa']
-  },
-  
-  // Paradise
+  // Radio Paradise
   'paradise': {
     url: 'http://stream-uk1.radioparadise.com/mp3-128',
-    tags: ['US', 'rock', 'eclectic'],
+    tags: ['paradise', 'US', 'rock', 'eclectic'],
+    site: 'https://www.radioparadise.com/'
+  },
+  'paradise_mellow': {
+    url: 'http://stream.radioparadise.com/mellow-mp3-128',
+    tags: ['paradise', 'US', 'mellow', 'acoustic'],
+    site: 'https://www.radioparadise.com/'
+  },
+  'paradise_rock': {
+    url: 'http://stream.radioparadise.com/rock-mp3-128',
+    tags: ['paradise', 'US', 'rock'],
+    site: 'https://www.radioparadise.com/'
+  },
+  'paradise_global': {
+    url: 'http://stream.radioparadise.com/global-mp3-128',
+    tags: ['paradise', 'US', 'global', 'eclectic'],
+    site: 'https://www.radioparadise.com/'
+  },
+  'paradise_world': {
+    url: 'http://stream.radioparadise.com/world-mp3-128',
+    tags: ['paradise', 'US', 'world'],
+    site: 'https://www.radioparadise.com/'
+  },
+  'paradise_eclectic': {
+    url: 'http://stream.radioparadise.com/eclectic-mp3-128',
+    tags: ['paradise', 'US', 'eclectic'],
     site: 'https://www.radioparadise.com/'
   },
   
-  // French excellence
+  // Other Stations
+  'wassoulou': {
+    url: 'http://listen.radionomy.com/radio-wassoulou-internationale',
+    tags: ['other', 'mali', 'africa']
+  },
   'meuh': {
     url: 'https://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3',
-    tags: ['fr', 'eclectic', 'paris'],
+    tags: ['other', 'fr', 'eclectic', 'paris'],
     site: 'https://www.radiomeuh.com/'
   },
-  
-  // Ambient Sleeping Pill
   'ambientsleepingpill': {
     url: 'http://radio.stereoscenic.com/asp-s',
-    tags: ['ambient', 'sleep', 'relaxation'],
+    tags: ['other', 'ambient', 'sleep', 'relaxation'],
     site: 'https://ambientsleepingpill.com/'
+  },
+  'amambient': {
+    url: 'http://radio.stereoscenic.com/ama-s',
+    tags: ['other', 'ambient', 'bright', 'daytime'],
+    site: 'https://amambient.com/'
+  },
+  'ambientmodern': {
+    url: 'http://radio.stereoscenic.com/mod-s',
+    tags: ['other', 'ambient', 'modern'],
+    site: 'https://ambientmodern.com/'
   },
   
   // FIP - Radio France
@@ -198,7 +229,7 @@ const channels = {
   },
   'flux_fm_fluxkompensator': {
     url: 'http://streams.fluxfm.de/fluxkompensator/mp3-320/audio/',
-    tags: ['alternative', 'indie', 'berlin', 'de'],
+    tags: ['flux', 'alternative', 'indie', 'berlin', 'de'],
     site: 'https://www.fluxfm.de'
   },
   'flux_fm_lounge': {
