@@ -7,159 +7,339 @@
   <link rel="icon" type="image/png" href="favicon.ico">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+    
     html {
       font-size: 16px;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    /* Scan lines overlay for retro-futuristic effect - static to prevent flickering */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 255, 255, 0.02) 0px,
+        rgba(0, 255, 255, 0.02) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    /* Glitch effect overlay - static to prevent flickering */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        linear-gradient(90deg, transparent 50%, rgba(0, 255, 255, 0.01) 50%),
+        linear-gradient(0deg, transparent 50%, rgba(255, 0, 255, 0.01) 50%);
+      background-size: 2px 2px;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.2;
     }
     
     html, body {
-      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+      background: 
+        radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.05) 0%, transparent 50%),
+        linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+      background-attachment: fixed;
+      background-color: #0a0a0a;
       color: #e0e0e0;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
       font-size: 1rem;
       line-height: 1.6;
       height: 100vh;
       overflow: hidden;
+      position: relative;
     }
 
     .container {
       width: 100%;
       max-width: 100%;
-      margin: 0 auto;
+      margin: 0;
       padding: 0 clamp(8px, 1.5vw, 15px);
       box-sizing: border-box;
       flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      position: relative;
+      z-index: 10;
     }
 
     body {
       margin: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
       position: fixed;
       width: 100%;
+      top: 0;
+      left: 0;
     }
 
     header {
-      padding: clamp(8px, 1.5vh, 15px) 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(0, 0, 0, 0.3);
+      padding: 0;
+      margin: 0;
+      border-bottom: 2px solid rgba(0, 255, 255, 0.4);
+      background: 
+        linear-gradient(180deg, rgba(20, 20, 30, 0.95) 0%, rgba(10, 10, 20, 0.98) 100%),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 255, 255, 0.05) 2px,
+          rgba(0, 255, 255, 0.05) 4px
+        );
       backdrop-filter: blur(10px);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(0, 255, 255, 0.3),
+        0 0 40px rgba(0, 255, 255, 0.2),
+        0 0 60px rgba(0, 255, 255, 0.1);
+      position: relative;
+      z-index: 10;
+    }
+    
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, 
+        transparent 0%,
+        rgba(0, 255, 255, 1) 20%,
+        rgba(255, 0, 255, 1) 50%,
+        rgba(0, 255, 255, 1) 80%,
+        transparent 100%
+      );
+      box-shadow: 
+        0 0 10px rgba(0, 255, 255, 0.8),
+        0 0 20px rgba(0, 255, 255, 0.5),
+        0 0 30px rgba(255, 0, 255, 0.4);
+      z-index: 1;
     }
 
     header .container {
       display: flex;
       flex-direction: row;
-      align-items: flex-start;
+      align-items: center;
       gap: clamp(8px, 2vw, 12px);
       justify-content: space-between;
+      padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 15px) 0 clamp(8px, 1.5vw, 15px);
     }
     
     header .volume-control {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
       margin-left: auto;
+      padding: 8px 12px;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.8) 0%, rgba(10, 10, 30, 0.9) 100%);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 6px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 15px rgba(0, 255, 255, 0.3),
+        0 0 25px rgba(0, 255, 255, 0.2);
+    }
+    
+    header .volume-control span {
+      font-size: clamp(14px, 2.5vw, 18px);
+      filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.9)) drop-shadow(0 0 16px rgba(0, 255, 255, 0.5));
     }
     
     header .volume-control input[type="range"] {
       -webkit-appearance: slider-vertical;
+      appearance: slider-vertical;
       writing-mode: bt-lr;
-      width: 60px;
-      height: 4px;
+      width: 80px;
+      height: 6px;
       transform: rotate(-90deg);
       transform-origin: center;
-      margin: 20px 0;
+      margin: 25px 0;
       padding: 0;
       cursor: pointer;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 2px;
+      background: 
+        linear-gradient(90deg, 
+          rgba(0, 0, 0, 0.8) 0%,
+          rgba(0, 255, 255, 0.2) 50%,
+          rgba(0, 0, 0, 0.8) 100%
+        );
+      border-radius: 3px;
       outline: none;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      box-shadow: 
+        inset 0 1px 3px rgba(0, 0, 0, 0.5),
+        0 0 8px rgba(0, 255, 255, 0.2);
     }
     
     header .volume-control input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 12px;
-      height: 12px;
-      background: #4a90e2;
+      width: 16px;
+      height: 16px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
       border-radius: 50%;
       cursor: pointer;
+      box-shadow: 
+        0 0 15px rgba(0, 255, 255, 1),
+        0 0 30px rgba(0, 255, 255, 0.7),
+        0 0 45px rgba(0, 255, 255, 0.4),
+        inset 0 1px 2px rgba(255, 255, 255, 0.4);
+      transition: all 0.2s ease;
+    }
+    
+    header .volume-control input[type="range"]::-webkit-slider-thumb:hover {
+      box-shadow: 
+        0 0 20px rgba(0, 255, 255, 1),
+        0 0 40px rgba(0, 255, 255, 0.8),
+        0 0 60px rgba(0, 255, 255, 0.5),
+        inset 0 1px 2px rgba(255, 255, 255, 0.5);
+      transform: scale(1.1);
     }
     
     header .volume-control input[type="range"]::-moz-range-thumb {
-      width: 12px;
-      height: 12px;
-      background: #4a90e2;
+      width: 16px;
+      height: 16px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
       border-radius: 50%;
       cursor: pointer;
-      border: none;
+      box-shadow: 
+        0 0 15px rgba(0, 255, 255, 1),
+        0 0 30px rgba(0, 255, 255, 0.7),
+        0 0 45px rgba(0, 255, 255, 0.4);
     }
 
     header h1 {
       margin: 0;
       display: flex;
       align-items: center;
-      gap: clamp(6px, 1.5vw, 10px);
-      font-size: clamp(16px, 3.5vw, 20px);
-      font-weight: 300;
-      color: #fff;
+      gap: clamp(8px, 2vw, 12px);
+      font-size: clamp(18px, 4vw, 24px);
+      font-weight: 700;
+      font-family: 'Orbitron', 'Share Tech Mono', monospace;
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 1),
+        0 0 20px rgba(0, 255, 255, 0.8),
+        0 0 30px rgba(0, 255, 255, 0.6),
+        0 0 40px rgba(0, 255, 255, 0.4),
+        2px 2px 4px rgba(0, 0, 0, 0.8);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      position: relative;
+      line-height: 1.2;
     }
 
     header h1 .logo-icon {
-      font-size: clamp(24px, 6vw, 36px);
+      font-size: clamp(28px, 7vw, 42px);
       line-height: 1;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      filter: drop-shadow(0 0 10px rgba(255, 200, 0, 1)) drop-shadow(0 0 20px rgba(255, 200, 0, 0.6)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.3));
+      animation: radio-pulse 3s ease-in-out infinite;
+    }
+    
+    @keyframes radio-pulse {
+      0%, 100% { 
+        transform: scale(1); 
+        filter: drop-shadow(0 0 10px rgba(255, 200, 0, 1)) drop-shadow(0 0 20px rgba(255, 200, 0, 0.6)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.3));
+      }
+      50% { 
+        transform: scale(1.05); 
+        filter: drop-shadow(0 0 15px rgba(255, 200, 0, 1)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.8)) drop-shadow(0 0 45px rgba(255, 200, 0, 0.5));
+      }
     }
 
     header h1 strike {
-      color: #666;
+      color: rgba(255, 0, 255, 0.6);
       text-decoration: line-through;
+      text-shadow: 0 0 5px rgba(255, 0, 255, 0.5);
     }
 
     header audio {
       display: none;
     }
     
-    header input[type="range"] {
+    header input[type="range"]:not(.volume-control input) {
       -webkit-appearance: none;
       appearance: none;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 2px;
+      height: 6px;
+      background: 
+        linear-gradient(90deg, 
+          rgba(0, 0, 0, 0.8) 0%,
+          rgba(0, 255, 255, 0.2) 50%,
+          rgba(0, 0, 0, 0.8) 100%
+        );
+      border-radius: 3px;
       outline: none;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      box-shadow: 
+        inset 0 1px 3px rgba(0, 0, 0, 0.5),
+        0 0 8px rgba(0, 255, 255, 0.2);
     }
     
-    header input[type="range"]::-webkit-slider-thumb {
+    header input[type="range"]:not(.volume-control input)::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 12px;
-      height: 12px;
-      background: #4a90e2;
+      width: 14px;
+      height: 14px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
       border-radius: 50%;
       cursor: pointer;
+      box-shadow: 
+        0 0 8px rgba(0, 255, 255, 0.8),
+        0 0 16px rgba(0, 255, 255, 0.4);
     }
     
-    header input[type="range"]::-moz-range-thumb {
-      width: 12px;
-      height: 12px;
-      background: #4a90e2;
+    header input[type="range"]:not(.volume-control input)::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
       border-radius: 50%;
       cursor: pointer;
-      border: none;
+      box-shadow: 
+        0 0 8px rgba(0, 255, 255, 0.8),
+        0 0 16px rgba(0, 255, 255, 0.4);
     }
 
-    header > div > div {
+    header > div > div:not(.volume-control) {
       display: flex;
       align-items: center;
       gap: clamp(6px, 1.5vw, 10px);
-      margin-top: clamp(6px, 1vh, 8px);
       font-size: clamp(11px, 2vw, 13px);
       color: #aaa;
       flex-wrap: wrap;
@@ -167,11 +347,15 @@
 
 
     article {
-      padding: clamp(10px, 2vh, 20px) 0 clamp(40px, 6vh, 50px) 0; /* Extra bottom padding for fixed footer */
+      padding: clamp(12px, 2.5vh, 24px) 0 clamp(50px, 7vh, 60px) 0;
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
       min-height: 0;
+      background: 
+        radial-gradient(circle at 50% 0%, rgba(0, 255, 255, 0.02) 0%, transparent 50%);
+      position: relative;
+      z-index: 10;
     }
     
     article .container {
@@ -182,32 +366,49 @@
     #channels {
       display: flex;
       flex-wrap: wrap;
-      gap: clamp(4px, 1vw, 8px);
+      gap: clamp(4px, 1.2vw, 8px);
       margin-bottom: clamp(10px, 2vh, 20px);
     }
 
-    /* Button styles - modernized */
+    /* Button styles - oldschool radio + cyberpunk */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: clamp(6px, 1vh, 8px) clamp(12px, 2vw, 16px);
-      font-size: clamp(12px, 2.2vw, 14px);
-      font-weight: 500;
+      padding: clamp(3px, 0.6vh, 4px) clamp(6px, 1.2vw, 10px);
+      font-size: clamp(11px, 2vw, 13px);
+      font-weight: 400;
+      font-family: 'Share Tech Mono', monospace;
       line-height: 1.4;
       text-align: center;
       white-space: nowrap;
       cursor: pointer;
       user-select: none;
-      border: none;
-      border-radius: clamp(6px, 1.2vw, 8px);
+      border: 2px solid rgba(255, 68, 68, 0.6);
+      border-radius: 4px;
       text-decoration: none;
-      color: white;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.1);
-      min-height: 36px;
+      color: #ff4444;
+      text-transform: lowercase;
+      letter-spacing: 1px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      min-height: 26px;
       position: relative;
       overflow: hidden;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%),
+        repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 1px,
+          rgba(255, 68, 68, 0.03) 1px,
+          rgba(255, 68, 68, 0.03) 2px
+        );
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 68, 68, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 12px rgba(255, 68, 68, 0.3),
+        0 0 20px rgba(255, 68, 68, 0.2);
     }
 
     .btn::before {
@@ -217,8 +418,12 @@
       left: -100%;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-      transition: left 0.5s;
+      background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 68, 68, 0.3), 
+        transparent
+      );
+      transition: left 0.4s;
     }
 
     .btn:hover::before {
@@ -226,72 +431,179 @@
     }
 
     .btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.15);
+      transform: translateY(-2px);
+      border-color: #ff4444;
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 68, 68, 0.4),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 20px rgba(255, 68, 68, 0.6),
+        0 0 35px rgba(255, 68, 68, 0.4),
+        0 0 50px rgba(255, 68, 68, 0.2);
+      text-shadow: 
+        0 0 10px rgba(255, 68, 68, 1),
+        0 0 20px rgba(255, 68, 68, 0.8),
+        0 0 30px rgba(255, 68, 68, 0.5);
     }
 
     .btn:active {
       transform: translateY(0);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.8),
+        0 1px 2px rgba(0, 0, 0, 0.5);
     }
 
     .btn-large {
-      padding: clamp(8px, 1.2vh, 10px) clamp(14px, 2.5vw, 18px);
-      font-size: clamp(12px, 2.4vw, 14px);
-      border-radius: clamp(6px, 1.2vw, 8px);
-      min-height: 38px;
+      padding: clamp(4px, 0.7vh, 5px) clamp(8px, 1.8vw, 12px);
+      font-size: clamp(11px, 2.2vw, 13px);
+      min-height: 28px;
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: rgba(138, 43, 226, 0.6);
+      color: #da70d6;
+      box-shadow: 
+        inset 0 1px 2px rgba(138, 43, 226, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 8px rgba(138, 43, 226, 0.1);
     }
-
+    
     .btn-primary:hover {
-      background: linear-gradient(135deg, #7c8ef5 0%, #8a5bb8 100%);
+      border-color: #da70d6;
+      color: #ff00ff;
+      text-shadow: 0 0 8px rgba(255, 0, 255, 0.8);
+      box-shadow: 
+        inset 0 1px 2px rgba(138, 43, 226, 0.3),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 15px rgba(255, 0, 255, 0.4),
+        0 0 25px rgba(255, 0, 255, 0.2);
     }
 
     .btn-success {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      border-color: rgba(0, 255, 127, 0.6);
+      color: #00ff7f;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 127, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 8px rgba(0, 255, 127, 0.1),
+        0 0 15px rgba(0, 255, 127, 0.2);
+      animation: active-glow 2s ease-in-out infinite;
+    }
+    
+    @keyframes active-glow {
+      0%, 100% { 
+        box-shadow: 
+          inset 0 1px 2px rgba(0, 255, 127, 0.2),
+          inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+          0 2px 4px rgba(0, 0, 0, 0.6),
+          0 0 8px rgba(0, 255, 127, 0.1),
+          0 0 15px rgba(0, 255, 127, 0.2);
+      }
+      50% { 
+        box-shadow: 
+          inset 0 1px 2px rgba(0, 255, 127, 0.3),
+          inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+          0 2px 4px rgba(0, 0, 0, 0.6),
+          0 0 12px rgba(0, 255, 127, 0.3),
+          0 0 25px rgba(0, 255, 127, 0.4);
+      }
     }
 
     .btn-success:hover {
-      background: linear-gradient(135deg, #1ab3a6 0%, #4ef98d 100%);
+      border-color: #00ff7f;
+      color: #00ffaa;
+      text-shadow: 0 0 10px rgba(0, 255, 127, 1);
     }
 
     .btn-danger {
-      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+      border-color: rgba(255, 20, 147, 0.6);
+      color: #ff1493;
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 20, 147, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 8px rgba(255, 20, 147, 0.1);
     }
 
     .btn-danger:hover {
-      background: linear-gradient(135deg, #f04a5e 0%, #f66b53 100%);
+      border-color: #ff1493;
+      color: #ff00ff;
+      text-shadow: 0 0 10px rgba(255, 20, 147, 1);
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 20, 147, 0.3),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 15px rgba(255, 20, 147, 0.4),
+        0 0 25px rgba(255, 20, 147, 0.2);
     }
 
     .channel {
       text-transform: lowercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1.5px;
     }
 
-    h1 {
-      margin: clamp(10px, 2vh, 15px) 0 clamp(8px, 1.5vh, 12px) 0;
-      font-size: clamp(20px, 4.5vw, 28px);
-      font-weight: 300;
-      color: #fff;
+    h1, h2 {
+      margin: clamp(12px, 2.5vh, 18px) 0 clamp(10px, 2vh, 14px) 0;
+      font-size: clamp(22px, 5vw, 32px);
+      font-weight: 700;
+      font-family: 'Orbitron', 'Share Tech Mono', monospace;
+      color: #00ffff;
       display: flex;
       align-items: center;
-      gap: clamp(6px, 1.5vw, 10px);
+      gap: clamp(8px, 2vw, 12px);
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 0.6),
+        0 0 20px rgba(0, 255, 255, 0.3),
+        2px 2px 4px rgba(0, 0, 0, 0.8);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      position: relative;
+    }
+    
+    h1::before, h2::before {
+      content: '▶';
+      font-size: 0.6em;
+      color: rgba(0, 255, 255, 0.5);
+      margin-right: 8px;
+      display: flex;
+      align-items: center;
+    }
+    
+    /* Remove play arrow from header h1 and h2 */
+    header h1::before,
+    header h2::before {
+      content: none;
     }
 
     h1 span {
       font-weight: 400;
       text-transform: lowercase;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
+    }
+    
+    h2 {
+      font-size: clamp(16px, 3.5vw, 22px);
+      color: rgba(0, 255, 255, 0.8);
+      border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    
+    /* Header h2 should not have border, padding, or margin */
+    header h2 {
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-bottom: 0;
     }
 
     #metadata {
-      margin-top: clamp(8px, 1.5vh, 12px);
+      margin-top: clamp(10px, 2vh, 14px);
       display: flex;
       align-items: center;
-      gap: clamp(8px, 2vw, 12px);
+      gap: clamp(10px, 2.5vw, 14px);
       flex-wrap: wrap;
     }
 
@@ -299,15 +611,28 @@
       color: #ffd700;
       text-decoration: none;
       font-size: clamp(11px, 2vw, 13px);
-      padding: clamp(4px, 0.8vh, 5px) clamp(8px, 1.5vw, 10px);
-      background: rgba(255, 215, 0, 0.1);
-      border-radius: clamp(3px, 0.8vw, 5px);
+      font-family: 'Share Tech Mono', monospace;
+      padding: clamp(5px, 1vh, 6px) clamp(10px, 2vw, 12px);
+      background: 
+        linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 165, 0, 0.1) 100%);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      border-radius: 3px;
       transition: all 0.2s ease;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 215, 0, 0.2),
+        0 0 8px rgba(255, 215, 0, 0.1);
     }
 
     #metadata a:hover {
-      background: rgba(255, 215, 0, 0.2);
+      background: 
+        linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 165, 0, 0.2) 100%);
+      border-color: rgba(255, 215, 0, 0.6);
       transform: translateY(-1px);
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 215, 0, 0.3),
+        0 0 15px rgba(255, 215, 0, 0.3);
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
     }
 
     footer {
@@ -315,39 +640,75 @@
       bottom: 0;
       left: 0;
       right: 0;
-      padding: clamp(6px, 1.2vh, 10px) 0;
-      background: rgba(20, 20, 20, 0.95);
+      padding: clamp(8px, 1.5vh, 12px) 0;
+      background: 
+        linear-gradient(180deg, rgba(10, 10, 20, 0.98) 0%, rgba(20, 20, 30, 0.95) 100%),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 255, 255, 0.03) 2px,
+          rgba(0, 255, 255, 0.03) 4px
+        );
       backdrop-filter: blur(10px);
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 2px solid rgba(0, 255, 255, 0.3);
       z-index: 1000;
+      box-shadow: 
+        0 -4px 20px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(0, 255, 255, 0.2),
+        0 0 30px rgba(0, 255, 255, 0.1);
+      position: relative;
+    }
+    
+    footer::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, 
+        transparent 0%,
+        rgba(0, 255, 255, 0.8) 20%,
+        rgba(255, 0, 255, 0.8) 50%,
+        rgba(0, 255, 255, 0.8) 80%,
+        transparent 100%
+      );
+      animation: pulse-glow 2s ease-in-out infinite;
     }
 
     footer .container {
-      padding: clamp(5px, 1vh, 7px) clamp(10px, 1.5vw, 15px);
+      padding: clamp(6px, 1.2vh, 8px) clamp(12px, 2vw, 18px);
     }
 
     footer p {
       margin: 0;
-      font-size: clamp(11px, 2.5vw, 13px);
+      font-size: clamp(10px, 2.2vw, 12px);
+      font-family: 'Share Tech Mono', monospace;
       line-height: 1.8;
-      color: #aaa;
-      text-align: center;
+      color: rgba(0, 255, 255, 0.7);
+      text-align: right;
+      text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+      letter-spacing: 0.5px;
     }
 
     footer a {
       color: #ffd700;
       text-decoration: none;
-      transition: color 0.2s ease;
+      transition: all 0.2s ease;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
     }
 
     footer a:hover {
-      color: #ffed4e;
-      text-decoration: underline;
+      color: #ffff00;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      text-decoration: none;
     }
 
     footer strong {
-      color: #fff;
-      font-weight: 500;
+      color: #00ffff;
+      font-weight: 700;
+      text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
     }
 
 
@@ -375,6 +736,15 @@
         word-break: break-word;
         hyphens: auto;
       }
+      
+      .control-panel {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .btn-play-pause {
+        align-self: center;
+      }
     }
     
     @media (max-width: 480px) {
@@ -383,28 +753,41 @@
       }
       
       header {
-        padding: clamp(6px, 1.2vh, 12px) 0;
+        padding: clamp(8px, 1.5vh, 14px) 0;
       }
       
       header h1 {
-        gap: 6px;
+        gap: 8px;
+        font-size: clamp(16px, 4vw, 20px);
       }
       
       #channels {
-        gap: 4px;
+        gap: 6px;
       }
       
       .btn-large {
-        padding: 6px 10px;
-        font-size: 13px;
+        padding: 8px 12px;
+        font-size: 12px;
       }
       
-      h1 {
-        font-size: 20px;
+      h1, h2 {
+        font-size: 18px;
       }
       
       footer p {
         line-height: 1.5;
+        font-size: 10px;
+      }
+      
+      .time-display {
+        font-size: 11px;
+        padding: 6px 10px;
+      }
+      
+      .btn-play-pause {
+        min-width: 45px !important;
+        min-height: 45px !important;
+        font-size: 16px !important;
       }
     }
     
@@ -420,9 +803,117 @@
       }
     }
 
+    /* Play/Pause button styling */
+    .btn-play-pause {
+      min-width: 50px !important;
+      min-height: 50px !important;
+      border-radius: 50% !important;
+      font-size: clamp(18px, 4vw, 24px) !important;
+      padding: clamp(8px, 1.5vh, 12px) !important;
+      background: 
+        radial-gradient(circle, rgba(255, 68, 68, 0.2) 0%, rgba(200, 0, 0, 0.1) 100%),
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%) !important;
+      border: 2px solid rgba(255, 68, 68, 0.6) !important;
+      box-shadow: 
+        inset 0 2px 4px rgba(255, 68, 68, 0.3),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 20px rgba(255, 68, 68, 0.5),
+        0 0 35px rgba(255, 68, 68, 0.3) !important;
+    }
+    
+    .btn-play-pause:hover {
+      border-color: rgba(255, 68, 68, 1) !important;
+      box-shadow: 
+        inset 0 2px 4px rgba(255, 68, 68, 0.4),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+        0 6px 12px rgba(0, 0, 0, 0.8),
+        0 0 30px rgba(255, 68, 68, 0.8),
+        0 0 50px rgba(255, 68, 68, 0.6),
+        0 0 70px rgba(255, 68, 68, 0.3) !important;
+      transform: scale(1.05) !important;
+    }
+    
+    .btn-play-pause:active {
+      transform: scale(0.95) !important;
+    }
+    
+    /* Time display styling */
+    .time-display {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: clamp(12px, 2.5vw, 16px);
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 1),
+        0 0 20px rgba(0, 255, 255, 0.7),
+        0 0 30px rgba(0, 255, 255, 0.4);
+      padding: 8px 12px;
+      background: 
+        linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(10, 10, 30, 0.8) 100%);
+      border: 1px solid rgba(0, 255, 255, 0.4);
+      border-radius: 4px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 15px rgba(0, 255, 255, 0.4),
+        0 0 25px rgba(0, 255, 255, 0.2);
+      letter-spacing: 2px;
+    }
+    
+    /* Control panel styling */
+    .control-panel {
+      display: flex;
+      align-items: center;
+      gap: clamp(10px, 2vw, 14px);
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.6) 0%, rgba(10, 10, 30, 0.8) 100%);
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      border-radius: 6px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 20px rgba(0, 255, 255, 0.3),
+        0 0 30px rgba(0, 255, 255, 0.2);
+      line-height: 1;
+    }
+    
+    /* Channel name display */
+    header h2 {
+      margin: 0;
+      font-size: clamp(16px, 3.5vw, 22px);
+      font-weight: 400;
+      font-family: 'Share Tech Mono', monospace;
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 0.9),
+        0 0 20px rgba(0, 255, 255, 0.6),
+        0 0 30px rgba(0, 255, 255, 0.3);
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      line-height: 1.2;
+    }
+    
+    header h2 a {
+      color: inherit;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    
+    header h2 a:hover {
+      color: #ffff00;
+      text-shadow: 
+        0 0 15px rgba(255, 255, 0, 1),
+        0 0 30px rgba(255, 255, 0, 0.7),
+        0 0 45px rgba(255, 255, 0, 0.4);
+    }
+
     /* Smooth transitions */
     * {
-      transition: background-color 0.2s ease, color 0.2s ease;
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     }
   </style>
 </head>
@@ -436,48 +927,38 @@
           radio guaka
         </h1>
 
-        <template x-if="currentChannelData">
-          <h2 style="margin: 0; font-size: clamp(16px, 3.5vw, 20px); font-weight: 300;">
-            <template x-if="currentChannelData.site">
-              <a :href="currentChannelData.site" target="_blank" style="color: #fff; text-decoration: none; transition: color 0.2s ease;" 
-                 onmouseover="this.style.color='#ffd700'"
-                 onmouseout="this.style.color='#fff'">
-                <span x-text="currentChannelData.name"></span>
-              </a>
-            </template>
-            <template x-if="!currentChannelData.site">
-              <span style="color: #fff;" x-text="currentChannelData.name"></span>
-            </template>
-          </h2>
-        </template>
-
-        <div style="display: flex; align-items: flex-start; gap: clamp(8px, 2vw, 12px); flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: clamp(8px, 2vw, 12px); flex-wrap: wrap;">
           <template x-if="srcUrl">
             <div style="flex: 1; min-width: 200px;">
               <audio preload="auto" id="player" :src="srcUrl" x-ref="audioPlayer" style="display: none;">
               </audio>
 
-              <div style="display: flex; align-items: center; gap: clamp(8px, 1.5vw, 12px); flex-wrap: wrap;">
-                <button @click="togglePlay()" class="btn" style="padding: clamp(6px, 1vh, 8px); min-width: 40px;">
+              <div class="control-panel">
+                <button @click="togglePlay()" class="btn btn-play-pause">
                   <span x-text="isPlaying ? '⏸' : '▶'"></span>
                 </button>
                 
-                <div style="display: flex; align-items: center; gap: 4px; font-size: clamp(11px, 2vw, 13px); color: #aaa; font-family: 'Monaco', 'Menlo', monospace;">
+                <div class="time-display">
                   <span x-text="formatTime(currentTime)"></span>
                 </div>
               </div>
             </div>
           </template>
           
-          <a href="#" 
-             @click.prevent="navigateTo('#')"
-             class="btn"
-             :class="currentChannel ? 'btn-danger' : 'btn-success'"
-             id="stop"
-             title="Stop"
-             style="align-self: center;">
-            ⏹ Stop
-          </a>
+          <template x-if="currentChannelData">
+            <h2>
+              <template x-if="currentChannelData.site">
+                <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
+                   onmouseover="this.style.color='#ffff00'"
+                   onmouseout="this.style.color=''">
+                  <span x-text="currentChannelData.name"></span>
+                </a>
+              </template>
+              <template x-if="!currentChannelData.site">
+                <span x-text="currentChannelData.name"></span>
+              </template>
+            </h2>
+          </template>
         </div>
         
         <div class="volume-control">
@@ -527,6 +1008,17 @@
               <span x-text="channel.name.replace(/_/g, ' ')"></span>
             </a>
           </template>
+          
+          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Flux FM</h2>
+          
+          <template x-for="channel in fluxFmChannels" :key="channel.name">
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name.replace(/^flux_fm_/, '').replace(/_/g, ' ')"></span>
+            </a>
+          </template>
         </div>
 
       </div>
@@ -539,7 +1031,7 @@
           ⌨ shortcuts:
           Change volume ↑ ↓
           Change channels ← →
-          or press first letter of the name. ⏹ space bar.
+          or press first letter of the name. ⏸ space bar to play/pause.
 
           &mdash;
           <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
@@ -591,7 +1083,7 @@
         }
       }
       
-      setChannel(channel, appState) {
+      setChannel(channel, appState, shouldAutoplay = true) {
         this.readyState = null;
         this.networkState = null;
         
@@ -616,13 +1108,16 @@
           
           // Remove any existing event listeners to prevent duplicates
           const playWhenReady = () => {
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(error => {
-                // Autoplay was prevented - this is expected in some browsers
-                // User can manually click play if needed
-                console.log('Autoplay prevented:', error);
-              });
+            // Only autoplay if shouldAutoplay is true and user hasn't manually paused
+            if (shouldAutoplay && (!appState || !appState.userPaused)) {
+              const playPromise = audio.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                  // Autoplay was prevented - this is expected in some browsers
+                  // User can manually click play if needed
+                  console.log('Autoplay prevented:', error);
+                });
+              }
             }
           };
           
@@ -657,17 +1152,19 @@
             // Load the audio
             audio.load();
             
-            // Try to play immediately (user interaction should allow this)
+            // Try to play immediately if shouldAutoplay and user hasn't paused
             // If it fails, the event listeners will retry when ready
-            setTimeout(() => {
-              const playPromise = audio.play();
-              if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                  // Autoplay was prevented - event listeners will retry when ready
-                  console.log('Immediate autoplay prevented, will retry when ready:', error);
-                });
-              }
-            }, 50);
+            if (shouldAutoplay && (!appState || !appState.userPaused)) {
+              setTimeout(() => {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                  playPromise.catch(error => {
+                    // Autoplay was prevented - event listeners will retry when ready
+                    console.log('Immediate autoplay prevented, will retry when ready:', error);
+                  });
+                }
+              }, 50);
+            }
           } else {
             audio.src = '';
           }
@@ -697,7 +1194,11 @@
         
         const newNetworkState = audio.networkState;
         const newReadyState = audio.readyState;
-        this.play();
+        
+        // Only auto-play if user hasn't manually paused
+        if (!window.appState || !window.appState.userPaused) {
+          this.play();
+        }
         
         // Check if we need to restart (stuck state)
         if (this.readyState !== null &&
@@ -708,10 +1209,13 @@
           this.readyState = null;
           this.networkState = null;
           const currentChannel = window.appState?.currentChannel || '';
-          this.setChannel(currentChannel, window.appState);
-          if (audio) {
+          const shouldAutoplay = !window.appState || !window.appState.userPaused;
+          this.setChannel(currentChannel, window.appState, shouldAutoplay);
+          if (audio && shouldAutoplay) {
             audio.load();
-            this.play();
+            if (!window.appState || !window.appState.userPaused) {
+              this.play();
+            }
           }
         } else {
           // Update internal state (used for restart logic)
@@ -757,15 +1261,34 @@
         const channel = hash || '';
         
         if (this.appState) {
-          this.appState.currentChannel = channel;
+          const previousChannel = this.appState.currentChannel;
+          
+          // If navigating to empty hash, pause audio
+          if (!channel) {
+            const audio = document.getElementById('player');
+            if (audio) {
+              audio.pause();
+              this.appState.userPaused = true;
+            }
+            this.appState.currentChannel = '';
+          } else if (channel !== previousChannel) {
+            // Changing to a different channel - always autoplay
+            this.appState.userPaused = false;
+            this.appState.currentChannel = channel;
+          } else {
+            // Same channel - keep current state
+            this.appState.currentChannel = channel;
+          }
         }
         
         if (channel) {
           document.title = channel + ' | Radio Guaka';
-          this.player.setChannel(channel, this.appState);
+          // Always autoplay when changing to a different channel (userPaused was reset above)
+          const shouldAutoplay = !this.appState || !this.appState.userPaused;
+          this.player.setChannel(channel, this.appState, shouldAutoplay);
         } else {
           document.title = 'Radio Guaka';
-          this.player.setChannel('', this.appState);
+          this.player.setChannel('', this.appState, false);
         }
       }
     }
@@ -791,7 +1314,7 @@
       const otherChannels = Object.keys(channels)
         .filter(name => {
           const channel = channels[name];
-          return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1);
+          return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1);
         })
         .sort();
       visualOrder.push(...otherChannels);
@@ -813,6 +1336,15 @@
         })
         .sort();
       visualOrder.push(...fipChannels);
+      
+      // Then Flux FM channels
+      const fluxFmChannels = Object.keys(channels)
+        .filter(name => {
+          const channel = channels[name];
+          return channel.tags && channel.tags.indexOf('flux') > -1;
+        })
+        .sort();
+      visualOrder.push(...fluxFmChannels);
       
       // Add empty string at beginning for "silence"
       visualOrder.unshift('');
@@ -845,6 +1377,7 @@
         currentTime: 0,
         duration: 0,
         volume: 1,
+        userPaused: false,
         
         init() {
           // Make appState available globally for app.js
@@ -893,6 +1426,8 @@
             };
             this._pauseListener = () => {
               this.isPlaying = false;
+              // Don't set userPaused here - only set it when user explicitly pauses
+              // This allows system pauses (like navigating to empty hash) to work
             };
             audio.addEventListener('play', this._playListener);
             audio.addEventListener('pause', this._pauseListener);
@@ -927,8 +1462,10 @@
           if (!audio) return;
           
           if (audio.paused) {
+            this.userPaused = false;
             audio.play();
           } else {
+            this.userPaused = true;
             audio.pause();
           }
         },
@@ -953,11 +1490,27 @@
         },
         
         navigateTo(hash) {
+          // Extract channel name from hash
+          const channelName = hash === '#' ? '' : hash.slice(1);
+          
+          // If clicking the same channel, toggle play/pause instead of navigating
+          if (channelName === this.currentChannel) {
+            this.togglePlay();
+            return;
+          }
+          
+          // If changing to a different channel, reset userPaused and navigate
+          this.userPaused = false;
+          
           // Directly set hash - works with both file:// and http://
           if (window.location.hash !== hash) {
             window.location.hash = hash;
+          } else {
+            // If hash is already set, just handle the route
+            if (window.router) {
+              window.router.handleRoute();
+            }
           }
-          // Router will handle the hashchange event
         },
         
         get sortedChannels() {
@@ -1007,6 +1560,23 @@
             }));
         },
         
+        get fluxFmChannels() {
+          if (typeof channels === 'undefined') {
+            console.error('channels is not defined');
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              return channel.tags && channel.tags.indexOf('flux') > -1;
+            })
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
         get otherChannels() {
           if (typeof channels === 'undefined') {
             console.error('channels is not defined');
@@ -1015,7 +1585,7 @@
           return Object.keys(channels)
             .filter(name => {
               const channel = channels[name];
-              return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1);
+              return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1);
             })
             .sort()
             .map(name => ({
@@ -1147,9 +1717,11 @@
               e.preventDefault();
               volChange(-0.1);
               break;
-            case 32: // Space
+            case 32: // Space - toggle play/pause
               e.preventDefault();
-              router.navigate('/');
+              if (window.appState) {
+                window.appState.togglePlay();
+              }
               break;
           }
         });

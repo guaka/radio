@@ -140,6 +140,148 @@ const channels = {
     site: 'https://www.radiofrance.fr/fip/radio-sacre-francais'
   },
   
+  // Flux FM - Berlin
+  'flux_fm_techno_underground': {
+    url: 'https://channels.fluxfm.de/techno-underground/externalembedflxhp/stream.mp3',
+    tags: ['flux', 'techno', 'underground', 'electronic', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de/techno-underground'
+  },
+  'flux_fm_boomfm': {
+    url: 'http://streams.fluxfm.de/boomfm/mp3-320/audio/',
+    tags: ['flux', 'hiphop', 'rap', 'urban', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de/boomfm'
+  },
+  'flux_fm_boomfm_classics': {
+    url: 'http://streams.fluxfm.de/boomfmclassics/mp3-320/audio/',
+    tags: ['flux', 'hiphop', 'rap', 'classics', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de/boomfm'
+  },
+  'flux_fm_elektroflux': {
+    url: 'http://streams.fluxfm.de/elektro/mp3-320/audio/',
+    tags: ['flux', 'electronic', 'indie', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_clubsandwich': {
+    url: 'http://streams.fluxfm.de/clubsandwich/mp3-320/audio/',
+    tags: ['flux', 'electronic', 'house', 'techno', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de/clubsandwich'
+  },
+  'flux_fm_sound_of_berlin': {
+    url: 'http://streams.fluxfm.de/soundofberlin/mp3-320/audio/',
+    tags: ['flux', 'electronic', 'techno', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de/sound-of-berlin'
+  },
+  'flux_fm_berlin_beach_house': {
+    url: 'http://streams.fluxfm.de/bbeachhouse/mp3-320/audio/',
+    tags: ['flux', 'electronic', 'house', 'chill', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_john_reed': {
+    url: 'http://streams.fluxfm.de/john-reed/mp3-320/audio/',
+    tags: ['flux', 'electronic', 'hiphop', 'techno', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_klubradio': {
+    url: 'http://streams.fluxfm.de/klubradio/mp3-320/audio/',
+    tags: ['flux', 'dance', 'club', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_chillhop': {
+    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'lofi', 'chillhop', 'beats', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_fluxforward': {
+    url: 'http://streams.fluxfm.de/forward/mp3-320/audio/',
+    tags: ['flux', 'indie', 'alternative', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_fluxkompensator': {
+    url: 'http://streams.fluxfm.de/fluxkompensator/mp3-320/audio/',
+    tags: ['alternative', 'indie', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_lounge': {
+    url: 'http://streams.fluxfm.de/lounge/mp3-320/audio/',
+    tags: ['flux', 'chill', 'lounge', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_hippie_trippy_garden_pretty': {
+    url: 'http://streams.fluxfm.de/event02/mp3-320/radiode/',
+    tags: ['flux', 'psychedelic', 'electronic', 'experimental', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_rasta_radio': {
+    url: 'http://streams.fluxfm.de/rastaradio/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'reggae', 'dub', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_dub_radio': {
+    url: 'http://streams.fluxfm.de/dubradio/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'dub', 'reggae', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_fluxrap': {
+    url: 'http://streams.fluxfm.de/rap/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'rap', 'hiphop', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_metal': {
+    url: 'http://streams.fluxfm.de/metalfm/mp3-320/radiode/',
+    tags: ['flux', 'metal', 'hardrock', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_hard_rock': {
+    url: 'http://streams.fluxfm.de/hardrock/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'hardrock', 'rock', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_b_funk': {
+    url: 'http://streams.fluxfm.de/event01/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'funk', 'soul', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_hot_rnb': {
+    url: 'http://streams.fluxfm.de/rnb/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', 'rnb', 'soul', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_jazzradio_schwarzenstein': {
+    url: 'http://streams.fluxfm.de/jazzschwarz/mp3-320/audio/',
+    tags: ['flux', 'jazz', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_xjazz': {
+    url: 'http://streams.fluxfm.de/xjazz/mp3-320/audio/',
+    tags: ['flux', 'jazz', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_neofm': {
+    url: 'http://streams.fluxfm.de/neofm/mp3-320/radiode/',
+    tags: ['flux', 'neoclassical', 'ambient', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_jaegermusic': {
+    url: 'http://streams.fluxfm.de/studio56/mp3-320/audio/',
+    tags: ['flux', 'electronic', 'indie', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_70er': {
+    url: 'http://streams.fluxfm.de/70er/mp3-320/audio/',
+    tags: ['flux', '70s', 'classic', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_80er': {
+    url: 'http://streams.fluxfm.de/80er/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', '80s', 'classic', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  'flux_fm_60er': {
+    url: 'http://streams.fluxfm.de/60er/mp3-320/streams.fluxfm.de/',
+    tags: ['flux', '60s', 'classic', 'berlin', 'de'],
+    site: 'https://www.fluxfm.de'
+  },
+  
   // RadioJAZZ.FM
   // 'radiojazz': {
   //   url: 'http://radiojazz.fm:8000/',
