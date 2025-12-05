@@ -1,7 +1,11 @@
 Radio Guaka
 ===========
 
-**Radio Guaka** is an Internet Radio player based on HTML5 and vanilla JavaScript. Currently there are only [ad-free](http://moneyless.org/tags/advertising) radio stations, such as SomaFM and Radio Paradise.
+**Radio Guaka** is an Internet Radio player based on HTML5 and vanilla JavaScript.
+It's not Guaka's music, but radio stations that Guaka likes listening to, such as SomaFM and Radio Paradise.
+
+Started in 2013 using meteorjs, completely revibed in 2025.
+
 
 ## About
 
