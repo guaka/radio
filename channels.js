@@ -108,6 +108,13 @@ const channels = {
     tags: ['other', 'ambient', 'modern'],
     site: 'https://ambientmodern.com/'
   },
+  'urbanspaceradio': {
+    url: 'https://stream.urbanspaceradio.com:8443/urban-space-radio',
+    site: 'http://urbanspaceradio.com/',
+    twitter: 'https://twitter.com/UrbanSpaceRadio',
+    facebook: 'https://www.facebook.com/urbanspaceradio',
+    tags: ['other', 'ua', 'eclectic', 'chill']
+  },
   
   // FIP - Radio France
   'fip': {
@@ -393,7 +400,6 @@ const brokenChannels = {
   // 'radioairlibre': { url: 'http://streaming.domainepublic.net:8000/radioairlibre.ogg', tags: ['libre', 'bxl', 'be'] },
   // 'radiocampusbxl': { url: 'http://streamer.radiocampusbruxelles.org:8000/stream.ogg', tags: ['bxl', 'be'] },
   // 'couleur3': { url: 'http://stream.srg-ssr.ch/m/couleur3/mp3_128', tags: ['ch'] },
-  // 'amazing': { url: 'http://109.74.195.10:8000', pls: 'http://stream.amazingradio.com:8000/listen.pls', site: 'http://amazingradio.com/' },
-  // 'urbanspaceradio': { url: 'http://stream.mjoy.ua:8000/urban-space-radio', site: 'http://urbanspaceradio.com/', tags: ['ua', 'eclectic', 'chill'] }
+  // 'amazing': { url: 'http://109.74.195.10:8000', pls: 'http://stream.amazingradio.com:8000/listen.pls', site: 'http://amazingradio.com/' }
 };
 

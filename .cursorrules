@@ -1,0 +1,125 @@
+# Radio Guaka - Cursor Rules
+
+## Project Overview
+Radio Guaka is an Internet Radio player built with HTML5 and vanilla JavaScript. It's a static site that can be deployed on GitHub Pages. The project aggregates radio stations from various sources including SomaFM, Radio Paradise, FIP, Flux FM, and others.
+
+## Technology Stack
+- **Frontend Framework**: Alpine.js (v3.x) for reactivity
+- **JavaScript**: Vanilla JavaScript (no build step, no transpilation)
+- **Styling**: Plain CSS (no preprocessors)
+- **Routing**: Hash-based routing for file:// compatibility
+- **Deployment**: GitHub Pages (static site)
+
+## Code Style Guidelines
+
+### JavaScript
+- Use vanilla JavaScript only - no build tools, no transpilation
+- Follow existing code style: camelCase for variables/functions, descriptive names
+- Keep functions focused and modular
+- Use modern JavaScript features (ES6+) that work in browsers without transpilation
+- Comment complex logic, especially audio handling and routing
+
+### HTML
+- Keep HTML semantic and accessible
+- Use Alpine.js directives for reactivity (`x-data`, `x-if`, `x-for`, etc.)
+- Maintain inline styles only when necessary for dynamic values
+- Use template tags for conditional rendering
+
+### CSS
+- Use plain CSS (no preprocessors)
+- Follow existing naming conventions (BEM-like where appropriate)
+- Use clamp() for responsive sizing
+- Maintain the retro-futuristic/cyberpunk aesthetic with:
+  - Cyan (#00ffff) and magenta (#ff00ff) accents
+  - Dark backgrounds (#0a0a0a, #1a1a2e)
+  - Glowing text shadows and box shadows
+  - Scan line and glitch effects
+
+### File Structure
+- `index.html` - Main HTML file with embedded CSS and JavaScript
+- `channels.js` - Channel definitions and metadata
+- `assets/` - Images and static assets
+- `404.html` - Custom 404 page for GitHub Pages
+
+## Channel Management
+
+### Adding Channels
+- Add channel definitions to `channels.js` in the `channels` object
+- Include required fields: `url` (for non-SomaFM streams), `tags` array
+- Optional: `site` URL for channel website
+- SomaFM channels only need `tags: ['soma']` - URL is auto-generated
+- Broken/non-working channels should be moved to `brokenChannels` object (commented out)
+- **Channel Organization**: Place channels in the appropriate section:
+  - SomaFM channels: Top section (SomaFM streams)
+  - Radio Paradise channels: Radio Paradise section
+  - FIP channels: FIP - Radio France section
+  - Flux FM channels: Flux FM - Berlin section
+  - All other independent stations: "Other Stations" section (must include `'other'` in tags array)
+
+### Channel Tags
+- Use consistent tags: `['soma']`, `['paradise']`, `['fip']`, `['flux']`, `['other']`
+- Add genre tags: `['rock']`, `['jazz']`, `['electronic']`, etc.
+- Add location tags: `['US']`, `['fr']`, `['de']`, `['berlin']`, etc.
+
+## Audio Player Guidelines
+- Use HTML5 `<audio>` element
+- Handle autoplay restrictions gracefully (user interaction required)
+- Implement proper error handling for network issues
+- Support volume control and play/pause
+- Maintain state across channel changes
+- Handle audio element lifecycle (creation/destruction with Alpine.js)
+
+## Routing
+- Use hash-based routing (`#channel-name`) for file:// compatibility
+- Router class handles navigation and channel switching
+- Support browser back/forward buttons via hashchange events
+
+## Keyboard Shortcuts
+- Arrow keys ← → : Change channels
+- Arrow keys ↑ ↓ : Change volume
+- Space : Play/pause
+- Letter keys : Jump to channel starting with that letter
+
+## Metadata Fetching
+- Implement per-station metadata fetching (Radio Paradise, SomaFM, FIP, Flux FM)
+- Handle CORS issues gracefully (use proxies if needed)
+- Poll metadata every 12 seconds when playing
+- Display artist and title when available
+
+## Responsive Design
+- Use clamp() for responsive font sizes and spacing
+- Support mobile devices (min-height: 44px for touch targets)
+- Test on various screen sizes
+- Maintain readability on small screens
+
+## Browser Compatibility
+- Target modern browsers (ES6+ support)
+- Test audio playback across browsers
+- Handle browser-specific audio quirks
+- Support both file:// and http:// protocols
+
+## Performance
+- Keep JavaScript minimal and efficient
+- Avoid unnecessary DOM manipulation
+- Use event delegation where appropriate
+- Minimize re-renders with Alpine.js watchers
+
+## Accessibility
+- Maintain keyboard navigation
+- Ensure proper focus management
+- Use semantic HTML elements
+- Provide visual feedback for interactions
+
+## Testing Considerations
+- Test channel switching
+- Test audio playback and controls
+- Test keyboard shortcuts
+- Test responsive layout
+- Verify metadata fetching works
+- Test on different browsers
+
+## Deployment
+- Static site - no build process required
+- Deploy directly to GitHub Pages
+- Ensure all assets are relative paths
+- Test with file:// protocol for local use
