@@ -111,9 +111,17 @@ const channels = {
   'urbanspaceradio': {
     url: 'https://stream.urbanspaceradio.com:8443/urban-space-radio',
     site: 'http://urbanspaceradio.com/',
-    twitter: 'https://twitter.com/UrbanSpaceRadio',
-    facebook: 'https://www.facebook.com/urbanspaceradio',
     tags: ['other', 'ua', 'eclectic', 'chill']
+  },
+  'concertzender': {
+    url: 'https://streams.greenhost.nl:8006/live',
+    tags: ['other', 'nl', 'classical', 'concert'],
+    site: 'https://www.concertzender.nl/'
+  },
+  'ledjam': {
+    url: 'https://stream9.xdevel.com/audio1s976748-1515/stream/icecast.audio',
+    tags: ['other', 'fr', 'eclectic'],
+    site: 'https://www.djam.radio/'
   },
   
   // FIP - Radio France
@@ -389,13 +397,11 @@ const channels = {
 const brokenChannels = {
   // 'bagel': { tags: ['soma'] },
   // 'chillstep.info': { url: 'http://chillstep.info:1984/listen.ogg', tags: ['dubstep', 'chill'] },
-  // 'concertzender': { url: 'http://streams.greenhost.nl:8080/live', tags: ['nl', 'classical'] },
   // 'klara': { url: 'http://mp3.streampower.be/klara-high.mp3', tags: ['be', 'classical'] },
   // 'pmr': { url: 'http://pmr.lt/streams/pmr-2', tags: ['lt', 'eclectic', 'chill', 'world'], site: 'http://pmr.lt/en' },
   // 'neringa': { url: 'http://streamer.midiaudio.com:80/ner', tags: ['lt', 'eclectic', 'chill'], site: 'http://www.neringafm.lt/' },
   // 'bbcworld': { url: 'http://bbcwssc.ic.llnwd.net/stream/bbcwssc_mp1_ws-eieuk', tags: ['uk', 'news'] },
   // 'fip': { url: 'http://audio.scdn.arkena.com/11016/fip-midfi128.mp3', tags: ['fr', 'paris', 'jazz', 'eclectic'], site: 'http://www.fipradio.fr/' },
-  // 'ledjam': { url: 'http://ledjamradio.ice.infomaniak.ch/ledjamradio.mp3', tags: ['fr'], site: 'http://www.ledjamradio.com/' },
   // 'radiopanik': { url: 'http://streaming.domainepublic.net:8000/radiopanik.ogg', tags: ['libre', 'bxl', 'be'] },
   // 'radioairlibre': { url: 'http://streaming.domainepublic.net:8000/radioairlibre.ogg', tags: ['libre', 'bxl', 'be'] },
   // 'radiocampusbxl': { url: 'http://streamer.radiocampusbruxelles.org:8000/stream.ogg', tags: ['bxl', 'be'] },
