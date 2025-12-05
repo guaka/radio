@@ -14,7 +14,7 @@
       margin: 0;
       padding: 0;
       height: 100%;
-      overflow: hidden;
+      overflow: auto;
     }
     
     /* Scan lines overlay for retro-futuristic effect - static to prevent flickering */
@@ -66,8 +66,8 @@
       font-family: 'Share Tech Mono', 'Courier New', monospace;
       font-size: 1rem;
       line-height: 1.6;
-      height: 100vh;
-      overflow: hidden;
+      min-height: 100vh;
+      overflow: auto;
       position: relative;
     }
 
@@ -90,12 +90,10 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-      position: fixed;
+      min-height: 100vh;
+      overflow: auto;
+      position: relative;
       width: 100%;
-      top: 0;
-      left: 0;
     }
 
     header {
@@ -745,6 +743,10 @@
       .btn-play-pause {
         align-self: center;
       }
+      
+      header .volume-control {
+        display: none;
+      }
     }
     
     @media (max-width: 480px) {
@@ -910,6 +912,18 @@
         0 0 30px rgba(255, 255, 0, 0.7),
         0 0 45px rgba(255, 255, 0, 0.4);
     }
+    
+    .current-song {
+      font-size: clamp(12px, 2.5vw, 16px);
+      font-family: 'Share Tech Mono', monospace;
+      color: rgba(0, 255, 255, 0.8);
+      text-shadow: 
+        0 0 8px rgba(0, 255, 255, 0.6),
+        0 0 16px rgba(0, 255, 255, 0.3);
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+      margin-top: 2px;
+    }
 
     /* Smooth transitions */
     * {
@@ -946,18 +960,25 @@
           </template>
           
           <template x-if="currentChannelData">
-            <h2>
-              <template x-if="currentChannelData.site">
-                <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
-                   onmouseover="this.style.color='#ffff00'"
-                   onmouseout="this.style.color=''">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <h2>
+                <template x-if="currentChannelData.site">
+                  <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
+                     onmouseover="this.style.color='#ffff00'"
+                     onmouseout="this.style.color=''">
+                    <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
+                  </a>
+                </template>
+                <template x-if="!currentChannelData.site">
                   <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
-                </a>
+                </template>
+              </h2>
+              <template x-if="currentSong">
+                <div class="current-song">
+                  <span x-text="currentSong.artist && currentSong.title ? currentSong.artist + ' - ' + currentSong.title : (currentSong.title || '')"></span>
+                </div>
               </template>
-              <template x-if="!currentChannelData.site">
-                <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
-              </template>
-            </h2>
+            </div>
           </template>
         </div>
         
@@ -1299,6 +1320,10 @@
             // Changing to a different channel - always autoplay
             this.appState.userPaused = false;
             this.appState.currentChannel = channel;
+            // Trigger metadata fetch (watcher should also handle this, but ensure it happens)
+            if (this.appState.fetchCurrentSong) {
+              setTimeout(() => this.appState.fetchCurrentSong(), 100);
+            }
           } else {
             // Same channel - keep current state
             this.appState.currentChannel = channel;
@@ -1421,6 +1446,8 @@
         volume: 1,
         userPaused: false,
         _isProgrammaticPause: false,
+        currentSong: null,
+        currentSongError: null,
         
         init() {
           // Make appState available globally for app.js
@@ -1466,6 +1493,10 @@
             // Update playing state
             this._playListener = () => {
               this.isPlaying = true;
+              // Fetch metadata when playback starts
+              if (this.currentChannel) {
+                this.fetchCurrentSong();
+              }
             };
             this._pauseListener = () => {
               this.isPlaying = false;
@@ -1502,6 +1533,54 @@
             }
           };
           checkRouter();
+          
+          // Set up metadata polling
+          this.startMetadataPolling();
+          
+          // Watch for channel changes to restart polling
+          this.$watch('currentChannel', () => {
+            this.currentSong = null;
+            this.currentSongError = null;
+            this.startMetadataPolling();
+          });
+          
+          // Watch for play/pause to start/stop polling
+          this.$watch('isPlaying', () => {
+            if (this.isPlaying) {
+              this.startMetadataPolling();
+            } else {
+              this.stopMetadataPolling();
+            }
+          });
+        },
+        
+        startMetadataPolling() {
+          // Clear any existing interval
+          this.stopMetadataPolling();
+          
+          // Only poll if we have a channel
+          if (!this.currentChannel) {
+            return;
+          }
+          
+          // Fetch immediately (even if not playing yet)
+          this.fetchCurrentSong();
+          
+          // Then poll every 12 seconds (only if playing)
+          this._metadataInterval = setInterval(() => {
+            if (this.currentChannel && this.isPlaying) {
+              this.fetchCurrentSong();
+            } else if (!this.currentChannel) {
+              this.stopMetadataPolling();
+            }
+          }, 12000);
+        },
+        
+        stopMetadataPolling() {
+          if (this._metadataInterval) {
+            clearInterval(this._metadataInterval);
+            this._metadataInterval = null;
+          }
         },
         
         togglePlay() {
@@ -1711,6 +1790,260 @@
           }
           
           return channel.url || null;
+        },
+        
+        async fetchRadioParadiseMetadata() {
+          if (!this.currentChannel) return null;
+          
+          const channel = channels[this.currentChannel];
+          if (!channel) return null;
+          
+          // Map channel names to API chan parameter
+          const chanMap = {
+            'paradise': 0,
+            'paradise_mellow': 1,
+            'paradise_rock': 2,
+            'paradise_world': 3,
+            'paradise_eclectic': 0,
+            'paradise_global': 3
+          };
+          
+          const chan = chanMap[this.currentChannel];
+          if (chan === undefined) return null;
+          
+          const apiUrl = `https://api.radioparadise.com/api/nowplaying_list?chan=${chan}`;
+          
+          // Try direct fetch first
+          try {
+            const response = await fetch(apiUrl);
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.length > 0 && data[0].artist && data[0].title) {
+                return {
+                  artist: data[0].artist,
+                  title: data[0].title,
+                  album: data[0].album || ''
+                };
+              }
+            }
+          } catch (error) {
+            // CORS error - try using a CORS proxy as fallback
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+              try {
+                // Use a CORS proxy service
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+                const proxyResponse = await fetch(proxyUrl);
+                if (proxyResponse.ok) {
+                  const proxyData = await proxyResponse.json();
+                  if (proxyData.contents) {
+                    const data = JSON.parse(proxyData.contents);
+                    if (data && data.length > 0 && data[0].artist && data[0].title) {
+                      return {
+                        artist: data[0].artist,
+                        title: data[0].title,
+                        album: data[0].album || ''
+                      };
+                    }
+                  }
+                }
+              } catch (proxyError) {
+                // Both direct and proxy failed - silently fail
+                console.log('Radio Paradise metadata unavailable (CORS blocked)');
+              }
+            } else {
+              console.log('Radio Paradise metadata fetch error:', error);
+            }
+          }
+          return null;
+        },
+        
+        async fetchSomaFMMetadata() {
+          if (!this.currentChannel) return null;
+          
+          try {
+            const response = await fetch('https://api.somafm.com/channels.json');
+            if (!response.ok) {
+              return null;
+            }
+            
+            const data = await response.json();
+            if (data && data.channels) {
+              const channel = data.channels.find(ch => ch.id === this.currentChannel);
+              if (channel) {
+                // Try current_track first
+                if (channel.current_track) {
+                  const track = channel.current_track;
+                  // If current_track is a string like "Artist - Title"
+                  if (typeof track === 'string') {
+                    const parts = track.split(' - ');
+                    if (parts.length >= 2) {
+                      return {
+                        artist: parts[0].trim(),
+                        title: parts.slice(1).join(' - ').trim(),
+                        album: ''
+                      };
+                    } else if (parts.length === 1) {
+                      return {
+                        artist: '',
+                        title: parts[0].trim(),
+                        album: ''
+                      };
+                    }
+                  }
+                  // If current_track is an object
+                  else if (track.title) {
+                    return {
+                      artist: track.artist || '',
+                      title: track.title,
+                      album: track.album || ''
+                    };
+                  }
+                }
+                // Try lastPlaying as fallback (can be string or object)
+                if (channel.lastPlaying) {
+                  const track = channel.lastPlaying;
+                  
+                  // If lastPlaying is a string like "Artist - Title"
+                  if (typeof track === 'string') {
+                    const parts = track.split(' - ');
+                    if (parts.length >= 2) {
+                      return {
+                        artist: parts[0].trim(),
+                        title: parts.slice(1).join(' - ').trim(),
+                        album: ''
+                      };
+                    } else if (parts.length === 1) {
+                      return {
+                        artist: '',
+                        title: parts[0].trim(),
+                        album: ''
+                      };
+                    }
+                  }
+                  // If lastPlaying is an object
+                  else if (track.title) {
+                    return {
+                      artist: track.artist || '',
+                      title: track.title,
+                      album: track.album || ''
+                    };
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.log('SomaFM metadata fetch error:', error);
+          }
+          return null;
+        },
+        
+        async fetchFIPMetadata() {
+          if (!this.currentChannel) return null;
+          
+          // Map channel names to station IDs
+          const stationIdMap = {
+            'fip': 7,
+            'fip_jazz': 168,
+            'fip_rock': 167,
+            'fip_groove': 169,
+            'fip_reggae': 171,
+            'fip_pop': 174,
+            'fip_electro': 172,
+            'fip_monde': 170,
+            'fip_nouveautes': 176,
+            'fip_metal': 175,
+            'fip_hiphop': 173,
+            'fip_sacre_francais': 7 // Default to main if not found
+          };
+          
+          const stationId = stationIdMap[this.currentChannel];
+          if (!stationId) return null;
+          
+          try {
+            const response = await fetch(`https://api.radiofrance.fr/livemeta/pull/${stationId}`);
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            if (data && data.steps && Array.isArray(data.steps)) {
+              const now = Date.now();
+              // Find the current track where now is between start and end
+              const currentTrack = data.steps.find(step => {
+                const start = new Date(step.start).getTime();
+                const end = new Date(step.end).getTime();
+                return now >= start && now < end;
+              });
+              
+              if (currentTrack && currentTrack.title) {
+                return {
+                  artist: currentTrack.authors || '',
+                  title: currentTrack.title,
+                  album: currentTrack.titreAlbum || ''
+                };
+              }
+            }
+          } catch (error) {
+            console.log('FIP metadata fetch error:', error);
+          }
+          return null;
+        },
+        
+        async fetchFluxFMMetadata() {
+          if (!this.currentChannel) return null;
+          
+          // Try to extract stream ID from channel name
+          // e.g., flux_fm_techno_underground -> techno-underground
+          const streamId = this.currentChannel
+            .replace(/^flux_fm_/, '')
+            .replace(/_/g, '-');
+          
+          // Try potential metadata endpoint
+          try {
+            const response = await fetch(`https://metadata.fluxfm.de/api/stream/${streamId}.json`);
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.artist && data.title) {
+                return {
+                  artist: data.artist,
+                  title: data.title,
+                  album: data.album || ''
+                };
+              }
+            }
+          } catch (error) {
+            // Silently fail - Flux FM may not have a public API
+            console.log('Flux FM metadata fetch error:', error);
+          }
+          
+          return null;
+        },
+        
+        async fetchCurrentSong() {
+          if (!this.currentChannel) {
+            this.currentSong = null;
+            return;
+          }
+          
+          const channel = channels[this.currentChannel];
+          if (!channel || !channel.tags) {
+            this.currentSong = null;
+            return;
+          }
+          
+          let songData = null;
+          
+          // Check which API to use based on tags
+          if (channel.tags.indexOf('paradise') > -1) {
+            songData = await this.fetchRadioParadiseMetadata();
+          } else if (channel.tags.indexOf('soma') > -1) {
+            songData = await this.fetchSomaFMMetadata();
+          } else if (channel.tags.indexOf('fip') > -1) {
+            songData = await this.fetchFIPMetadata();
+          } else if (channel.tags.indexOf('flux') > -1) {
+            songData = await this.fetchFluxFMMetadata();
+          }
+          
+          this.currentSong = songData;
+          this.currentSongError = songData ? null : 'No metadata available';
         }
       };
     }
@@ -1731,16 +2064,6 @@
         // Initialize router
         const router = new Router(player, window.appState);
         window.router = router;
-        
-        // Prevent scrolling with mouse wheel
-        document.body.addEventListener('wheel', (e) => {
-          e.preventDefault();
-        }, { passive: false });
-        
-        // Prevent scrolling with touch
-        document.body.addEventListener('touchmove', (e) => {
-          e.preventDefault();
-        }, { passive: false });
         
         // Keyboard shortcuts
         document.body.addEventListener('keydown', (e) => {
