@@ -54,17 +54,55 @@
 
     header .container {
       display: flex;
-      flex-direction: column;
-      gap: clamp(6px, 1vh, 10px);
-    }
-    
-    header .container > div {
-      display: flex;
+      flex-direction: row;
       align-items: flex-start;
       gap: clamp(8px, 2vw, 12px);
+      justify-content: space-between;
+    }
+    
+    header .volume-control {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+    }
+    
+    header .volume-control input[type="range"] {
+      -webkit-appearance: slider-vertical;
+      writing-mode: bt-lr;
+      width: 60px;
+      height: 4px;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      margin: 20px 0;
+      padding: 0;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      outline: none;
+    }
+    
+    header .volume-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: #4a90e2;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    
+    header .volume-control input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      background: #4a90e2;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
     }
 
-    header h2 {
+    header h1 {
       margin: 0;
       display: flex;
       align-items: center;
@@ -74,21 +112,47 @@
       color: #fff;
     }
 
-    header h2 .logo-icon {
+    header h1 .logo-icon {
       font-size: clamp(24px, 6vw, 36px);
       line-height: 1;
       display: inline-block;
     }
 
-    header h2 strike {
+    header h1 strike {
       color: #666;
       text-decoration: line-through;
     }
 
     header audio {
-      width: 100%;
-      max-width: 600px;
-      margin-top: clamp(4px, 1vh, 6px);
+      display: none;
+    }
+    
+    header input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      outline: none;
+    }
+    
+    header input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: #4a90e2;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    
+    header input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      background: #4a90e2;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
     }
 
     header > div > div {
@@ -101,13 +165,6 @@
       flex-wrap: wrap;
     }
 
-    #networkState, #readyState {
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: clamp(10px, 2vw, 12px);
-      padding: clamp(3px, 0.5vw, 4px) clamp(6px, 1vw, 8px);
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-    }
 
     article {
       padding: clamp(10px, 2vh, 20px) 0 clamp(40px, 6vh, 50px) 0; /* Extra bottom padding for fixed footer */
@@ -134,8 +191,8 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: clamp(4px, 0.8vh, 6px) clamp(8px, 1.5vw, 12px);
-      font-size: clamp(11px, 2vw, 13px);
+      padding: clamp(6px, 1vh, 8px) clamp(12px, 2vw, 16px);
+      font-size: clamp(12px, 2.2vw, 14px);
       font-weight: 500;
       line-height: 1.4;
       text-align: center;
@@ -143,53 +200,70 @@
       cursor: pointer;
       user-select: none;
       border: none;
-      border-radius: clamp(4px, 1vw, 6px);
+      border-radius: clamp(6px, 1.2vw, 8px);
       text-decoration: none;
       color: white;
-      transition: all 0.2s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      min-height: 32px; /* Touch-friendly minimum height */
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.1);
+      min-height: 36px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn:hover::before {
+      left: 100%;
     }
 
     .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.15);
     }
 
     .btn:active {
       transform: translateY(0);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 
     .btn-large {
-      padding: clamp(5px, 1vh, 7px) clamp(10px, 2vw, 14px);
-      font-size: clamp(11px, 2.2vw, 13px);
-      border-radius: clamp(4px, 1vw, 6px);
-      min-height: 32px; /* Touch-friendly minimum height */
+      padding: clamp(8px, 1.2vh, 10px) clamp(14px, 2.5vw, 18px);
+      font-size: clamp(12px, 2.4vw, 14px);
+      border-radius: clamp(6px, 1.2vw, 8px);
+      min-height: 38px;
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
 
     .btn-primary:hover {
-      background: linear-gradient(135deg, #5aa0f2 0%, #458acd 100%);
+      background: linear-gradient(135deg, #7c8ef5 0%, #8a5bb8 100%);
     }
 
     .btn-success {
-      background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     }
 
     .btn-success:hover {
-      background: linear-gradient(135deg, #62d42a 0%, #48ae1d 100%);
+      background: linear-gradient(135deg, #1ab3a6 0%, #4ef98d 100%);
     }
 
     .btn-danger {
-      background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
     }
 
     .btn-danger:hover {
-      background: linear-gradient(135deg, #ff5d5f 0%, #df2332 100%);
+      background: linear-gradient(135deg, #f04a5e 0%, #f66b53 100%);
     }
 
     .channel {
@@ -283,12 +357,12 @@
         font-size: 15px;
       }
       
-      header h2 {
+      header h1 {
         flex-direction: column;
         align-items: flex-start;
       }
       
-      header h2 img {
+      header h1 img {
         height: clamp(40px, 10vw, 50px);
       }
       
@@ -312,7 +386,7 @@
         padding: clamp(6px, 1.2vh, 12px) 0;
       }
       
-      header h2 {
+      header h1 {
         gap: 6px;
       }
       
@@ -357,22 +431,40 @@
     <!-- Player Header -->
     <header>
       <div class="container">
-        <h2>
+        <h1>
           <span class="logo-icon">📻</span>
           radio guaka
-        </h2>
+        </h1>
+
+        <template x-if="currentChannelData">
+          <h2 style="margin: 0; font-size: clamp(16px, 3.5vw, 20px); font-weight: 300;">
+            <template x-if="currentChannelData.site">
+              <a :href="currentChannelData.site" target="_blank" style="color: #fff; text-decoration: none; transition: color 0.2s ease;" 
+                 onmouseover="this.style.color='#ffd700'"
+                 onmouseout="this.style.color='#fff'">
+                <span x-text="currentChannelData.name"></span>
+              </a>
+            </template>
+            <template x-if="!currentChannelData.site">
+              <span style="color: #fff;" x-text="currentChannelData.name"></span>
+            </template>
+          </h2>
+        </template>
 
         <div style="display: flex; align-items: flex-start; gap: clamp(8px, 2vw, 12px); flex-wrap: wrap;">
           <template x-if="srcUrl">
             <div style="flex: 1; min-width: 200px;">
-              <audio preload="auto" id="player" controls :src="srcUrl" x-ref="audioPlayer">
+              <audio preload="auto" id="player" :src="srcUrl" x-ref="audioPlayer" style="display: none;">
               </audio>
 
-              <div>
-                <span>📶</span>
-                <span id="networkState"></span>
-                <span>⏱</span>
-                <span id="readyState"></span>
+              <div style="display: flex; align-items: center; gap: clamp(8px, 1.5vw, 12px); flex-wrap: wrap;">
+                <button @click="togglePlay()" class="btn" style="padding: clamp(6px, 1vh, 8px); min-width: 40px;">
+                  <span x-text="isPlaying ? '⏸' : '▶'"></span>
+                </button>
+                
+                <div style="display: flex; align-items: center; gap: 4px; font-size: clamp(11px, 2vw, 13px); color: #aaa; font-family: 'Monaco', 'Menlo', monospace;">
+                  <span x-text="formatTime(currentTime)"></span>
+                </div>
               </div>
             </div>
           </template>
@@ -387,6 +479,17 @@
             ⏹ Stop
           </a>
         </div>
+        
+        <div class="volume-control">
+          <span style="font-size: clamp(10px, 1.5vw, 12px); color: #aaa;">🔊</span>
+          <input type="range" 
+                 min="0" 
+                 max="1" 
+                 step="0.01" 
+                 @input="setVolume($event.target.value)"
+                 :value="volume"
+                 title="Volume">
+        </div>
       </div>
     </header>
 
@@ -394,8 +497,6 @@
     <article>
       <div class="container">
         <div id="channels" style="clear:both; width: 100%; max-width: 100%;">
-          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Other Stations</h2>
-          
           <template x-for="channel in otherChannels" :key="channel.name">
             <a href="#"
                @click.prevent="navigateTo('#' + channel.name)"
@@ -423,21 +524,10 @@
                @click.prevent="navigateTo('#' + channel.name)"
                class="channel btn btn-large"
                :class="channel.playing ? 'btn-success' : 'btn-primary'">
-              <span x-text="channel.name"></span>
+              <span x-text="channel.name.replace(/_/g, ' ')"></span>
             </a>
           </template>
         </div>
-
-        <template x-if="currentChannelData">
-          <div>
-            <h1><span x-text="currentChannelData.name"></span></h1>
-            <div id="metadata">
-              <template x-if="currentChannelData.site">
-                <a :href="currentChannelData.site" target="_blank" x-text="currentChannelData.site"></a>
-              </template>
-            </div>
-          </div>
-        </template>
 
       </div>
     </article>
@@ -547,6 +637,11 @@
           // Audio element exists, now set src and play
           audio.pause();
           
+          // Set volume from app state if available
+          if (appState && appState.volume !== undefined) {
+            audio.volume = appState.volume;
+          }
+          
           if (expectedSrc) {
             // Set src directly for immediate playback (Alpine binding will sync)
             audio.src = expectedSrc;
@@ -619,17 +714,7 @@
             this.play();
           }
         } else {
-          // Update status display
-          const readyStateEl = document.getElementById('readyState');
-          const networkStateEl = document.getElementById('networkState');
-          
-          if (newReadyState !== null && readyStateEl) {
-            readyStateEl.textContent = readyStates[newReadyState] || '';
-          }
-          if (newNetworkState !== null && networkStateEl) {
-            networkStateEl.textContent = networkStates[newNetworkState] || '';
-          }
-          
+          // Update internal state (used for restart logic)
           this.readyState = newReadyState;
           this.networkState = newNetworkState;
         }
@@ -689,25 +774,62 @@
     function volChange(delta) {
       const audio = document.getElementById('player');
       if (audio) {
-        audio.volume = Math.max(0, Math.min(audio.volume + delta, 1));
+        const newVolume = Math.max(0, Math.min(audio.volume + delta, 1));
+        audio.volume = newVolume;
+        // Update Alpine.js state to keep slider in sync
+        if (window.appState) {
+          window.appState.volume = newVolume;
+        }
       }
     }
 
     function nextChannel(offset, appState, router) {
-      const channelKeys = Object.keys(channels).sort();
-      channelKeys.unshift(''); // Silence at beginning
+      // Get channels in visual order (as they appear on screen)
+      const visualOrder = [];
       
-      const currentIndex = channelKeys.indexOf(appState.currentChannel || '');
+      // Other channels first
+      const otherChannels = Object.keys(channels)
+        .filter(name => {
+          const channel = channels[name];
+          return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1);
+        })
+        .sort();
+      visualOrder.push(...otherChannels);
+      
+      // Then SomaFM channels
+      const somaChannels = Object.keys(channels)
+        .filter(name => {
+          const channel = channels[name];
+          return channel.tags && channel.tags.indexOf('soma') > -1;
+        })
+        .sort();
+      visualOrder.push(...somaChannels);
+      
+      // Then FIP channels
+      const fipChannels = Object.keys(channels)
+        .filter(name => {
+          const channel = channels[name];
+          return channel.tags && channel.tags.indexOf('fip') > -1;
+        })
+        .sort();
+      visualOrder.push(...fipChannels);
+      
+      // Add empty string at beginning for "silence"
+      visualOrder.unshift('');
+      
+      const currentChannel = appState.currentChannel || '';
+      const currentIndex = visualOrder.indexOf(currentChannel);
+      
       let newIndex = currentIndex + offset;
       
-      if (newIndex >= channelKeys.length) {
+      if (newIndex >= visualOrder.length) {
         newIndex = 0;
       }
       if (newIndex < 0) {
-        newIndex = channelKeys.length - 1;
+        newIndex = visualOrder.length - 1;
       }
       
-      const newChannel = channelKeys[newIndex];
+      const newChannel = visualOrder[newIndex];
       if (newChannel === '') {
         router.navigate('/');
       } else {
@@ -719,12 +841,75 @@
     function radioApp() {
       return {
         currentChannel: '',
+        isPlaying: false,
+        currentTime: 0,
+        duration: 0,
+        volume: 1,
         
         init() {
           // Make appState available globally for app.js
           window.appState = this;
           
           console.log('Loaded channels:', Object.keys(channels).length);
+          
+          // Set up audio event listeners
+          const setupAudioListeners = () => {
+            const audio = document.getElementById('player');
+            if (!audio) {
+              setTimeout(setupAudioListeners, 50);
+              return;
+            }
+            
+            // Remove old listeners if they exist
+            if (this._timeUpdateListener) {
+              audio.removeEventListener('timeupdate', this._timeUpdateListener);
+            }
+            if (this._playListener) {
+              audio.removeEventListener('play', this._playListener);
+            }
+            if (this._pauseListener) {
+              audio.removeEventListener('pause', this._pauseListener);
+            }
+            
+            // Update time display
+            this._timeUpdateListener = () => {
+              this.currentTime = audio.currentTime || 0;
+            };
+            audio.addEventListener('timeupdate', this._timeUpdateListener);
+            
+            // Update duration when metadata loads
+            audio.addEventListener('loadedmetadata', () => {
+              this.duration = audio.duration;
+            });
+            
+            // Update duration when duration changes
+            audio.addEventListener('durationchange', () => {
+              this.duration = audio.duration;
+            });
+            
+            // Update playing state
+            this._playListener = () => {
+              this.isPlaying = true;
+            };
+            this._pauseListener = () => {
+              this.isPlaying = false;
+            };
+            audio.addEventListener('play', this._playListener);
+            audio.addEventListener('pause', this._pauseListener);
+            
+            // Set initial volume
+            audio.volume = this.volume;
+            
+            // Initial time update
+            this.currentTime = audio.currentTime || 0;
+          };
+          
+          setupAudioListeners();
+          
+          // Re-setup listeners when srcUrl changes (audio element might be recreated)
+          this.$watch('srcUrl', () => {
+            setTimeout(setupAudioListeners, 100);
+          });
           
           // Wait for router to be initialized by app.js
           const checkRouter = () => {
@@ -735,6 +920,36 @@
             }
           };
           checkRouter();
+        },
+        
+        togglePlay() {
+          const audio = document.getElementById('player');
+          if (!audio) return;
+          
+          if (audio.paused) {
+            audio.play();
+          } else {
+            audio.pause();
+          }
+        },
+        
+        formatTime(seconds) {
+          if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
+          const mins = Math.floor(seconds / 60);
+          const secs = Math.floor(seconds % 60);
+          return `${mins}:${secs.toString().padStart(2, '0')}`;
+        },
+        
+        get hasValidDuration() {
+          return isFinite(this.duration) && this.duration > 0;
+        },
+        
+        setVolume(value) {
+          const audio = document.getElementById('player');
+          if (audio) {
+            this.volume = parseFloat(value);
+            audio.volume = this.volume;
+          }
         },
         
         navigateTo(hash) {
@@ -889,11 +1104,28 @@
             e.preventDefault();
             const char = e.key.toLowerCase();
             const channelKeys = Object.keys(channels).sort();
-            for (const channel of channelKeys) {
-              if (channel[0] === char) {
-                router.navigate('/' + channel);
-                break;
+            const matchingChannels = channelKeys.filter(channel => channel[0] === char);
+            
+            if (matchingChannels.length === 0) {
+              return;
+            }
+            
+            const currentChannel = window.appState?.currentChannel || '';
+            
+            // If current channel starts with this letter, find the next one
+            if (currentChannel && currentChannel[0] === char) {
+              const currentIndex = matchingChannels.indexOf(currentChannel);
+              if (currentIndex !== -1) {
+                // Go to next channel, wrapping around if at the end
+                const nextIndex = (currentIndex + 1) % matchingChannels.length;
+                router.navigate('/' + matchingChannels[nextIndex]);
+              } else {
+                // Current channel not in list (shouldn't happen), go to first
+                router.navigate('/' + matchingChannels[0]);
               }
+            } else {
+              // Current channel doesn't start with this letter, go to first match
+              router.navigate('/' + matchingChannels[0]);
             }
             return;
           }
