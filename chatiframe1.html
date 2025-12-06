@@ -562,7 +562,7 @@
       </template>
       
       <template x-for="message in messages" :key="message.id">
-        <div class="message"><span class="message-time" x-text="formatTime(message.created_at)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)"></span><span class="message-username" x-text="getUsername(message.pubkey)"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
+        <div class="message"><span class="message-time" x-text="formatTime(message.created_at)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-username" x-text="getUsername(message.pubkey)"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
       </template>
     </div>
     

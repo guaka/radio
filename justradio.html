@@ -5,54 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Radio Guaka</title>
   <link rel="icon" type="image/png" href="favicon.ico">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <style>
-    /* Hide page until fonts load to prevent system font probing */
-    html { visibility: hidden; opacity: 0; }
-  </style>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=block" rel="stylesheet">
-  <script>
-    // Block rendering until fonts are loaded - must run immediately
-    (function() {
-      function showPage() {
-        document.documentElement.style.visibility = 'visible';
-        document.documentElement.style.opacity = '1';
-      }
-      
-      if ('fonts' in document) {
-        // Wait for fonts to be ready
-        if (document.fonts.ready) {
-          document.fonts.ready.then(function() {
-            // Ensure fonts are actually loaded
-            Promise.all([
-              document.fonts.load('400 1em "Share Tech Mono"'),
-              document.fonts.load('700 1em "Orbitron"'),
-              document.fonts.load('400 1em "Orbitron"'),
-              document.fonts.load('900 1em "Orbitron"')
-            ]).then(showPage).catch(function() {
-              setTimeout(showPage, 300);
-            });
-          }).catch(function() {
-            setTimeout(showPage, 300);
-          });
-        } else {
-          Promise.all([
-            document.fonts.load('400 1em "Share Tech Mono"'),
-            document.fonts.load('700 1em "Orbitron"'),
-            document.fonts.load('400 1em "Orbitron"'),
-            document.fonts.load('900 1em "Orbitron"')
-          ]).then(showPage).catch(function() {
-            setTimeout(showPage, 300);
-          });
-        }
-      } else {
-        setTimeout(showPage, 100);
-      }
-    })();
-  </script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
     
     html {
       font-size: 16px;
@@ -109,7 +64,7 @@
       color: #e0e0e0;
       margin: 0;
       padding: 0;
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
       font-size: 1rem;
       line-height: 1.6;
       min-height: 100vh;
@@ -295,7 +250,7 @@
       gap: clamp(8px, 2vw, 12px);
       font-size: clamp(18px, 4vw, 24px);
       font-weight: 700;
-      font-family: 'Orbitron', 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Orbitron', 'Share Tech Mono', monospace;
       color: #00ffff;
       text-shadow: 
         0 0 10px rgba(0, 255, 255, 1),
@@ -450,7 +405,7 @@
       padding: clamp(3px, 0.6vh, 4px) clamp(6px, 1.2vw, 10px);
       font-size: clamp(11px, 2vw, 13px);
       font-weight: 400;
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', monospace;
       line-height: 1.4;
       text-align: center;
       white-space: nowrap;
@@ -623,7 +578,7 @@
       margin: clamp(12px, 2.5vh, 18px) 0 clamp(10px, 2vh, 14px) 0;
       font-size: clamp(22px, 5vw, 32px);
       font-weight: 700;
-      font-family: 'Orbitron', 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Orbitron', 'Share Tech Mono', monospace;
       color: #00ffff;
       display: flex;
       align-items: center;
@@ -685,7 +640,7 @@
       color: #ffd700;
       text-decoration: none;
       font-size: clamp(11px, 2vw, 13px);
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', monospace;
       padding: clamp(5px, 1vh, 6px) clamp(10px, 2vw, 12px);
       background: 
         linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 165, 0, 0.1) 100%);
@@ -726,18 +681,12 @@
         );
       backdrop-filter: blur(10px);
       border-top: 2px solid rgba(0, 255, 255, 0.3);
-      z-index: 50; /* Below chat container so chat appears on top */
+      z-index: 1000;
       box-shadow: 
         0 -4px 20px rgba(0, 0, 0, 0.8),
         inset 0 1px 0 rgba(0, 255, 255, 0.2),
         0 0 30px rgba(0, 255, 255, 0.1);
-    }
-    
-    /* Desktop: adjust footer to not overlap chat container */
-    @media (min-width: 769px) {
-      footer {
-        right: 350px; /* Leave space for chat container (350px wide) */
-      }
+      position: relative;
     }
     
     footer::before {
@@ -764,7 +713,7 @@
     footer p {
       margin: 0;
       font-size: clamp(10px, 2.2vw, 12px);
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', monospace;
       line-height: 1.8;
       color: rgba(0, 255, 255, 0.7);
       text-align: right;
@@ -1001,9 +950,6 @@
     
     /* Desktop styles - restore horizontal layout */
     @media (min-width: 769px) {
-      .chat-toggle-btn {
-        display: none !important;
-      }
       header {
         padding: 0;
       }
@@ -1183,7 +1129,7 @@
       align-items: center;
       gap: 6px;
       font-size: clamp(12px, 2.5vw, 16px);
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
       color: #00ffff;
       text-shadow: 
         0 0 10px rgba(0, 255, 255, 1),
@@ -1224,7 +1170,7 @@
       margin: 0;
       font-size: clamp(16px, 3.5vw, 22px);
       font-weight: 400;
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', monospace;
       color: #00ffff;
       text-shadow: 
         0 0 10px rgba(0, 255, 255, 0.9),
@@ -1252,7 +1198,7 @@
     
     .current-song {
       font-size: clamp(12px, 2.5vw, 16px);
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-family: 'Share Tech Mono', monospace;
       color: rgba(0, 255, 255, 0.8);
       text-shadow: 
         0 0 8px rgba(0, 255, 255, 0.6),
@@ -1265,97 +1211,6 @@
     /* Smooth transitions */
     * {
       transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    
-    /* Chat iframe container */
-    .chat-container {
-      position: fixed;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: 350px;
-      z-index: 200; /* Above footer (50) so it appears on top */
-      border-left: 2px solid rgba(0, 255, 255, 0.4);
-      background: rgba(10, 10, 20, 0.95);
-      backdrop-filter: blur(10px);
-      box-shadow: 
-        -4px 0 20px rgba(0, 0, 0, 0.8),
-        inset 1px 0 0 rgba(0, 255, 255, 0.3),
-        0 0 40px rgba(0, 255, 255, 0.1);
-    }
-    
-    .chat-container iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: transparent;
-    }
-    
-    /* Mobile chat toggle button */
-    .chat-toggle-btn {
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      z-index: 101;
-      padding: 0;
-      background: 
-        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%);
-      border: 2px solid rgba(0, 255, 255, 0.6);
-      border-radius: 50%;
-      color: #00ffff;
-      font-size: 20px;
-      cursor: pointer;
-      box-shadow: 
-        0 0 20px rgba(0, 255, 255, 0.5),
-        0 0 40px rgba(0, 255, 255, 0.3);
-      width: 56px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
-    }
-    
-    .chat-toggle-btn:hover {
-      box-shadow: 
-        0 0 30px rgba(0, 255, 255, 0.8),
-        0 0 60px rgba(0, 255, 255, 0.5);
-      transform: scale(1.1);
-    }
-    
-    /* Mobile chat container */
-    @media (max-width: 768px) {
-      .chat-container {
-        position: fixed;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-        z-index: 200; /* Above footer on mobile too */
-        /* Ensure chat doesn't interfere when hidden */
-        pointer-events: none;
-      }
-      
-      .chat-container.visible {
-        transform: translateX(0);
-        pointer-events: auto;
-      }
-      
-      /* Ensure main content is not blocked on mobile */
-      article {
-        margin-right: 0 !important;
-      }
-    }
-    
-    /* Desktop: adjust article margin when chat is visible */
-    @media (min-width: 769px) {
-      article {
-        margin-right: 350px;
-      }
     }
   </style>
 </head>
@@ -1495,38 +1350,16 @@
       </div>
     </article>
     
-    <!-- Chat iframe -->
-    <div class="chat-container" 
-         :class="{ 'visible': isChatVisible }"
-         x-show="(isChatVisible && window.innerWidth < 769) || window.innerWidth >= 769"
-         x-ref="chatContainer">
-      <iframe 
-        :src="chatIframeSrc"
-        x-ref="chatIframe"
-        @load="onChatIframeLoad()">
-      </iframe>
-    </div>
-    
-    <!-- Mobile chat toggle button -->
-    <template x-if="window.innerWidth < 769">
-      <button 
-        class="chat-toggle-btn"
-        @click="toggleChat()">
-        💬
-      </button>
-    </template>
-    
     <!-- Footer -->
     <footer>
       <div class="container">
-          <p>
+        <p>
           ⌨ shortcuts:
           Change volume ↑ ↓
           Change channels ← →
           or press first letter of the name. ⏸ space bar to play/pause.
 
           <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
-          <span x-text="buildDate" style="margin-left: 12px; color: rgba(0, 255, 255, 0.5); font-size: 10px;"></span>
         </p>
       </div>
     </footer>
@@ -1550,349 +1383,11 @@
       4: 'enough'
     };
 
-    // Radio Tuning Noise Generator - Enhanced FM Radio Static
-    class RadioTuningNoise {
-      constructor() {
-        this.audioContext = null;
-        this.noiseSources = [];
-        this.gainNode = null;
-        this.biquadFilter = null;
-        this.oscillators = [];
-        this.intervals = [];
-        this.isPlaying = false;
-        this.volume = 0.5; // Volume for tuning noise (0-1)
-        this.nodes = []; // Track all nodes for cleanup
-      }
-      
-      init() {
-        try {
-          // Create audio context if not already created
-          if (!this.audioContext) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-          }
-          
-          // Resume context if suspended (required for autoplay policies)
-          if (this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
-          }
-        } catch (e) {
-          console.log('Web Audio API not supported:', e);
-          return false;
-        }
-        return true;
-      }
-      
-      play() {
-        if (this.isPlaying) return;
-        
-        if (!this.init()) return;
-        
-        try {
-          const now = this.audioContext.currentTime;
-          const sampleRate = this.audioContext.sampleRate;
-          
-          // Create multiple noise buffers with different characteristics
-          const bufferSize = sampleRate * 3; // 3 seconds
-          
-          // Main pink noise buffer (base static)
-          const pinkBuffer = this.audioContext.createBuffer(1, bufferSize, sampleRate);
-          const pinkData = pinkBuffer.getChannelData(0);
-          let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-          for (let i = 0; i < bufferSize; i++) {
-            const white = Math.random() * 2 - 1;
-            b0 = 0.99886 * b0 + white * 0.0555179;
-            b1 = 0.99332 * b1 + white * 0.0750759;
-            b2 = 0.96900 * b2 + white * 0.1538520;
-            b3 = 0.86650 * b3 + white * 0.3104856;
-            b4 = 0.55000 * b4 + white * 0.5329522;
-            b5 = -0.7616 * b5 - white * 0.0168980;
-            pinkData[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.12;
-            b6 = white * 0.115926;
-          }
-          
-          // High-frequency white noise buffer (for FM hiss)
-          const whiteBuffer = this.audioContext.createBuffer(1, bufferSize, sampleRate);
-          const whiteData = whiteBuffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) {
-            whiteData[i] = (Math.random() * 2 - 1) * 0.08;
-          }
-          
-          // Create noise sources
-          const pinkSource = this.audioContext.createBufferSource();
-          pinkSource.buffer = pinkBuffer;
-          pinkSource.loop = true;
-          
-          const whiteSource = this.audioContext.createBufferSource();
-          whiteSource.buffer = whiteBuffer;
-          whiteSource.loop = true;
-          
-          this.noiseSources = [pinkSource, whiteSource];
-          
-          // Create main bandpass filter for tuning effect
-          this.biquadFilter = this.audioContext.createBiquadFilter();
-          this.biquadFilter.type = 'bandpass';
-          this.biquadFilter.frequency.value = 2000; // Lower center frequency
-          this.biquadFilter.Q.value = 10;
-          
-          // Create secondary bandpass for texture
-          const bandpass2 = this.audioContext.createBiquadFilter();
-          bandpass2.type = 'bandpass';
-          bandpass2.frequency.value = 3500; // Lower frequency
-          bandpass2.Q.value = 5;
-          
-          // High-pass filter (remove rumble)
-          const highPass = this.audioContext.createBiquadFilter();
-          highPass.type = 'highpass';
-          highPass.frequency.value = 300; // Lower cutoff
-          highPass.Q.value = 0.7;
-          
-          // Low-pass filter (FM bandwidth limit)
-          const lowPass = this.audioContext.createBiquadFilter();
-          lowPass.type = 'lowpass';
-          lowPass.frequency.value = 18000;
-          lowPass.Q.value = 0.7;
-          
-          // High-frequency emphasis (FM has good highs)
-          const highShelf = this.audioContext.createBiquadFilter();
-          highShelf.type = 'highshelf';
-          highShelf.frequency.value = 6000; // Lower frequency
-          highShelf.gain.value = 3; // Boost highs slightly
-          
-          // Create gain nodes - slightly louder
-          const pinkGain = this.audioContext.createGain();
-          pinkGain.gain.value = 0.8;
-          
-          const whiteGain = this.audioContext.createGain();
-          whiteGain.gain.value = 0.6;
-          
-          this.gainNode = this.audioContext.createGain();
-          this.gainNode.gain.value = 0;
-          
-          // Create master merger
-          const merger = this.audioContext.createChannelMerger(1);
-          
-          // Connect pink noise chain
-          pinkSource.connect(pinkGain);
-          pinkGain.connect(highPass);
-          highPass.connect(this.biquadFilter);
-          this.biquadFilter.connect(bandpass2);
-          bandpass2.connect(lowPass);
-          lowPass.connect(highShelf);
-          highShelf.connect(merger, 0, 0);
-          
-          // Connect white noise (high-frequency hiss)
-          whiteSource.connect(whiteGain);
-          whiteGain.connect(bandpass2);
-          
-          // Connect to output
-          merger.connect(this.gainNode);
-          this.gainNode.connect(this.audioContext.destination);
-          
-          // Create frequency modulation (less variation)
-          // Main slow sweep - more consistent
-          const mainSweep = this.audioContext.createOscillator();
-          mainSweep.type = 'sine';
-          mainSweep.frequency.value = 0.3; // Fixed, less variation
-          
-          // Fast sweep - more consistent
-          const fastSweep = this.audioContext.createOscillator();
-          fastSweep.type = 'triangle';
-          fastSweep.frequency.value = 2.0; // Fixed, less variation
-          
-          // Slow random walk oscillator (reduced variation)
-          const randomWalk = this.audioContext.createOscillator();
-          randomWalk.type = 'sawtooth';
-          randomWalk.frequency.value = 0.12; // Fixed, less variation
-          
-          // Modulation gains - more consistent
-          const modGain1 = this.audioContext.createGain();
-          modGain1.gain.value = 1800; // Fixed, less variation
-          
-          const modGain2 = this.audioContext.createGain();
-          modGain2.gain.value = 1000; // Fixed, less variation
-          
-          const modGain3 = this.audioContext.createGain();
-          modGain3.gain.value = 600; // Fixed, less variation
-          
-          // Combine modulations
-          const modMerger = this.audioContext.createChannelMerger(1);
-          mainSweep.connect(modGain1);
-          fastSweep.connect(modGain2);
-          randomWalk.connect(modGain3);
-          modGain1.connect(modMerger, 0, 0);
-          modGain2.connect(modMerger, 0, 0);
-          modGain3.connect(modMerger, 0, 0);
-          
-          // Connect to filter frequency
-          modMerger.connect(this.biquadFilter.frequency);
-          
-          // Dynamic Q variation (signal strength simulation) - reduced variation
-          const qVariation = this.audioContext.createOscillator();
-          qVariation.type = 'sine';
-          qVariation.frequency.value = 0.7; // Fixed, less variation
-          const qGain = this.audioContext.createGain();
-          qGain.gain.value = 3.5; // Fixed, less variation
-          qVariation.connect(qGain);
-          qGain.connect(this.biquadFilter.Q);
-          
-          // Amplitude modulation for texture - reduced variation
-          const ampMod = this.audioContext.createOscillator();
-          ampMod.type = 'sine';
-          ampMod.frequency.value = 3.5; // Fixed, less variation
-          const ampGain = this.audioContext.createGain();
-          ampGain.gain.value = 0.12; // Slightly reduced
-          ampMod.connect(ampGain);
-          ampGain.connect(pinkGain.gain);
-          
-          // Store nodes
-          this.nodes = [
-            mainSweep, fastSweep, randomWalk, modGain1, modGain2, modGain3, modMerger,
-            highPass, bandpass2, lowPass, highShelf, pinkGain, whiteGain, merger,
-            qVariation, qGain, ampMod, ampGain
-          ];
-          this.oscillators = [mainSweep, fastSweep, randomWalk, qVariation, ampMod];
-          
-          // Start sources
-          pinkSource.start(0);
-          whiteSource.start(0);
-          mainSweep.start(0);
-          fastSweep.start(0);
-          randomWalk.start(0);
-          qVariation.start(0);
-          ampMod.start(0);
-          
-          // Add crackling/pops
-          const crackleGain = this.audioContext.createGain();
-          crackleGain.gain.value = 0;
-          pinkSource.connect(crackleGain);
-          crackleGain.connect(this.gainNode);
-          
-          const crackleInterval = setInterval(() => {
-            if (this.isPlaying && crackleGain && this.audioContext) {
-              const crackleTime = this.audioContext.currentTime;
-              const intensity = 0.3 + Math.random() * 0.4;
-              crackleGain.gain.setValueAtTime(0, crackleTime);
-              crackleGain.gain.setValueAtTime(intensity, crackleTime);
-              crackleGain.gain.exponentialRampToValueAtTime(0.001, crackleTime + 0.03 + Math.random() * 0.04);
-            }
-          }, 80 + Math.random() * 180);
-          
-          this.intervals.push(crackleInterval);
-          this.nodes.push(crackleGain);
-          
-          // Add brief "station-like" peaks (moments where you almost hear something)
-          const stationPeakGain = this.audioContext.createGain();
-          stationPeakGain.gain.value = 0;
-          pinkSource.connect(stationPeakGain);
-          
-          // Filter for station peaks (voice-like frequencies) - lower frequencies
-          const stationFilter = this.audioContext.createBiquadFilter();
-          stationFilter.type = 'bandpass';
-          stationFilter.frequency.value = 1500; // Lower frequency
-          stationFilter.Q.value = 15;
-          stationPeakGain.connect(stationFilter);
-          stationFilter.connect(this.gainNode);
-          
-          const stationInterval = setInterval(() => {
-            if (this.isPlaying && stationPeakGain && this.audioContext && Math.random() > 0.7) {
-              const peakTime = this.audioContext.currentTime;
-              const duration = 0.1 + Math.random() * 0.2;
-              const freq = 1200 + Math.random() * 1500; // Lower frequency range
-              
-              stationFilter.frequency.setValueAtTime(freq, peakTime);
-              stationPeakGain.gain.setValueAtTime(0, peakTime);
-              stationPeakGain.gain.linearRampToValueAtTime(0.25 + Math.random() * 0.15, peakTime + 0.05);
-              stationPeakGain.gain.linearRampToValueAtTime(0, peakTime + duration);
-            }
-          }, 300 + Math.random() * 500);
-          
-          this.intervals.push(stationInterval);
-          this.nodes.push(stationPeakGain, stationFilter);
-          
-          // Random frequency jumps (like tuning knob movement) - reduced frequency
-          const freqJumpInterval = setInterval(() => {
-            if (this.isPlaying && this.biquadFilter && this.audioContext && Math.random() > 0.92) {
-              const jumpTime = this.audioContext.currentTime;
-              const currentFreq = this.biquadFilter.frequency.value;
-              const newFreq = currentFreq + (Math.random() - 0.5) * 1500; // Smaller jumps
-              this.biquadFilter.frequency.setValueAtTime(currentFreq, jumpTime);
-              this.biquadFilter.frequency.linearRampToValueAtTime(newFreq, jumpTime + 0.15);
-            }
-          }, 400 + Math.random() * 400); // Less frequent jumps
-          
-          this.intervals.push(freqJumpInterval);
-          
-          // Fade in
-          this.gainNode.gain.setValueAtTime(0, now);
-          this.gainNode.gain.linearRampToValueAtTime(this.volume, now + 0.2);
-          
-          this.isPlaying = true;
-        } catch (e) {
-          console.log('Error playing tuning noise:', e);
-        }
-      }
-      
-      stop() {
-        if (!this.isPlaying) return;
-        
-        try {
-          // Clear all intervals
-          this.intervals.forEach(interval => {
-            clearInterval(interval);
-          });
-          this.intervals = [];
-          
-          // Fade out smoothly
-          if (this.gainNode && this.audioContext) {
-            const now = this.audioContext.currentTime;
-            this.gainNode.gain.setValueAtTime(this.volume, now);
-            this.gainNode.gain.linearRampToValueAtTime(0, now + 0.25);
-            
-            // Stop sources after fade out
-            setTimeout(() => {
-              // Stop all oscillators
-              this.oscillators.forEach(osc => {
-                try {
-                  osc.stop();
-                } catch (e) {
-                  // Already stopped
-                }
-              });
-              
-              // Stop all noise sources
-              this.noiseSources.forEach(source => {
-                try {
-                  source.stop();
-                } catch (e) {
-                  // Already stopped
-                }
-              });
-              
-              // Clean up all nodes
-              this.nodes = [];
-              this.oscillators = [];
-              this.noiseSources = [];
-              this.biquadFilter = null;
-              this.gainNode = null;
-              this.isPlaying = false;
-            }, 300);
-          } else {
-            this.isPlaying = false;
-          }
-        } catch (e) {
-          console.log('Error stopping tuning noise:', e);
-          this.isPlaying = false;
-        }
-      }
-    }
-
     // Player class
     class RadioPlayer {
       constructor() {
         this.readyState = null;
         this.networkState = null;
-        this.tuningNoise = new RadioTuningNoise();
         
         // Check status every 7 seconds
         setInterval(() => {
@@ -1938,18 +1433,12 @@
           
           // Remove any existing event listeners to prevent duplicates
           const playWhenReady = () => {
-            // Don't stop tuning noise here - only stop when playback actually starts
             // Only autoplay if shouldAutoplay is true and user hasn't manually paused
             if (shouldAutoplay && (!appState || !appState.userPaused)) {
               const playPromise = audio.play();
               if (playPromise !== undefined) {
-                playPromise.then(() => {
-                  // Stop tuning noise only when playback actually starts
-                  if (this.tuningNoise) {
-                    this.tuningNoise.stop();
-                  }
-                }).catch(error => {
-                  // Autoplay was prevented - keep noise playing
+                playPromise.catch(error => {
+                  // Autoplay was prevented - this is expected in some browsers
                   // User can manually click play if needed
                   console.log('Autoplay prevented:', error);
                 });
@@ -1996,31 +1485,14 @@
             audio.addEventListener('canplay', this._canPlayListener, { once: true });
             audio.addEventListener('loadeddata', this._loadedDataListener, { once: true });
             
-            // Stop tuning noise only when playback actually starts
-            const playingHandler = () => {
-              if (this.tuningNoise) {
-                this.tuningNoise.stop();
-              }
-            };
-            audio.addEventListener('playing', playingHandler, { once: true });
-            
-            // Don't stop noise on error - keep it playing if stream fails
-            const errorHandler = () => {
-              // Keep tuning noise playing if stream fails
-              console.log('Stream error - keeping tuning noise');
-            };
-            audio.addEventListener('error', errorHandler, { once: true });
-            
             // Try to play immediately if shouldAutoplay and user hasn't paused
             // If it fails, the event listeners will retry when ready
-            // Note: tuning noise will stop on 'playing' event, not here
             if (shouldAutoplay && (!appState || !appState.userPaused)) {
               setTimeout(() => {
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                   playPromise.catch(error => {
                     // Autoplay was prevented - event listeners will retry when ready
-                    // Keep tuning noise playing
                     console.log('Immediate autoplay prevented, will retry when ready:', error);
                   });
                 }
@@ -2142,18 +1614,10 @@
               this.appState.userPaused = true;
             }
             this.appState.currentChannel = '';
-            // Stop tuning noise if playing
-            if (this.player && this.player.tuningNoise) {
-              this.player.tuningNoise.stop();
-            }
           } else if (channel !== previousChannel) {
             // Changing to a different channel - always autoplay
             this.appState.userPaused = false;
             this.appState.currentChannel = channel;
-            // Start tuning noise when switching channels
-            if (this.player && this.player.tuningNoise && previousChannel) {
-              this.player.tuningNoise.play();
-            }
             // Trigger metadata fetch (watcher should also handle this, but ensure it happens)
             if (this.appState.fetchCurrentSong) {
               setTimeout(() => this.appState.fetchCurrentSong(), 100);
@@ -2282,43 +1746,10 @@
         _isProgrammaticPause: false,
         currentSong: null,
         currentSongError: null,
-        isChatVisible: false, // Hidden by default on mobile, visible on desktop
-        chatIframeReady: false,
-        chatIframeCacheBuster: Date.now(), // Cache-busting timestamp set once per page load
-        
-        get chatIframeSrc() {
-          // Add cache-busting parameter to ensure iframe always loads latest version on page refresh
-          return `chatiframe1.html?t=${this.chatIframeCacheBuster}`;
-        },
-        
-        get buildDate() {
-          // Format: yymmdd hh:mm
-          const now = new Date();
-          const year = now.getFullYear().toString().slice(-2);
-          const month = (now.getMonth() + 1).toString().padStart(2, '0');
-          const day = now.getDate().toString().padStart(2, '0');
-          const hours = now.getHours().toString().padStart(2, '0');
-          const minutes = now.getMinutes().toString().padStart(2, '0');
-          return `${year}${month}${day} ${hours}:${minutes}`;
-        },
         
         init() {
           // Make appState available globally for app.js
           window.appState = this;
-          
-          // Set chat visibility based on screen size
-          if (window.innerWidth >= 769) {
-            this.isChatVisible = true; // Show on desktop
-          } else {
-            this.isChatVisible = false; // Hide on mobile
-          }
-          
-          // Update on resize
-          window.addEventListener('resize', () => {
-            if (window.innerWidth >= 769) {
-              this.isChatVisible = true;
-            }
-          });
           
           console.log('Loaded channels:', Object.keys(channels).length);
           
@@ -2419,53 +1850,6 @@
               this.stopMetadataPolling();
             }
           });
-          
-          // Watch for channel changes and notify chat iframe
-          this.$watch('currentChannel', () => {
-            this.sendChannelToChat();
-          });
-          
-          // Set up postMessage listener for chat
-          window.addEventListener('message', (event) => {
-            try {
-              if (event.data.type === 'chatReady') {
-                this.chatIframeReady = true;
-                this.sendChannelToChat();
-              } else if (event.data.type === 'tuneToChannel' && event.data.channel) {
-                // User clicked a channel tag in chat - tune to that channel
-                this.navigateTo('#' + event.data.channel);
-              }
-            } catch (e) {
-              // Silently ignore chat errors - don't affect radio
-              console.log('Chat message error (non-critical):', e);
-            }
-          });
-        },
-        
-        toggleChat() {
-          this.isChatVisible = !this.isChatVisible;
-        },
-        
-        onChatIframeLoad() {
-          // Iframe loaded, wait a bit then send channel
-          setTimeout(() => {
-            this.sendChannelToChat();
-          }, 500);
-        },
-        
-        sendChannelToChat() {
-          try {
-            const iframe = this.$refs.chatIframe;
-            if (iframe && iframe.contentWindow) {
-              iframe.contentWindow.postMessage({
-                type: 'channelChange',
-                channel: this.currentChannel ? this.currentChannel.replace(/_/g, ' ') : ''
-              }, '*');
-            }
-          } catch (e) {
-            // Silently ignore - chat errors shouldn't affect radio
-            console.log('Chat communication error (non-critical):', e);
-          }
         },
         
         startMetadataPolling() {
@@ -2910,9 +2294,32 @@
         },
         
         async fetchFluxFMMetadata() {
-          // Flux FM doesn't provide a JSON API endpoint like SomaFM
-          // The metadata.fluxfm.de endpoint returns HTML, not JSON, and lacks CORS headers
-          // Unlike SomaFM which has CORS-enabled JSON API, Flux FM metadata is not accessible
+          if (!this.currentChannel) return null;
+          
+          // Try to extract stream ID from channel name
+          // e.g., flux_fm_techno_underground -> techno-underground
+          const streamId = this.currentChannel
+            .replace(/^flux_fm_/, '')
+            .replace(/_/g, '-');
+          
+          // Try potential metadata endpoint
+          try {
+            const response = await fetch(`https://metadata.fluxfm.de/api/stream/${streamId}.json`);
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.artist && data.title) {
+                return {
+                  artist: data.artist,
+                  title: data.title,
+                  album: data.album || ''
+                };
+              }
+            }
+          } catch (error) {
+            // Silently fail - Flux FM may not have a public API
+            console.log('Flux FM metadata fetch error:', error);
+          }
+          
           return null;
         },
         
