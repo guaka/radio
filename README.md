@@ -36,4 +36,4 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 
 ## Links
 
-* [radio.guaka.org](http://radio.guaka.org/)
+* [radio.guaka.org](https://radio.guaka.org/)
