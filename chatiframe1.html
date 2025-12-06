@@ -1158,12 +1158,14 @@
         tuneToChannel(channel) {
           if (!channel) return;
           try {
+            // Convert spaces back to underscores (channel names use underscores)
+            const channelId = channel.replace(/ /g, '_');
             // Send message to parent to change channel
             window.parent.postMessage({
               type: 'tuneToChannel',
-              channel: channel
+              channel: channelId
             }, '*');
-            console.log('📻 Requested tune to:', channel);
+            console.log('📻 Requested tune to:', channelId);
           } catch (e) {
             console.error('Could not send tune request:', e);
           }
