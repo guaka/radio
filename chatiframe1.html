@@ -652,6 +652,9 @@
         // Initialize
         async init() {
           try {
+            // Load cached messages immediately for instant UI
+            this.loadCachedMessages();
+            
             // Parse URL parameters
             const params = new URLSearchParams(window.location.search);
             const hashtagParam = params.get('hashtag') || 'radioguaka';
@@ -997,6 +1000,9 @@
           if (this.messages.length > 200) {
             this.messages = this.messages.slice(-200);
           }
+          
+          // Save to localStorage cache
+          this.saveCachedMessages();
           
           // Auto-scroll to bottom
           this.$nextTick(() => {
@@ -1413,6 +1419,9 @@
             
             // Remove from local messages
             this.messages = this.messages.filter(m => m.id !== eventId);
+            
+            // Update cache
+            this.saveCachedMessages();
           } catch (error) {
             console.error('Delete error:', error);
           }
@@ -1778,6 +1787,49 @@
           } catch (error) {
             console.error('Error fetching past messages:', error);
             this.isLoading = false;
+          }
+        },
+        
+        // Load cached messages from localStorage
+        loadCachedMessages() {
+          try {
+            const cached = localStorage.getItem('radio_guaka_chat_messages');
+            if (cached) {
+              const messages = JSON.parse(cached);
+              if (Array.isArray(messages) && messages.length > 0) {
+                this.messages = messages;
+                console.log(`📦 Loaded ${messages.length} cached messages`);
+                
+                // Scroll to bottom after loading cached messages
+                this.$nextTick(() => {
+                  const container = this.$refs.messagesContainer;
+                  if (container) {
+                    container.scrollTop = container.scrollHeight;
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            console.error('Error loading cached messages:', e);
+            // Clear corrupted cache
+            localStorage.removeItem('radio_guaka_chat_messages');
+          }
+        },
+        
+        // Save messages to localStorage cache
+        saveCachedMessages() {
+          try {
+            // Only save the last 200 messages to avoid storage limits
+            const toSave = this.messages.slice(-200).map(m => ({
+              id: m.id,
+              pubkey: m.pubkey,
+              content: m.content,
+              created_at: m.created_at,
+              tags: m.tags
+            }));
+            localStorage.setItem('radio_guaka_chat_messages', JSON.stringify(toSave));
+          } catch (e) {
+            console.error('Error saving cached messages:', e);
           }
         },
         
