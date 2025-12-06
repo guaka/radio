@@ -8,20 +8,11 @@
   <script type="module">
     async function loadNDK() {
       try {
-        console.log('🔄 Loading NDK from CDN...');
-        
         // Import NDK from esm.sh - use latest version for bug fixes
         const NDKModule = await import('https://esm.sh/@nostr-dev-kit/ndk@latest');
         
         // NDK is the default export
         const NDK = NDKModule.default;
-        
-        // Debug: check what's available
-        console.log('NDK Module exports:', Object.keys(NDKModule));
-        console.log('NDK type:', typeof NDK);
-        if (NDK) {
-          console.log('NDK static properties:', Object.keys(NDK));
-        }
         
         // Get named exports - try multiple ways
         let NDKEvent = NDKModule.NDKEvent || NDK?.NDKEvent;
@@ -34,7 +25,7 @@
             const eventModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/events');
             NDKEvent = eventModule.NDKEvent || eventModule.default;
           } catch (e) {
-            console.log('Could not import NDKEvent from events subpath');
+            // Fallback import failed
           }
         }
         
@@ -43,7 +34,7 @@
             const userModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/user');
             NDKUser = userModule.NDKUser || userModule.default;
           } catch (e) {
-            console.log('Could not import NDKUser from user subpath');
+            // Fallback import failed
           }
         }
         
@@ -52,20 +43,13 @@
             const signerModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/signers/private-key');
             NDKPrivateKeySigner = signerModule.NDKPrivateKeySigner || signerModule.default;
           } catch (e) {
-            console.log('Could not import NDKPrivateKeySigner from signers subpath');
+            // Fallback import failed
           }
         }
         
         if (!NDK || typeof NDK !== 'function') {
           throw new Error('NDK class not found or not a constructor');
         }
-        
-        console.log('Found classes:', {
-          NDK: !!NDK,
-          NDKEvent: !!NDKEvent,
-          NDKUser: !!NDKUser,
-          NDKPrivateKeySigner: !!NDKPrivateKeySigner
-        });
         
         // Import crypto utilities for generatePrivateKey
         let generatePrivateKey = null;
@@ -78,7 +62,7 @@
             };
           }
         } catch (e) {
-          console.log('Crypto utils import failed, will use fallback:', e);
+          // Crypto utils import failed, will use fallback
         }
         
         // Fallback generatePrivateKey using Web Crypto API
@@ -100,14 +84,12 @@
           generatePrivateKey: generatePrivateKey
         };
         
-        console.log('✅ NDK loaded successfully from CDN');
-        
         window.dispatchEvent(new CustomEvent('ndkReady', { 
           detail: { NDK: NDK, source: 'CDN (esm.sh)' } 
         }));
         
       } catch (error) {
-        console.error('❌ Failed to load NDK from CDN:', error);
+        console.error('Failed to load NDK:', error);
         window.dispatchEvent(new CustomEvent('ndkError', { 
           detail: { error: error.message } 
         }));
@@ -619,8 +601,6 @@
               'wss://relay.trustroots.org'
             ];
             
-            console.log('🔌 Configured relays:', this.relays);
-            
             // Initialize relay status (only for the 2 relays)
             this.relayStatus = {};
             this.relays.forEach(relay => {
@@ -717,9 +697,6 @@
               throw new Error('NDK class is not a constructor');
             }
             
-            // Initialize NDK with relay URLs
-            console.log('Initializing NDK with relays:', this.relays);
-            
             // Ensure relays are set
             if (!this.relays || this.relays.length === 0) {
               throw new Error('No relays configured');
@@ -732,7 +709,6 @@
                 explicitRelayUrls: this.relays
               });
             } catch (e) {
-              console.log('Failed with explicitRelayUrls, trying relays option:', e);
               // Try with 'relays' option name
               this.ndk = new NDKClass({
                 relays: this.relays
@@ -745,24 +721,15 @@
                 try {
                   this.ndk.addExplicitRelay(relayUrl);
                 } catch (e) {
-                  console.log('Could not add relay:', relayUrl, e);
+                  // Could not add relay
                 }
               });
             }
             
             await this.ndk.connect();
             
-            // Debug: check if relays are set
-            console.log('NDK instance after connect:', {
-              hasPool: !!this.ndk.pool,
-              poolRelays: this.ndk.pool?.relays,
-              explicitRelayUrls: this.ndk.explicitRelayUrls,
-              poolSize: this.ndk.pool?.size
-            });
-            
             // Ensure relays are properly set in the pool
             if (this.ndk.pool && (!this.ndk.pool.relays || this.ndk.pool.size === 0)) {
-              console.log('Relays not in pool, manually adding...');
               // Manually add relays to pool if they're not there
               for (const relayUrl of this.relays) {
                 try {
@@ -772,7 +739,7 @@
                     this.ndk.addExplicitRelay(relayUrl);
                   }
                 } catch (e) {
-                  console.log('Could not add relay to pool:', relayUrl, e);
+                  // Could not add relay to pool
                 }
               }
             }
@@ -781,15 +748,32 @@
             if (this.ndk.pool) {
               this.ndk.pool.on('relay:connect', (relay) => {
                 // Only track status for our configured relays
-                if (this.relays.includes(relay.url)) {
-                  this.relayStatus[relay.url] = { status: 'connected' };
+                const relayUrl = relay.url || relay;
+                if (this.relays.includes(relayUrl)) {
+                  this.relayStatus[relayUrl] = { status: 'connected' };
                 }
               });
               
               this.ndk.pool.on('relay:disconnect', (relay) => {
                 // Only track status for our configured relays
-                if (this.relays.includes(relay.url)) {
-                  this.relayStatus[relay.url] = { status: 'disconnected' };
+                const relayUrl = relay.url || relay;
+                if (this.relays.includes(relayUrl)) {
+                  this.relayStatus[relayUrl] = { status: 'disconnected' };
+                }
+              });
+              
+              // Also listen for 'connect' and 'disconnect' without 'relay:' prefix (NDK v2.x)
+              this.ndk.pool.on('connect', (relay) => {
+                const relayUrl = relay?.url || relay;
+                if (this.relays.includes(relayUrl)) {
+                  this.relayStatus[relayUrl] = { status: 'connected' };
+                }
+              });
+              
+              this.ndk.pool.on('disconnect', (relay) => {
+                const relayUrl = relay?.url || relay;
+                if (this.relays.includes(relayUrl)) {
+                  this.relayStatus[relayUrl] = { status: 'disconnected' };
                 }
               });
             }
@@ -797,13 +781,14 @@
             // Wait a bit for relays to be fully connected before subscribing
             await new Promise(resolve => setTimeout(resolve, 1500));
             
-            console.log('🔗 NDK connected, pool status:', {
-              poolSize: this.ndk.pool?.size,
-              relays: this.ndk.pool?.relays ? Array.from(this.ndk.pool.relays.keys()) : []
-            });
+            // Check actual relay connection status after waiting
+            this.updateRelayStatus();
             
             // Start subscriptions
             this.startSubscriptions();
+            
+            // Periodically update relay status (every 30 seconds as fallback)
+            setInterval(() => this.updateRelayStatus(), 30000);
             
             // Also try a direct fetch as fallback after a delay
             setTimeout(() => this.fetchPastMessages(), 3000);
@@ -825,8 +810,6 @@
           try {
             if (!this.ndk) return;
             
-            console.log('📡 Starting subscriptions...');
-            
             // Subscribe to kind 1 messages with #radioguaka tag
             const messageFilter = { 
               kinds: [1],
@@ -834,23 +817,23 @@
               limit: 100
             };
             
-            console.log('📝 Message filter:', messageFilter);
-            
             const subscription = this.ndk.subscribe(messageFilter, { closeOnEose: false });
             
             // Attach event handlers using the correct NDK API
             subscription.on('event', (event) => {
               try {
-                console.log('📨 Received message event:', event.id?.substring(0, 8), event.content?.substring(0, 50));
                 this.handleMessageEvent(event);
+                // Receiving events means relays are connected - update status
+                this.markRelaysConnected();
               } catch (e) {
                 console.error('Error handling message event:', e);
               }
             });
             
             subscription.on('eose', () => {
-              console.log('📬 End of stored events (messages)');
               this.isLoading = false;
+              // End of stored events means relays responded - they're connected
+              this.markRelaysConnected();
             });
             
             // Also listen for events via the NDK events iterator pattern (alternative API)
@@ -860,7 +843,6 @@
                 if (subscription[Symbol.asyncIterator]) {
                   for await (const event of subscription) {
                     try {
-                      console.log('📨 (async) Received message:', event.id?.substring(0, 8));
                       this.handleMessageEvent(event);
                     } catch (e) {
                       console.error('Error handling async message event:', e);
@@ -869,7 +851,6 @@
                 }
               } catch (e) {
                 // Async iterator not supported, that's fine - we're using .on() handlers
-                console.log('Async iterator not available, using event handlers');
               }
             })();
             
@@ -900,8 +881,6 @@
                 console.error('Error handling reaction event:', e);
               }
             });
-            
-            console.log('✅ Subscriptions started');
             
           } catch (error) {
             console.error('Subscription error:', error);
@@ -1125,9 +1104,8 @@
               type: 'tuneToChannel',
               channel: channelId
             }, '*');
-            console.log('📻 Requested tune to:', channelId);
           } catch (e) {
-            console.error('Could not send tune request:', e);
+            // Ignore tune request errors
           }
         },
         
@@ -1192,12 +1170,6 @@
             this.isSending = true;
             
             const messageContent = this.messageInput.trim();
-            console.log('📤 Sending message:', { 
-              content: messageContent.substring(0, 50) + (messageContent.length > 50 ? '...' : ''),
-              length: messageContent.length,
-              pubkey: this.currentUserPubkey ? this.currentUserPubkey.substring(0, 16) + '...' : 'none'
-            });
-            
             const NDKEvent = window.NDKModule?.NDKEvent;
             if (!NDKEvent) {
               throw new Error('NDKEvent not available');
@@ -1205,12 +1177,6 @@
             
             // Calculate expiration: 30 days from now (Unix timestamp in seconds)
             const expirationTimestamp = Math.floor((Date.now() + (30 * 24 * 60 * 60 * 1000)) / 1000);
-            const expirationDate = new Date(expirationTimestamp * 1000);
-            console.log('⏰ Message expiration:', {
-              timestamp: expirationTimestamp,
-              date: expirationDate.toISOString(),
-              daysFromNow: 30
-            });
             
             const event = new NDKEvent(this.ndk);
             event.kind = 1;
@@ -1224,25 +1190,10 @@
               event.tags.push(['channel', this.currentChannel]);
             }
             
-            console.log('📝 Event created:', {
-              kind: event.kind,
-              tags: event.tags,
-              contentLength: event.content.length
-            });
-            
-            console.log('✍️ Signing event...');
             await event.sign();
             
             // Get event ID after signing (required for optimistic update)
             const eventId = event.id;
-            if (!eventId) {
-              console.warn('⚠️ Event ID not available after signing');
-            } else {
-              console.log('✅ Event signed:', {
-                id: eventId,
-                pubkey: event.pubkey ? event.pubkey.substring(0, 16) + '...' : 'none'
-              });
-            }
             
             // Optimistically add message to UI immediately (before publish)
             const optimisticMessage = {
@@ -1277,21 +1228,7 @@
             this.messageInput = '';
             
             // Publish to relay
-            console.log('📡 Publishing to relays:', this.relays);
-            const publishStartTime = Date.now();
-            
-            try {
-              await event.publish();
-              const publishDuration = Date.now() - publishStartTime;
-              console.log('✅ Message published successfully:', {
-                eventId: eventId,
-                duration: publishDuration + 'ms',
-                relays: this.relays.length
-              });
-            } catch (publishError) {
-              console.error('❌ Publish error:', publishError);
-              throw publishError;
-            }
+            await event.publish();
             
             // Remove optimistic flag once published (message will come back through subscription)
             if (eventId) {
@@ -1300,31 +1237,20 @@
                 this.messages[messageIndex].optimistic = false;
                 // Force update
                 this.messages = [...this.messages];
-                console.log('🔄 Optimistic message confirmed');
               }
             }
             
           } catch (error) {
-            console.error('❌ Send error:', {
-              error: error,
-              message: error.message,
-              stack: error.stack,
-              eventId: event?.id,
-              hasSigner: !!this.ndk?.signer,
-              isAuthenticated: this.isAuthenticated
-            });
+            console.error('Send error:', error.message);
             this.errorMessage = 'Failed to send message: ' + error.message;
             
             // Remove optimistic message if send failed
-            // Note: event.id might not exist if sign() failed, so we check for it
             try {
               if (event && event.id) {
-                const removed = this.messages.filter(m => m.id !== event.id && !m.optimistic);
-                this.messages = removed;
-                console.log('🗑️ Removed optimistic message due to error');
+                this.messages = this.messages.filter(m => m.id !== event.id && !m.optimistic);
               }
             } catch (e) {
-              console.error('Error cleaning up optimistic message:', e);
+              // Ignore cleanup errors
             }
             
             setTimeout(() => {
@@ -1332,7 +1258,6 @@
             }, 5000);
           } finally {
             this.isSending = false;
-            console.log('🏁 Send operation completed');
           }
         },
         
@@ -1414,14 +1339,12 @@
             
             // Check if getPublicKey method exists
             if (typeof nostrProvider.getPublicKey !== 'function') {
-              console.log('Nostr extension found but getPublicKey not available');
               return false;
             }
             
             // Get public key from extension
             const pubkey = await nostrProvider.getPublicKey();
             if (!pubkey) {
-              console.log('Failed to get public key from extension');
               return false;
             }
             
@@ -1459,13 +1382,9 @@
             // Clear any saved private key since we're using extension
             localStorage.removeItem('radio_guaka_chat_private_key');
             
-            console.log('✅ Key stored in localStorage (pubkey only, extension manages private key)');
-            
-            console.log('✅ Authenticated with Nostr extension:', pubkey.substring(0, 16) + '...');
             return true;
             
           } catch (error) {
-            console.log('Extension auth error (non-critical):', error.message);
             return false; // Return false instead of throwing
           }
         },
@@ -1657,10 +1576,8 @@
               }
             }
             
-            console.log('✅ New key generated and authenticated');
-            
           } catch (error) {
-            console.error('Key generation error:', error);
+            console.error('Key generation error:', error.message);
             this.errorMessage = 'Failed to generate key: ' + error.message;
             setTimeout(() => {
               this.errorMessage = '';
@@ -1717,8 +1634,6 @@
           try {
             if (!this.ndk) return;
             
-            console.log('🔍 Fetching past messages directly...');
-            
             const filter = {
               kinds: [1],
               '#t': ['radioguaka'],
@@ -1729,12 +1644,9 @@
             const events = await this.ndk.fetchEvents(filter);
             
             if (events && events.size > 0) {
-              console.log(`📬 Fetched ${events.size} past messages`);
               for (const event of events) {
                 this.handleMessageEvent(event);
               }
-            } else {
-              console.log('📭 No past messages found with #radioguaka tag');
             }
             
             this.isLoading = false;
@@ -1752,7 +1664,6 @@
               const messages = JSON.parse(cached);
               if (Array.isArray(messages) && messages.length > 0) {
                 this.messages = messages;
-                console.log(`📦 Loaded ${messages.length} cached messages`);
                 
                 // Scroll to bottom after loading cached messages
                 this.$nextTick(() => {
@@ -1787,6 +1698,60 @@
           }
         },
         
+        // Mark all relays as connected (called when we receive events)
+        markRelaysConnected() {
+          for (const relayUrl of this.relays) {
+            if (this.relayStatus[relayUrl]?.status !== 'connected') {
+              this.relayStatus[relayUrl] = { status: 'connected' };
+            }
+          }
+        },
+        
+        // Update relay status by checking actual connection state
+        updateRelayStatus() {
+          try {
+            if (!this.ndk || !this.ndk.pool) return;
+            
+            // Check each configured relay's actual status
+            for (const relayUrl of this.relays) {
+              // Try different ways to get relay status from NDK pool
+              let relay = null;
+              
+              // NDK v2.x: pool.relays is a Map
+              if (this.ndk.pool.relays && this.ndk.pool.relays.get) {
+                relay = this.ndk.pool.relays.get(relayUrl);
+              }
+              
+              // Try to find relay in pool by URL
+              if (!relay && this.ndk.pool.relays) {
+                for (const [url, r] of this.ndk.pool.relays) {
+                  if (url === relayUrl || r?.url === relayUrl) {
+                    relay = r;
+                    break;
+                  }
+                }
+              }
+              
+              if (relay) {
+                // Check relay's connection status
+                // NDK relay status can be: 'connecting', 'connected', 'disconnected', etc.
+                const status = relay.status || relay.connectionStatus || relay.readyState;
+                
+                if (status === 'connected' || status === 1 || status === WebSocket.OPEN) {
+                  this.relayStatus[relayUrl] = { status: 'connected' };
+                } else if (status === 'connecting' || status === 0 || status === WebSocket.CONNECTING) {
+                  this.relayStatus[relayUrl] = { status: 'connecting' };
+                } else {
+                  this.relayStatus[relayUrl] = { status: 'disconnected' };
+                }
+              }
+            }
+            
+          } catch (e) {
+            // Ignore relay status errors
+          }
+        },
+        
         // Load keys from storage
         async loadKeysFromStorage() {
           try {
@@ -1814,7 +1779,7 @@
                       localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
                     }
                   } catch (e) {
-                    console.log('Could not get pubkey from signer:', e);
+                    // Could not get pubkey from signer
                   }
                 }
               }
