@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHAT</title>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script type="module">
+    async function loadNDK() {
+      try {
+        console.log('🔄 Loading NDK from CDN...');
+        
+        // Import NDK from esm.sh - use latest version for bug fixes
+        const NDKModule = await import('https://esm.sh/@nostr-dev-kit/ndk@latest');
+        
+        // NDK is the default export
+        const NDK = NDKModule.default;
+        
+        // Debug: check what's available
+        console.log('NDK Module exports:', Object.keys(NDKModule));
+        console.log('NDK type:', typeof NDK);
+        if (NDK) {
+          console.log('NDK static properties:', Object.keys(NDK));
+        }
+        
+        // Get named exports - try multiple ways
+        let NDKEvent = NDKModule.NDKEvent || NDK?.NDKEvent;
+        let NDKUser = NDKModule.NDKUser || NDK?.NDKUser;
+        let NDKPrivateKeySigner = NDKModule.NDKPrivateKeySigner || NDK?.NDKPrivateKeySigner;
+        
+        // Try importing from specific paths if not found
+        if (!NDKEvent) {
+          try {
+            const eventModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/events');
+            NDKEvent = eventModule.NDKEvent || eventModule.default;
+          } catch (e) {
+            console.log('Could not import NDKEvent from events subpath');
+          }
+        }
+        
+        if (!NDKUser) {
+          try {
+            const userModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/user');
+            NDKUser = userModule.NDKUser || userModule.default;
+          } catch (e) {
+            console.log('Could not import NDKUser from user subpath');
+          }
+        }
+        
+        if (!NDKPrivateKeySigner) {
+          try {
+            const signerModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/signers/private-key');
+            NDKPrivateKeySigner = signerModule.NDKPrivateKeySigner || signerModule.default;
+          } catch (e) {
+            console.log('Could not import NDKPrivateKeySigner from signers subpath');
+          }
+        }
+        
+        if (!NDK || typeof NDK !== 'function') {
+          throw new Error('NDK class not found or not a constructor');
+        }
+        
+        console.log('Found classes:', {
+          NDK: !!NDK,
+          NDKEvent: !!NDKEvent,
+          NDKUser: !!NDKUser,
+          NDKPrivateKeySigner: !!NDKPrivateKeySigner
+        });
+        
+        // Import crypto utilities for generatePrivateKey
+        let generatePrivateKey = null;
+        try {
+          const cryptoUtils = await import('https://esm.sh/@noble/secp256k1@1.7.1');
+          if (cryptoUtils && cryptoUtils.utils && cryptoUtils.utils.randomPrivateKey) {
+            generatePrivateKey = () => {
+              const bytes = cryptoUtils.utils.randomPrivateKey();
+              return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+            };
+          }
+        } catch (e) {
+          console.log('Crypto utils import failed, will use fallback:', e);
+        }
+        
+        // Fallback generatePrivateKey using Web Crypto API
+        if (!generatePrivateKey) {
+          generatePrivateKey = () => {
+            const bytes = new Uint8Array(32);
+            crypto.getRandomValues(bytes);
+            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          };
+        }
+        
+        // Expose NDK classes globally for compatibility with existing code
+        window.NDK = NDK;
+        window.NDKModule = {
+          NDK: NDK,
+          NDKEvent: NDKEvent,
+          NDKUser: NDKUser,
+          NDKPrivateKeySigner: NDKPrivateKeySigner,
+          generatePrivateKey: generatePrivateKey
+        };
+        
+        console.log('✅ NDK loaded successfully from CDN');
+        
+        window.dispatchEvent(new CustomEvent('ndkReady', { 
+          detail: { NDK: NDK, source: 'CDN (esm.sh)' } 
+        }));
+        
+      } catch (error) {
+        console.error('❌ Failed to load NDK from CDN:', error);
+        window.dispatchEvent(new CustomEvent('ndkError', { 
+          detail: { error: error.message } 
+        }));
+      }
+    }
+    
+    loadNDK();
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: 
+        radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.05) 0%, transparent 50%),
+        linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+      background-attachment: fixed;
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      /* Explicit font stack - no system font fallbacks that might trigger Japanese font probing */
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    /* Scan lines overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 255, 255, 0.02) 0px,
+        rgba(0, 255, 255, 0.02) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+      z-index: 10;
+    }
+    
+    .chat-header {
+      padding: 12px 16px;
+      border-bottom: 2px solid rgba(0, 255, 255, 0.4);
+      background: 
+        linear-gradient(180deg, rgba(20, 20, 30, 0.95) 0%, rgba(10, 10, 20, 0.98) 100%);
+      backdrop-filter: blur(10px);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(0, 255, 255, 0.3),
+        0 0 40px rgba(0, 255, 255, 0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .chat-title {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: 'Orbitron', 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 1),
+        0 0 20px rgba(0, 255, 255, 0.8),
+        0 0 30px rgba(0, 255, 255, 0.6);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    
+    .current-channel {
+      font-size: 12px;
+      color: rgba(0, 255, 255, 0.7);
+      text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    }
+    
+    .chat-status {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    
+    .relay-status {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 11px;
+    }
+    
+    .relay-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #666;
+      box-shadow: 0 0 4px rgba(255, 68, 68, 0.5);
+    }
+    
+    .relay-dot.connected {
+      background: #00ff7f;
+      box-shadow: 0 0 8px rgba(0, 255, 127, 0.8);
+    }
+    
+    .relay-dot.connecting {
+      background: #ffd700;
+      box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .auth-status {
+      font-size: 11px;
+      color: rgba(255, 68, 68, 0.8);
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 68, 68, 0.3);
+      border-radius: 3px;
+      background: rgba(255, 68, 68, 0.1);
+    }
+    
+    .auth-status.authenticated {
+      color: #00ff7f;
+      border-color: rgba(0, 255, 127, 0.3);
+      background: rgba(0, 255, 127, 0.1);
+    }
+    
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .message {
+      padding: 4px 8px;
+      background: rgba(15, 15, 30, 0.5);
+      border-left: 2px solid rgba(0, 255, 255, 0.3);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    
+    .message-username {
+      color: #00ffff;
+      text-shadow: 0 0 4px rgba(0, 255, 255, 0.4);
+      margin-right: 6px;
+    }
+    
+    .message-time {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.3);
+      margin-right: 6px;
+    }
+    
+    .message-channel {
+      font-size: 10px;
+      color: rgba(255, 200, 0, 0.7);
+      margin-right: 6px;
+      cursor: pointer;
+    }
+    
+    .message-channel:hover {
+      color: #ffd700;
+      text-shadow: 0 0 6px rgba(255, 215, 0, 0.8);
+    }
+    
+    .message-content {
+      color: #e0e0e0;
+      display: inline;
+    }
+    
+    .message-actions {
+      display: inline;
+      margin-left: 8px;
+      font-size: 10px;
+    }
+    
+    .message-action {
+      color: rgba(0, 255, 255, 0.5);
+      cursor: pointer;
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+    
+    .message-action:hover {
+      color: #00ffff;
+      background: rgba(0, 255, 255, 0.1);
+    }
+    
+    .reaction-count {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .chat-input-area {
+      padding: 12px;
+      border-top: 2px solid rgba(0, 255, 255, 0.3);
+      background: 
+        linear-gradient(180deg, rgba(10, 10, 20, 0.98) 0%, rgba(20, 20, 30, 0.95) 100%);
+      backdrop-filter: blur(10px);
+    }
+    
+    .chat-input-wrapper {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    
+    .chat-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: rgba(10, 10, 30, 0.8);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      font-size: 13px;
+      resize: none;
+      min-height: 40px;
+      max-height: 120px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.1),
+        0 0 8px rgba(0, 255, 255, 0.1);
+    }
+    
+    .chat-input:focus {
+      outline: none;
+      border-color: rgba(0, 255, 255, 0.6);
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 15px rgba(0, 255, 255, 0.3);
+    }
+    
+    .send-button {
+      padding: 8px 16px;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%);
+      border: 2px solid rgba(0, 255, 127, 0.6);
+      border-radius: 4px;
+      color: #00ff7f;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      text-transform: lowercase;
+      letter-spacing: 1px;
+      transition: all 0.2s ease;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 127, 0.2),
+        0 0 12px rgba(0, 255, 127, 0.3);
+    }
+    
+    .send-button:hover:not(:disabled) {
+      border-color: #00ff7f;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 127, 0.3),
+        0 0 20px rgba(0, 255, 127, 0.5);
+      text-shadow: 0 0 10px rgba(0, 255, 127, 1);
+    }
+    
+    .send-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .auth-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(5px);
+    }
+    
+    .auth-modal-content {
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.95) 0%, rgba(10, 10, 30, 0.98) 100%);
+      border: 2px solid rgba(0, 255, 255, 0.4);
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 
+        0 0 40px rgba(0, 255, 255, 0.3),
+        inset 0 1px 2px rgba(0, 255, 255, 0.2);
+    }
+    
+    .auth-modal h3 {
+      color: #00ffff;
+      text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+      margin-top: 0;
+      font-family: 'Orbitron', 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    
+    .auth-option {
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 4px;
+      background: rgba(0, 255, 255, 0.05);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .auth-option:hover {
+      border-color: rgba(0, 255, 255, 0.6);
+      background: rgba(0, 255, 255, 0.1);
+    }
+    
+    .auth-option-title {
+      color: #00ffff;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .auth-option-desc {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .auth-input {
+      width: 100%;
+      padding: 8px;
+      margin: 8px 0;
+      background: rgba(10, 10, 30, 0.8);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      font-size: 12px;
+    }
+    
+    .auth-button {
+      padding: 8px 16px;
+      margin: 4px;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%);
+      border: 2px solid rgba(0, 255, 127, 0.6);
+      border-radius: 4px;
+      color: #00ff7f;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      text-transform: lowercase;
+      letter-spacing: 1px;
+    }
+    
+    .auth-button:hover {
+      border-color: #00ff7f;
+      box-shadow: 0 0 15px rgba(0, 255, 127, 0.4);
+    }
+    
+    .error-message {
+      padding: 12px;
+      background: rgba(255, 68, 68, 0.1);
+      border: 1px solid rgba(255, 68, 68, 0.3);
+      border-radius: 4px;
+      color: #ff4444;
+      margin: 12px;
+      font-size: 12px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 24px;
+      color: rgba(0, 255, 255, 0.6);
+      font-size: 12px;
+    }
+    
+    /* Scrollbar styling */
+    .chat-messages::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .chat-messages::-webkit-scrollbar-track {
+      background: rgba(10, 10, 30, 0.5);
+    }
+    
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: rgba(0, 255, 255, 0.3);
+      border-radius: 4px;
+    }
+    
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 255, 255, 0.5);
+    }
+  </style>
+</head>
+<body x-data="chatApp()" x-init="init()">
+  <div class="chat-container">
+    <div class="chat-header">
+      <div>
+        <h2 class="chat-title">chat</h2>
+      </div>
+      <div class="chat-status">
+        <div class="relay-status" x-show="relays.length > 0">
+          <!-- Render exactly 2 dots (one for each relay) -->
+          <template x-for="(relay, index) in relays.slice(0, 2)" :key="index">
+            <div class="relay-dot" 
+                 :class="relayStatus[relay]?.status || 'disconnected'"
+                 :title="relay"></div>
+          </template>
+        </div>
+        <div class="auth-status" :class="isAuthenticated ? 'authenticated' : ''" x-show="isAuthenticated">
+          <span>✓</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="chat-messages" x-ref="messagesContainer">
+      <template x-if="errorMessage">
+        <div class="error-message" x-text="errorMessage"></div>
+      </template>
+      
+      <template x-if="messages.length === 0 && !isLoading">
+        <div class="loading">No messages yet. Be the first to chat!</div>
+      </template>
+      
+      <template x-if="isLoading">
+        <div class="loading">Loading messages...</div>
+      </template>
+      
+      <template x-for="message in messages" :key="message.id">
+        <div class="message"><span class="message-time" x-text="formatTime(message.created_at)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)"></span><span class="message-username" x-text="getUsername(message.pubkey)"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
+      </template>
+    </div>
+    
+    <div class="chat-input-area">
+      <div class="chat-input-wrapper">
+        <textarea 
+          x-model="messageInput"
+          @keydown="handleKeyDown($event)"
+          @focus="checkAuthOnFocus()"
+          x-ref="chatInput"
+          class="chat-input"
+          placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+          rows="1"
+          autofocus></textarea>
+        <button 
+          @click="sendMessage()"
+          :disabled="!messageInput.trim() || isSending"
+          class="send-button">
+          send
+        </button>
+      </div>
+    </div>
+    
+    <template x-if="showAuthModal">
+      <div class="auth-modal" @click.self="showAuthModal = false">
+        <div class="auth-modal-content">
+          <h3>connect</h3>
+          
+          <div class="auth-option" @click="authenticateWithExtension()">
+            <div class="auth-option-title">browser extension</div>
+            <div class="auth-option-desc">Use Nostr extension (nos2x, Alby, etc.)</div>
+          </div>
+          
+          <div class="auth-option" @click="showManualAuth = true">
+            <div class="auth-option-title">manual key entry</div>
+            <div class="auth-option-desc">Paste your nsec or npub</div>
+          </div>
+          
+          <div class="auth-option" @click="generateNewKey()">
+            <div class="auth-option-title">generate new key</div>
+            <div class="auth-option-desc">Create a new anonymous keypair</div>
+          </div>
+          
+          <template x-if="showManualAuth">
+            <div style="margin-top: 16px;">
+              <input 
+                type="text"
+                x-model="manualKey"
+                class="auth-input"
+                placeholder="nsec1... or npub1...">
+              <div>
+                <button @click="authenticateWithKey()" class="auth-button">connect</button>
+                <button @click="showManualAuth = false" class="auth-button">cancel</button>
+              </div>
+            </div>
+          </template>
+          
+          <button @click="showAuthModal = false" class="auth-button" style="margin-top: 12px; width: 100%;">close</button>
+        </div>
+      </div>
+    </template>
+  </div>
+  
+  <script>
+    function chatApp() {
+      return {
+        // State
+        ndk: null,
+        messages: [],
+        messageInput: '',
+        isAuthenticated: false,
+        currentUserPubkey: null,
+        currentUserPrivateKey: null,
+        currentChannel: '',
+        relays: [],
+        relayStatus: {},
+        userProfiles: {},
+        reactions: {},
+        isLoading: true,
+        isSending: false,
+        showAuthModal: false,
+        showManualAuth: false,
+        manualKey: '',
+        errorMessage: '',
+        isInIframe: window.parent !== window,
+        
+        // Initialize
+        async init() {
+          try {
+            // Parse URL parameters
+            const params = new URLSearchParams(window.location.search);
+            const hashtagParam = params.get('hashtag') || 'radioguaka';
+            
+            // Set up relays - using nomadwiki and trustroots community relays
+            this.relays = [
+              'wss://relay.nomadwiki.org',
+              'wss://relay.trustroots.org'
+            ];
+            
+            console.log('🔌 Configured relays:', this.relays);
+            
+            // Initialize relay status (only for the 2 relays)
+            this.relayStatus = {};
+            this.relays.forEach(relay => {
+              this.relayStatus[relay] = { status: 'connecting' };
+            });
+            
+            // Set up postMessage listener for parent communication
+            if (this.isInIframe) {
+              window.addEventListener('message', (event) => {
+                try {
+                  if (event.data.type === 'channelChange') {
+                    this.currentChannel = event.data.channel || '';
+                  }
+                } catch (e) {
+                  console.error('Error handling postMessage:', e);
+                }
+              });
+              
+              // Notify parent that chat is ready
+              window.parent.postMessage({ type: 'chatReady' }, '*');
+            }
+            
+            // Detect and auto-authenticate with Nostr extensions (nos2x, Alby, etc.)
+            const hasExtension = this.detectNostrExtension();
+            
+            if (hasExtension) {
+              // Extension detected, try to auto-authenticate
+              const extensionAuthSuccess = await this.authenticateWithExtension();
+              if (!extensionAuthSuccess) {
+                // If extension auth failed, fall back to saved keys
+                this.loadKeysFromStorage();
+              }
+            } else {
+              // No extension available, try saved keys
+              this.loadKeysFromStorage();
+              
+              // Also listen for extension becoming available (in case it loads late)
+              const checkForExtension = setInterval(() => {
+                if (this.detectNostrExtension() && !this.isAuthenticated) {
+                  clearInterval(checkForExtension);
+                  this.authenticateWithExtension();
+                }
+              }, 1000);
+              
+              // Stop checking after 10 seconds
+              setTimeout(() => {
+                clearInterval(checkForExtension);
+              }, 10000);
+            }
+            
+            // Wait for NDK to load
+            if (window.NDKModule) {
+              await this.initializeNDK();
+            } else {
+              window.addEventListener('ndkReady', () => {
+                this.initializeNDK();
+              });
+              
+              // Timeout if NDK doesn't load
+              setTimeout(() => {
+                if (!this.ndk) {
+                  this.errorMessage = 'Failed to load NDK library. Chat unavailable.';
+                  this.isLoading = false;
+                }
+              }, 5000);
+            }
+            
+            // Focus the input field after initialization
+            this.$nextTick(() => {
+              setTimeout(() => {
+                const input = this.$refs.chatInput;
+                if (input) {
+                  input.focus();
+                }
+              }, 500);
+            });
+          } catch (error) {
+            console.error('Init error:', error);
+            this.errorMessage = 'Failed to initialize chat: ' + error.message;
+            this.isLoading = false;
+          }
+        },
+        
+        // Initialize NDK
+        async initializeNDK() {
+          try {
+            if (!window.NDKModule) {
+              throw new Error('NDK not available');
+            }
+            
+            const NDKClass = window.NDKModule.NDK;
+            
+            if (typeof NDKClass !== 'function') {
+              throw new Error('NDK class is not a constructor');
+            }
+            
+            // Initialize NDK with relay URLs
+            console.log('Initializing NDK with relays:', this.relays);
+            
+            // Ensure relays are set
+            if (!this.relays || this.relays.length === 0) {
+              throw new Error('No relays configured');
+            }
+            
+            // Try different initialization approaches for NDK v2.0.0
+            try {
+              // First try with explicitRelayUrls
+              this.ndk = new NDKClass({
+                explicitRelayUrls: this.relays
+              });
+            } catch (e) {
+              console.log('Failed with explicitRelayUrls, trying relays option:', e);
+              // Try with 'relays' option name
+              this.ndk = new NDKClass({
+                relays: this.relays
+              });
+            }
+            
+            // Manually add relays if needed (for v2.0.0 compatibility)
+            if (this.ndk && this.ndk.addExplicitRelay) {
+              this.relays.forEach(relayUrl => {
+                try {
+                  this.ndk.addExplicitRelay(relayUrl);
+                } catch (e) {
+                  console.log('Could not add relay:', relayUrl, e);
+                }
+              });
+            }
+            
+            await this.ndk.connect();
+            
+            // Debug: check if relays are set
+            console.log('NDK instance after connect:', {
+              hasPool: !!this.ndk.pool,
+              poolRelays: this.ndk.pool?.relays,
+              explicitRelayUrls: this.ndk.explicitRelayUrls,
+              poolSize: this.ndk.pool?.size
+            });
+            
+            // Ensure relays are properly set in the pool
+            if (this.ndk.pool && (!this.ndk.pool.relays || this.ndk.pool.size === 0)) {
+              console.log('Relays not in pool, manually adding...');
+              // Manually add relays to pool if they're not there
+              for (const relayUrl of this.relays) {
+                try {
+                  if (this.ndk.pool.addRelay) {
+                    await this.ndk.pool.addRelay(relayUrl);
+                  } else if (this.ndk.addExplicitRelay) {
+                    this.ndk.addExplicitRelay(relayUrl);
+                  }
+                } catch (e) {
+                  console.log('Could not add relay to pool:', relayUrl, e);
+                }
+              }
+            }
+            
+            // Set up relay status tracking (only for the 2 configured relays)
+            if (this.ndk.pool) {
+              this.ndk.pool.on('relay:connect', (relay) => {
+                // Only track status for our configured relays
+                if (this.relays.includes(relay.url)) {
+                  this.relayStatus[relay.url] = { status: 'connected' };
+                }
+              });
+              
+              this.ndk.pool.on('relay:disconnect', (relay) => {
+                // Only track status for our configured relays
+                if (this.relays.includes(relay.url)) {
+                  this.relayStatus[relay.url] = { status: 'disconnected' };
+                }
+              });
+            }
+            
+            // Wait a bit for relays to be fully connected before subscribing
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            console.log('🔗 NDK connected, pool status:', {
+              poolSize: this.ndk.pool?.size,
+              relays: this.ndk.pool?.relays ? Array.from(this.ndk.pool.relays.keys()) : []
+            });
+            
+            // Start subscriptions
+            this.startSubscriptions();
+            
+            // Also try a direct fetch as fallback after a delay
+            setTimeout(() => this.fetchPastMessages(), 3000);
+            
+            // If authenticated, set up signer
+            if (this.currentUserPrivateKey) {
+              await this.setupSigner();
+            }
+            
+          } catch (error) {
+            console.error('NDK init error:', error);
+            this.errorMessage = 'Failed to connect to relays: ' + error.message;
+            this.isLoading = false;
+          }
+        },
+        
+        // Start subscriptions
+        startSubscriptions() {
+          try {
+            if (!this.ndk) return;
+            
+            console.log('📡 Starting subscriptions...');
+            
+            // Subscribe to kind 1 messages with #radioguaka tag
+            const messageFilter = { 
+              kinds: [1],
+              '#t': ['radioguaka'],
+              limit: 100
+            };
+            
+            console.log('📝 Message filter:', messageFilter);
+            
+            const subscription = this.ndk.subscribe(messageFilter, { closeOnEose: false });
+            
+            // Attach event handlers using the correct NDK API
+            subscription.on('event', (event) => {
+              try {
+                console.log('📨 Received message event:', event.id?.substring(0, 8), event.content?.substring(0, 50));
+                this.handleMessageEvent(event);
+              } catch (e) {
+                console.error('Error handling message event:', e);
+              }
+            });
+            
+            subscription.on('eose', () => {
+              console.log('📬 End of stored events (messages)');
+              this.isLoading = false;
+            });
+            
+            // Also listen for events via the NDK events iterator pattern (alternative API)
+            (async () => {
+              try {
+                // Some NDK versions use async iterator
+                if (subscription[Symbol.asyncIterator]) {
+                  for await (const event of subscription) {
+                    try {
+                      console.log('📨 (async) Received message:', event.id?.substring(0, 8));
+                      this.handleMessageEvent(event);
+                    } catch (e) {
+                      console.error('Error handling async message event:', e);
+                    }
+                  }
+                }
+              } catch (e) {
+                // Async iterator not supported, that's fine - we're using .on() handlers
+                console.log('Async iterator not available, using event handlers');
+              }
+            })();
+            
+            // Subscribe to profiles (kind 0) for usernames of message authors
+            const profileSubscription = this.ndk.subscribe(
+              { kinds: [0] },
+              { closeOnEose: true }
+            );
+            
+            profileSubscription.on('event', (event) => {
+              try {
+                this.handleProfileEvent(event);
+              } catch (e) {
+                console.error('Error handling profile event:', e);
+              }
+            });
+            
+            // Subscribe to reactions (kind 7)
+            const reactionSubscription = this.ndk.subscribe(
+              { kinds: [7] },
+              { closeOnEose: false }
+            );
+            
+            reactionSubscription.on('event', (event) => {
+              try {
+                this.handleReactionEvent(event);
+              } catch (e) {
+                console.error('Error handling reaction event:', e);
+              }
+            });
+            
+            console.log('✅ Subscriptions started');
+            
+          } catch (error) {
+            console.error('Subscription error:', error);
+            this.errorMessage = 'Failed to subscribe to messages: ' + error.message;
+            this.isLoading = false;
+          }
+        },
+        
+        // Handle message events
+        handleMessageEvent(event) {
+          // Check if message already exists (including optimistic ones)
+          const existingIndex = this.messages.findIndex(m => m.id === event.id);
+          if (existingIndex !== -1) {
+            // Update existing optimistic message with real data from relay
+            if (this.messages[existingIndex].optimistic) {
+              this.messages[existingIndex] = {
+                id: event.id,
+                pubkey: event.pubkey,
+                content: event.content,
+                created_at: event.created_at,
+                tags: event.tags
+              };
+            }
+            return;
+          }
+          
+          // Check if message has #radioguaka tag
+          const tags = event.tags || [];
+          const hasTag = tags.some(tag => tag[0] === 't' && tag[1] === 'radioguaka');
+          
+          if (!hasTag) return;
+          
+          const message = {
+            id: event.id,
+            pubkey: event.pubkey,
+            content: event.content,
+            created_at: event.created_at,
+            tags: event.tags
+          };
+          
+          // Insert sorted by timestamp
+          const insertIndex = this.messages.findIndex(m => m.created_at > event.created_at);
+          if (insertIndex === -1) {
+            this.messages.push(message);
+          } else {
+            this.messages.splice(insertIndex, 0, message);
+          }
+          
+          // Keep only last 200 messages in memory
+          if (this.messages.length > 200) {
+            this.messages = this.messages.slice(-200);
+          }
+          
+          // Auto-scroll to bottom
+          this.$nextTick(() => {
+            const container = this.$refs.messagesContainer;
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+            }
+          });
+        },
+        
+        // Handle profile events
+        handleProfileEvent(event) {
+          try {
+            const profile = JSON.parse(event.content);
+            this.userProfiles[event.pubkey] = {
+              name: profile.name || profile.display_name || 'Anonymous',
+              picture: profile.picture || ''
+            };
+          } catch (e) {
+            console.error('Error parsing profile:', e);
+          }
+        },
+        
+        // Handle reaction events
+        handleReactionEvent(event) {
+          try {
+            const tags = event.tags || [];
+            const eventTag = tags.find(tag => tag[0] === 'e');
+            if (!eventTag) return;
+            
+            const eventId = eventTag[1];
+            const content = event.content;
+            
+            if (!this.reactions[eventId]) {
+              this.reactions[eventId] = {};
+            }
+            
+            if (!this.reactions[eventId][content]) {
+              this.reactions[eventId][content] = [];
+            }
+            
+            if (!this.reactions[eventId][content].includes(event.pubkey)) {
+              this.reactions[eventId][content].push(event.pubkey);
+            }
+          } catch (e) {
+            console.error('Error handling reaction:', e);
+          }
+        },
+        
+        // Get username
+        getUsername(pubkey) {
+          if (this.userProfiles[pubkey]) {
+            return this.userProfiles[pubkey].name;
+          }
+          // Convert hex pubkey to npub format and abbreviate
+          const npub = this.hexToNpub(pubkey);
+          return npub.substring(0, 12) + '...';
+        },
+        
+        // Convert hex pubkey to npub (bech32 encoding)
+        hexToNpub(hex) {
+          try {
+            const ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+            const CHARSET_MAP = {};
+            for (let i = 0; i < ALPHABET.length; i++) {
+              CHARSET_MAP[ALPHABET[i]] = i;
+            }
+            
+            // Convert hex to bytes
+            const bytes = [];
+            for (let i = 0; i < hex.length; i += 2) {
+              bytes.push(parseInt(hex.substr(i, 2), 16));
+            }
+            
+            // Convert 8-bit bytes to 5-bit groups
+            const data = [];
+            let value = 0;
+            let bits = 0;
+            for (const byte of bytes) {
+              value = (value << 8) | byte;
+              bits += 8;
+              while (bits >= 5) {
+                bits -= 5;
+                data.push((value >> bits) & 31);
+              }
+            }
+            if (bits > 0) {
+              data.push((value << (5 - bits)) & 31);
+            }
+            
+            // Create checksum
+            const hrp = 'npub';
+            const values = data;
+            
+            function polymod(values) {
+              const GENERATOR = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+              let chk = 1;
+              for (const v of values) {
+                const top = chk >> 25;
+                chk = ((chk & 0x1ffffff) << 5) ^ v;
+                for (let i = 0; i < 5; i++) {
+                  if ((top >> i) & 1) {
+                    chk ^= GENERATOR[i];
+                  }
+                }
+              }
+              return chk;
+            }
+            
+            function hrpExpand(hrp) {
+              const ret = [];
+              for (let i = 0; i < hrp.length; i++) {
+                ret.push(hrp.charCodeAt(i) >> 5);
+              }
+              ret.push(0);
+              for (let i = 0; i < hrp.length; i++) {
+                ret.push(hrp.charCodeAt(i) & 31);
+              }
+              return ret;
+            }
+            
+            const checksumInput = hrpExpand(hrp).concat(values).concat([0, 0, 0, 0, 0, 0]);
+            const mod = polymod(checksumInput) ^ 0x2bc830a3; // bech32m constant
+            const checksum = [];
+            for (let i = 0; i < 6; i++) {
+              checksum.push((mod >> (5 * (5 - i))) & 31);
+            }
+            
+            // Encode
+            let result = hrp + '1';
+            for (const d of values.concat(checksum)) {
+              result += ALPHABET[d];
+            }
+            
+            return result;
+          } catch (e) {
+            // Fallback to hex if encoding fails
+            return hex.substring(0, 8) + '...';
+          }
+        },
+        
+        // Get reaction count
+        getReactionCount(eventId, emoji) {
+          if (!this.reactions[eventId] || !this.reactions[eventId][emoji]) {
+            return '';
+          }
+          const count = this.reactions[eventId][emoji].length;
+          return count > 0 ? count : '';
+        },
+        
+        // Get channel from message tags
+        getMessageChannel(message) {
+          if (!message.tags) return '';
+          const channelTag = message.tags.find(tag => tag[0] === 'channel');
+          return channelTag ? channelTag[1] : '';
+        },
+        
+        // Tune to a channel (tell parent window to switch)
+        tuneToChannel(channel) {
+          if (!channel) return;
+          try {
+            // Send message to parent to change channel
+            window.parent.postMessage({
+              type: 'tuneToChannel',
+              channel: channel
+            }, '*');
+            console.log('📻 Requested tune to:', channel);
+          } catch (e) {
+            console.error('Could not send tune request:', e);
+          }
+        },
+        
+        // Format time
+        formatTime(timestamp) {
+          const date = new Date(timestamp * 1000);
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          return `${hours}:${minutes}`;
+        },
+        
+        // Escape HTML
+        escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+        },
+        
+        // Check auth when user focuses input
+        checkAuthOnFocus() {
+          if (!this.isAuthenticated) {
+            // Small delay to let user see they can type, then show modal
+            setTimeout(() => {
+              if (!this.isAuthenticated && !this.showAuthModal) {
+                this.showAuthModal = true;
+              }
+            }, 300);
+          }
+        },
+        
+        // Handle keyboard input
+        handleKeyDown(event) {
+          // Shift+Enter = new line (allow default behavior)
+          if (event.key === 'Enter' && event.shiftKey) {
+            return; // Allow default behavior (new line)
+          }
+          
+          // Enter (without Shift) = send message
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            this.sendMessage();
+          }
+        },
+        
+        // Send message
+        async sendMessage() {
+          // If not authenticated, show auth modal
+          if (!this.isAuthenticated) {
+            this.showAuthModal = true;
+            return;
+          }
+          
+          if (!this.messageInput.trim() || !this.ndk || !this.ndk.signer) {
+            if (!this.ndk || !this.ndk.signer) {
+              this.errorMessage = 'Not connected. Please wait or refresh.';
+              setTimeout(() => { this.errorMessage = ''; }, 3000);
+            }
+            return;
+          }
+          
+          try {
+            this.isSending = true;
+            
+            const messageContent = this.messageInput.trim();
+            console.log('📤 Sending message:', { 
+              content: messageContent.substring(0, 50) + (messageContent.length > 50 ? '...' : ''),
+              length: messageContent.length,
+              pubkey: this.currentUserPubkey ? this.currentUserPubkey.substring(0, 16) + '...' : 'none'
+            });
+            
+            const NDKEvent = window.NDKModule?.NDKEvent;
+            if (!NDKEvent) {
+              throw new Error('NDKEvent not available');
+            }
+            
+            // Calculate expiration: 30 days from now (Unix timestamp in seconds)
+            const expirationTimestamp = Math.floor((Date.now() + (30 * 24 * 60 * 60 * 1000)) / 1000);
+            const expirationDate = new Date(expirationTimestamp * 1000);
+            console.log('⏰ Message expiration:', {
+              timestamp: expirationTimestamp,
+              date: expirationDate.toISOString(),
+              daysFromNow: 30
+            });
+            
+            const event = new NDKEvent(this.ndk);
+            event.kind = 1;
+            event.content = messageContent;
+            event.tags = [['t', 'radioguaka']];
+            
+            // Add expiration tag (NIP-40: 30 days from now)
+            event.tags.push(['expiration', expirationTimestamp.toString()]);
+            
+            if (this.currentChannel) {
+              event.tags.push(['channel', this.currentChannel]);
+            }
+            
+            console.log('📝 Event created:', {
+              kind: event.kind,
+              tags: event.tags,
+              contentLength: event.content.length
+            });
+            
+            console.log('✍️ Signing event...');
+            await event.sign();
+            
+            // Get event ID after signing (required for optimistic update)
+            const eventId = event.id;
+            if (!eventId) {
+              console.warn('⚠️ Event ID not available after signing');
+            } else {
+              console.log('✅ Event signed:', {
+                id: eventId,
+                pubkey: event.pubkey ? event.pubkey.substring(0, 16) + '...' : 'none'
+              });
+            }
+            
+            // Optimistically add message to UI immediately (before publish)
+            const optimisticMessage = {
+              id: eventId,
+              pubkey: this.currentUserPubkey,
+              content: messageContent,
+              created_at: Math.floor(Date.now() / 1000),
+              tags: event.tags,
+              optimistic: true // Mark as optimistic
+            };
+            
+            // Insert sorted by timestamp
+            const insertIndex = this.messages.findIndex(m => m.created_at > optimisticMessage.created_at);
+            if (insertIndex === -1) {
+              this.messages.push(optimisticMessage);
+            } else {
+              this.messages.splice(insertIndex, 0, optimisticMessage);
+            }
+            
+            // Force Alpine.js to update
+            this.messages = [...this.messages];
+            
+            // Scroll to bottom to show new message
+            this.$nextTick(() => {
+              const container = this.$refs.messagesContainer;
+              if (container) {
+                container.scrollTop = container.scrollHeight;
+              }
+            });
+            
+            // Clear input immediately for better UX
+            this.messageInput = '';
+            
+            // Publish to relay
+            console.log('📡 Publishing to relays:', this.relays);
+            const publishStartTime = Date.now();
+            
+            try {
+              await event.publish();
+              const publishDuration = Date.now() - publishStartTime;
+              console.log('✅ Message published successfully:', {
+                eventId: eventId,
+                duration: publishDuration + 'ms',
+                relays: this.relays.length
+              });
+            } catch (publishError) {
+              console.error('❌ Publish error:', publishError);
+              throw publishError;
+            }
+            
+            // Remove optimistic flag once published (message will come back through subscription)
+            if (eventId) {
+              const messageIndex = this.messages.findIndex(m => m.id === eventId);
+              if (messageIndex !== -1 && this.messages[messageIndex].optimistic) {
+                this.messages[messageIndex].optimistic = false;
+                // Force update
+                this.messages = [...this.messages];
+                console.log('🔄 Optimistic message confirmed');
+              }
+            }
+            
+          } catch (error) {
+            console.error('❌ Send error:', {
+              error: error,
+              message: error.message,
+              stack: error.stack,
+              eventId: event?.id,
+              hasSigner: !!this.ndk?.signer,
+              isAuthenticated: this.isAuthenticated
+            });
+            this.errorMessage = 'Failed to send message: ' + error.message;
+            
+            // Remove optimistic message if send failed
+            // Note: event.id might not exist if sign() failed, so we check for it
+            try {
+              if (event && event.id) {
+                const removed = this.messages.filter(m => m.id !== event.id && !m.optimistic);
+                this.messages = removed;
+                console.log('🗑️ Removed optimistic message due to error');
+              }
+            } catch (e) {
+              console.error('Error cleaning up optimistic message:', e);
+            }
+            
+            setTimeout(() => {
+              this.errorMessage = '';
+            }, 5000);
+          } finally {
+            this.isSending = false;
+            console.log('🏁 Send operation completed');
+          }
+        },
+        
+        // React to message
+        async reactToMessage(eventId, emoji) {
+          if (!this.isAuthenticated || !this.ndk || !this.ndk.signer) return;
+          
+          try {
+            const NDKEvent = window.NDKModule?.NDKEvent;
+            if (!NDKEvent) return;
+            
+            const event = new NDKEvent(this.ndk);
+            event.kind = 7;
+            event.content = emoji;
+            event.tags = [['e', eventId]];
+            
+            await event.sign();
+            await event.publish();
+          } catch (error) {
+            console.error('Reaction error:', error);
+          }
+        },
+        
+        // Delete message
+        async deleteMessage(eventId) {
+          if (!this.isAuthenticated || !this.ndk || !this.ndk.signer) return;
+          
+          try {
+            const NDKEvent = window.NDKModule?.NDKEvent;
+            if (!NDKEvent) return;
+            
+            const event = new NDKEvent(this.ndk);
+            event.kind = 5;
+            event.tags = [['e', eventId]];
+            
+            await event.sign();
+            await event.publish();
+            
+            // Remove from local messages
+            this.messages = this.messages.filter(m => m.id !== eventId);
+          } catch (error) {
+            console.error('Delete error:', error);
+          }
+        },
+        
+        // Detect Nostr extensions (nos2x, Alby, etc.)
+        detectNostrExtension() {
+          // Check for standard window.nostr interface (nos2x, etc.)
+          if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+            return true;
+          }
+          
+          // Check for Alby's nostr provider
+          if (window.webln && window.webln.nostr && typeof window.webln.nostr.getPublicKey === 'function') {
+            return true;
+          }
+          
+          return false;
+        },
+        
+        // Authenticate with extension
+        async authenticateWithExtension() {
+          try {
+            // Try standard window.nostr first
+            let nostrProvider = window.nostr;
+            
+            // Fallback to Alby's nostr provider
+            if (!nostrProvider && window.webln && window.webln.nostr) {
+              nostrProvider = window.webln.nostr;
+            }
+            
+            if (!nostrProvider) {
+              // Silently return if extension not available (don't throw)
+              return false;
+            }
+            
+            // Check if getPublicKey method exists
+            if (typeof nostrProvider.getPublicKey !== 'function') {
+              console.log('Nostr extension found but getPublicKey not available');
+              return false;
+            }
+            
+            // Get public key from extension
+            const pubkey = await nostrProvider.getPublicKey();
+            if (!pubkey) {
+              console.log('Failed to get public key from extension');
+              return false;
+            }
+            
+            this.currentUserPubkey = pubkey;
+            this.isAuthenticated = true;
+            this.showAuthModal = false;
+            
+            // Wait for NDK to be ready before setting up signer
+            if (!this.ndk) {
+              // Wait for NDK to initialize
+              await new Promise((resolve) => {
+                if (this.ndk) {
+                  resolve();
+                } else {
+                  const checkNDK = setInterval(() => {
+                    if (this.ndk) {
+                      clearInterval(checkNDK);
+                      resolve();
+                    }
+                  }, 100);
+                  // Timeout after 5 seconds
+                  setTimeout(() => {
+                    clearInterval(checkNDK);
+                    resolve(); // Continue anyway
+                  }, 5000);
+                }
+              });
+            }
+            
+            // Set up signer with extension
+            await this.setupSigner();
+            
+            // Save pubkey to localStorage (but don't save private key - extension handles that)
+            localStorage.setItem('radio_guaka_chat_pubkey', pubkey);
+            // Clear any saved private key since we're using extension
+            localStorage.removeItem('radio_guaka_chat_private_key');
+            
+            console.log('✅ Key stored in localStorage (pubkey only, extension manages private key)');
+            
+            console.log('✅ Authenticated with Nostr extension:', pubkey.substring(0, 16) + '...');
+            return true;
+            
+          } catch (error) {
+            console.log('Extension auth error (non-critical):', error.message);
+            return false; // Return false instead of throwing
+          }
+        },
+        
+        // Authenticate with key
+        async authenticateWithKey() {
+          try {
+            if (!this.manualKey.trim()) {
+              this.errorMessage = 'Please enter a key';
+              setTimeout(() => { this.errorMessage = ''; }, 3000);
+              return;
+            }
+            
+            const key = this.manualKey.trim();
+            this.errorMessage = ''; // Clear previous errors
+            
+            // Check if it's nsec or npub
+            if (key.startsWith('nsec')) {
+              // Private key - use NDK to decode
+              try {
+                const NDKUser = window.NDKModule?.NDKUser;
+                if (NDKUser) {
+                  const user = NDKUser.fromNsec(key);
+                  this.currentUserPrivateKey = key;
+                  this.currentUserPubkey = user.pubkey;
+                } else {
+                  // Fallback: store as-is
+                  this.currentUserPrivateKey = key;
+                  // Try to get pubkey from signer after setup
+                  this.currentUserPubkey = 'loading...';
+                }
+                
+                this.isAuthenticated = true;
+                this.showAuthModal = false;
+                this.showManualAuth = false;
+                
+                localStorage.setItem('radio_guaka_chat_private_key', key);
+                if (this.currentUserPubkey && this.currentUserPubkey !== 'loading...') {
+                  localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
+                }
+                
+                await this.setupSigner();
+                
+                // Update pubkey after signer is set up if needed
+                if (this.currentUserPubkey === 'loading...' && this.ndk && this.ndk.signer) {
+                  try {
+                    const user = await this.ndk.signer.user();
+                    if (user && user.pubkey) {
+                      this.currentUserPubkey = user.pubkey;
+                      localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
+                    }
+                  } catch (e) {
+                    console.error('Error getting pubkey from signer:', e);
+                  }
+                }
+              } catch (e) {
+                throw new Error('Invalid nsec format. Please check your key and try again.');
+              }
+            } else if (key.startsWith('npub')) {
+              // Public key only - read-only mode
+              this.currentUserPubkey = key;
+              this.isAuthenticated = false; // Can't send messages with just pubkey
+              this.showAuthModal = false;
+              this.showManualAuth = false;
+              this.manualKey = ''; // Clear input
+              
+              // Store pubkey for read-only viewing
+              localStorage.setItem('radio_guaka_chat_pubkey', key);
+              
+              this.errorMessage = 'Public key (npub) entered - read-only mode. Use nsec private key to send messages.';
+              setTimeout(() => {
+                this.errorMessage = '';
+              }, 6000);
+            } else {
+              // Try as hex private key
+              if (key.length === 64 && /^[0-9a-f]+$/i.test(key)) {
+                this.currentUserPrivateKey = key;
+                this.isAuthenticated = true;
+                this.showAuthModal = false;
+                this.showManualAuth = false;
+                
+                localStorage.setItem('radio_guaka_chat_private_key', key);
+                
+                await this.setupSigner();
+                
+                // Get pubkey from signer
+                if (this.ndk && this.ndk.signer) {
+                  try {
+                    const user = await this.ndk.signer.user();
+                    if (user && user.pubkey) {
+                      this.currentUserPubkey = user.pubkey;
+                      localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
+                    }
+                  } catch (e) {
+                    console.error('Error getting pubkey from signer:', e);
+                  }
+                }
+              } else {
+                this.errorMessage = 'Invalid key format. Use nsec1... (private key), npub1... (public key, read-only), or 64-character hex private key.';
+                setTimeout(() => {
+                  this.errorMessage = '';
+                }, 6000);
+              }
+            }
+            
+          } catch (error) {
+            console.error('Key auth error:', error);
+            this.errorMessage = 'Authentication failed: ' + error.message;
+            setTimeout(() => {
+              this.errorMessage = '';
+            }, 6000);
+          } finally {
+            // Clear the manual key input after processing
+            if (this.isAuthenticated) {
+              this.manualKey = '';
+              this.showManualAuth = false;
+            }
+          }
+        },
+        
+        // Generate new key
+        async generateNewKey() {
+          try {
+            this.errorMessage = ''; // Clear any previous errors
+            
+            // Use NDK to generate a keypair
+            if (window.NDKModule && window.NDKModule.generatePrivateKey) {
+              const privateKey = window.NDKModule.generatePrivateKey();
+              const NDKUser = window.NDKModule.NDKUser;
+              
+              if (NDKUser) {
+                try {
+                  const user = NDKUser.fromPrivateKey(privateKey);
+                  this.currentUserPrivateKey = privateKey;
+                  this.currentUserPubkey = user.pubkey;
+                } catch (e) {
+                  // If fromPrivateKey fails, try with signer
+                  this.currentUserPrivateKey = privateKey;
+                  this.currentUserPubkey = 'generating...';
+                }
+              } else {
+                // Fallback: generate hex key and convert
+                this.currentUserPrivateKey = privateKey;
+                // Get pubkey from NDKPrivateKeySigner if available
+                const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
+                if (NDKPrivateKeySigner) {
+                  try {
+                    const signer = new NDKPrivateKeySigner(privateKey);
+                    this.currentUserPubkey = await signer.user().then(u => u.pubkey);
+                  } catch (e) {
+                    this.currentUserPubkey = 'generating...';
+                  }
+                } else {
+                  this.currentUserPubkey = 'generating...';
+                }
+              }
+            } else {
+              // Fallback: generate random hex using Web Crypto API
+              const bytes = new Uint8Array(32);
+              crypto.getRandomValues(bytes);
+              const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+              this.currentUserPrivateKey = hex;
+              this.currentUserPubkey = 'generating...';
+            }
+            
+            this.isAuthenticated = true;
+            this.showAuthModal = false;
+            
+            // Save to localStorage
+            localStorage.setItem('radio_guaka_chat_private_key', this.currentUserPrivateKey);
+            if (this.currentUserPubkey && this.currentUserPubkey !== 'generating...') {
+              localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
+            }
+            
+            await this.setupSigner();
+            
+            // Update pubkey after signer is set up
+            if (this.currentUserPubkey === 'generating...' && this.ndk && this.ndk.signer) {
+              try {
+                const user = await this.ndk.signer.user();
+                if (user && user.pubkey) {
+                  this.currentUserPubkey = user.pubkey;
+                  localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
+                }
+              } catch (e) {
+                console.error('Error getting pubkey from signer:', e);
+                this.errorMessage = 'Key generated but failed to get public key. You may need to reconnect.';
+                setTimeout(() => { this.errorMessage = ''; }, 5000);
+              }
+            }
+            
+            console.log('✅ New key generated and authenticated');
+            
+          } catch (error) {
+            console.error('Key generation error:', error);
+            this.errorMessage = 'Failed to generate key: ' + error.message;
+            setTimeout(() => {
+              this.errorMessage = '';
+            }, 6000);
+          }
+        },
+        
+        // Setup signer
+        async setupSigner() {
+          try {
+            if (!this.ndk) return;
+            
+            // Try to use extension signer
+            let nostrProvider = window.nostr;
+            if (!nostrProvider && window.webln && window.webln.nostr) {
+              nostrProvider = window.webln.nostr;
+            }
+            
+            if (nostrProvider && this.currentUserPubkey) {
+              // Use extension signer
+              const NDKUser = window.NDKModule.NDKUser;
+              const user = new NDKUser({ pubkey: this.currentUserPubkey });
+              user.ndk = this.ndk;
+              this.ndk.signer = nostrProvider;
+            } else if (this.currentUserPrivateKey) {
+              // Use private key signer
+              try {
+                const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
+                if (NDKPrivateKeySigner) {
+                  this.ndk.signer = new NDKPrivateKeySigner(this.currentUserPrivateKey);
+                } else {
+                  // Fallback: try to use private key directly
+                  // NDK should handle nsec format
+                  const NDKUser = window.NDKModule.NDKUser;
+                  if (NDKUser) {
+                    // Create user from private key
+                    const user = NDKUser.fromNsec(this.currentUserPrivateKey);
+                    if (user) {
+                      user.ndk = this.ndk;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('Error setting up private key signer:', e);
+              }
+            }
+          } catch (error) {
+            console.error('Signer setup error:', error);
+          }
+        },
+        
+        // Fetch past messages directly (fallback method)
+        async fetchPastMessages() {
+          try {
+            if (!this.ndk) return;
+            
+            console.log('🔍 Fetching past messages directly...');
+            
+            const filter = {
+              kinds: [1],
+              '#t': ['radioguaka'],
+              limit: 100
+            };
+            
+            // Use fetchEvents for a one-time fetch
+            const events = await this.ndk.fetchEvents(filter);
+            
+            if (events && events.size > 0) {
+              console.log(`📬 Fetched ${events.size} past messages`);
+              for (const event of events) {
+                this.handleMessageEvent(event);
+              }
+            } else {
+              console.log('📭 No past messages found with #radioguaka tag');
+            }
+            
+            this.isLoading = false;
+          } catch (error) {
+            console.error('Error fetching past messages:', error);
+            this.isLoading = false;
+          }
+        },
+        
+        // Load keys from storage
+        async loadKeysFromStorage() {
+          try {
+            const privateKey = localStorage.getItem('radio_guaka_chat_private_key');
+            const pubkey = localStorage.getItem('radio_guaka_chat_pubkey');
+            
+            if (privateKey) {
+              this.currentUserPrivateKey = privateKey;
+              this.isAuthenticated = true;
+              
+              // If we have pubkey, use it; otherwise we'll get it from signer
+              if (pubkey) {
+                this.currentUserPubkey = pubkey;
+              }
+              
+              // Set up signer if NDK is ready
+              if (this.ndk) {
+                await this.setupSigner();
+                // Update pubkey from signer if available
+                if (this.ndk && this.ndk.signer) {
+                  try {
+                    const user = await this.ndk.signer.user();
+                    if (user && user.pubkey) {
+                      this.currentUserPubkey = user.pubkey;
+                      localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
+                    }
+                  } catch (e) {
+                    console.log('Could not get pubkey from signer:', e);
+                  }
+                }
+              }
+            } else if (pubkey) {
+              this.currentUserPubkey = pubkey;
+              this.isAuthenticated = false; // Read-only
+            }
+          } catch (e) {
+            console.error('Error loading keys:', e);
+          }
+        },
+        
+      };
+    }
+  </script>
+</body>
+</html>
+

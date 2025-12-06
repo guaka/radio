@@ -30,6 +30,16 @@ Active channels are in the main `channels` object. Broken/non-working channels a
   - Space : Stop/pause
   - Letter key : Jump to channel starting with that letter (no modifier needed)
 
+## Chat
+
+Radio Guaka includes a Nostr-based chat feature. Messages are tagged with `#radioguaka` and use kind 1 (short text notes).
+
+**Relays used:**
+- `wss://relay.nomadwiki.org`
+- `wss://relay.trustroots.org`
+
+These are community relays aligned with the nomad/travel community. Messages are set to expire after 30 days (NIP-40).
+
 ## Background
 
 Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-popup) and the need for a nice way to play Soma.fm streams, [Radio Paradise](http://www.radioparadise.com/), and more.
