@@ -53,33 +53,38 @@ const channels = {
   
   // Radio Paradise
   'paradise': {
-    url: 'https://stream-uk1.radioparadise.com/mp3-128',
+    url: 'https://stream.radioparadise.com/aac-128',
     tags: ['paradise', 'US', 'rock', 'eclectic'],
     site: 'https://www.radioparadise.com/'
   },
   'paradise_mellow': {
-    url: 'https://stream.radioparadise.com/mellow-mp3-128',
+    url: 'https://stream.radioparadise.com/mellow-128',
     tags: ['paradise', 'US', 'mellow', 'acoustic'],
     site: 'https://www.radioparadise.com/'
   },
   'paradise_rock': {
-    url: 'https://stream.radioparadise.com/rock-mp3-128',
+    url: 'https://stream.radioparadise.com/rock-128',
     tags: ['paradise', 'US', 'rock'],
     site: 'https://www.radioparadise.com/'
   },
   'paradise_global': {
-    url: 'https://stream.radioparadise.com/global-mp3-128',
-    tags: ['paradise', 'US', 'global', 'eclectic'],
+    url: 'https://stream.radioparadise.com/global-128',
+    tags: ['paradise', 'US', 'global', 'world'],
     site: 'https://www.radioparadise.com/'
   },
-  'paradise_world': {
-    url: 'https://stream.radioparadise.com/world-mp3-128',
-    tags: ['paradise', 'US', 'world'],
+  'paradise_beyond': {
+    url: 'https://stream.radioparadise.com/beyond-128',
+    tags: ['paradise', 'US', 'electronic', 'ambient'],
     site: 'https://www.radioparadise.com/'
   },
-  'paradise_eclectic': {
-    url: 'https://stream.radioparadise.com/eclectic-mp3-128',
-    tags: ['paradise', 'US', 'eclectic'],
+  'paradise_serenity': {
+    url: 'https://stream.radioparadise.com/serenity',
+    tags: ['paradise', 'US', 'ambient', 'relaxation'],
+    site: 'https://www.radioparadise.com/'
+  },
+  'paradise_2050': {
+    url: 'https://stream.radioparadise.com/radio2050-128',
+    tags: ['paradise', 'US', 'electronic', 'future'],
     site: 'https://www.radioparadise.com/'
   },
   
