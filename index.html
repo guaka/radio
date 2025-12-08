@@ -1410,11 +1410,11 @@
                   <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
                      onmouseover="this.style.color='#ffff00'"
                      onmouseout="this.style.color=''">
-                    <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
+                    <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
                   </a>
                 </template>
                 <template x-if="!currentChannelData.site">
-                  <span x-text="currentChannelData.name.replace(/^flux_fm_/, '').replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
+                  <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
                 </template>
               </h2>
               <template x-if="currentSong">
@@ -2792,61 +2792,47 @@
           if (!channel) return null;
           
           // Map channel names to API chan parameter
+          // Based on https://api.radioparadise.com/api/list_chan
           const chanMap = {
-            'paradise': 0,
-            'paradise_mellow': 1,
-            'paradise_rock': 2,
-            'paradise_world': 3,
-            'paradise_eclectic': 0,
-            'paradise_global': 3
+            'paradise': 0,        // Main Mix
+            'paradise_mellow': 1, // Mellow Mix
+            'paradise_rock': 2,   // RockIt!
+            'paradise_global': 3, // Globalized (World)
+            'paradise_beyond': 5, // Beyond...
+            'paradise_serenity': 4, // Serenity (experimental)
+            'paradise_2050': 0    // Radio 2050 (fallback to main)
           };
           
           const chan = chanMap[this.currentChannel];
           if (chan === undefined) return null;
           
-          const apiUrl = `https://api.radioparadise.com/api/nowplaying_list?chan=${chan}`;
+          // Use the now_playing endpoint which returns a simple object
+          const apiUrl = `https://api.radioparadise.com/api/now_playing?chan=${chan}`;
           
-          // Try direct fetch first
-          try {
-            const response = await fetch(apiUrl);
-            if (response.ok) {
-              const data = await response.json();
-              if (data && data.length > 0 && data[0].artist && data[0].title) {
-                return {
-                  artist: data[0].artist,
-                  title: data[0].title,
-                  album: data[0].album || ''
-                };
-              }
-            }
-          } catch (error) {
-            // CORS error - try using a CORS proxy as fallback
-            if (error.name === 'TypeError' && error.message.includes('fetch')) {
-              try {
-                // Use a CORS proxy service
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
-                const proxyResponse = await fetch(proxyUrl);
-                if (proxyResponse.ok) {
-                  const proxyData = await proxyResponse.json();
-                  if (proxyData.contents) {
-                    const data = JSON.parse(proxyData.contents);
-                    if (data && data.length > 0 && data[0].artist && data[0].title) {
-                      return {
-                        artist: data[0].artist,
-                        title: data[0].title,
-                        album: data[0].album || ''
-                      };
-                    }
-                  }
+          // Radio Paradise API doesn't have CORS headers, so we need to use a proxy
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+          const proxyUrls = [proxyUrl];
+          
+          for (const proxyUrl of proxyUrls) {
+            try {
+              const response = await fetch(proxyUrl);
+              if (response.ok) {
+                const data = await response.json();
+                if (data && data.artist && data.title) {
+                  return {
+                    artist: data.artist,
+                    title: data.title,
+                    album: data.album || ''
+                  };
                 }
-              } catch (proxyError) {
-                // Both direct and proxy failed - silently fail
-                console.log('Radio Paradise metadata unavailable (CORS blocked)');
               }
-            } else {
-              console.log('Radio Paradise metadata fetch error:', error);
+            } catch (error) {
+              // Try next proxy
+              continue;
             }
           }
+          
+          console.log('Radio Paradise metadata unavailable (all proxies failed)');
           return null;
         },
         
@@ -2934,19 +2920,20 @@
           if (!this.currentChannel) return null;
           
           // Map channel names to station IDs
+          // These IDs are used by the Radio France livemeta API
           const stationIdMap = {
             'fip': 7,
-            'fip_jazz': 168,
-            'fip_rock': 167,
-            'fip_groove': 169,
-            'fip_reggae': 171,
-            'fip_pop': 174,
-            'fip_electro': 172,
-            'fip_monde': 170,
-            'fip_nouveautes': 176,
-            'fip_metal': 175,
-            'fip_hiphop': 173,
-            'fip_sacre_francais': 7 // Default to main if not found
+            'fip_jazz': 65,           // Jazz (Wayne Shorter, etc.)
+            'fip_rock': 64,           // Rock (AC/DC, etc.)
+            'fip_groove': 66,         // Groove/Funk/Soul
+            'fip_reggae': 71,         // Reggae
+            'fip_pop': 7,             // Fallback to main (no dedicated API)
+            'fip_electro': 74,        // Electro
+            'fip_monde': 69,          // World music
+            'fip_nouveautes': 70,     // New releases
+            'fip_metal': 77,          // Metal
+            'fip_hiphop': 7,          // Fallback to main (no dedicated API)
+            'fip_sacre_francais': 7   // Fallback to main (no dedicated API)
           };
           
           const stationId = stationIdMap[this.currentChannel];
@@ -2957,21 +2944,36 @@
             if (!response.ok) return null;
             
             const data = await response.json();
-            if (data && data.steps && Array.isArray(data.steps)) {
-              const now = Date.now();
-              // Find the current track where now is between start and end
-              const currentTrack = data.steps.find(step => {
-                const start = new Date(step.start).getTime();
-                const end = new Date(step.end).getTime();
-                return now >= start && now < end;
+            // The API returns steps as an object with UUIDs as keys, not an array
+            if (data && data.steps && typeof data.steps === 'object') {
+              const now = Math.floor(Date.now() / 1000); // Current time in Unix seconds
+              const stepsArray = Object.values(data.steps);
+              
+              // Find the current track where now is between start and end (Unix timestamps)
+              const currentTrack = stepsArray.find(step => {
+                return step.start && step.end && now >= step.start && now < step.end;
               });
               
               if (currentTrack && currentTrack.title) {
                 return {
-                  artist: currentTrack.authors || '',
+                  artist: currentTrack.authors || currentTrack.performers || '',
                   title: currentTrack.title,
                   album: currentTrack.titreAlbum || ''
                 };
+              }
+              
+              // Fallback: if no current track found, return the most recent one
+              if (stepsArray.length > 0) {
+                // Sort by start time descending and get the most recent
+                const sorted = stepsArray.sort((a, b) => (b.start || 0) - (a.start || 0));
+                const mostRecent = sorted[0];
+                if (mostRecent && mostRecent.title) {
+                  return {
+                    artist: mostRecent.authors || mostRecent.performers || '',
+                    title: mostRecent.title,
+                    album: mostRecent.titreAlbum || ''
+                  };
+                }
               }
             }
           } catch (error) {
