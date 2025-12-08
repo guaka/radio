@@ -2989,6 +2989,55 @@
           return null;
         },
         
+        async fetchSteroscenicMetadata() {
+          if (!this.currentChannel) return null;
+          
+          // Map channel names to stream paths in the statistics API
+          const streamPathMap = {
+            'ambientsleepingpill': '/asp-s',
+            'amambient': '/ama-s',
+            'ambientmodern': '/mod-s'
+          };
+          
+          const streamPath = streamPathMap[this.currentChannel];
+          if (!streamPath) return null;
+          
+          // Stereoscenic API doesn't have CORS headers, so we use a proxy
+          const apiUrl = 'https://radio.stereoscenic.com/statistics?json=1';
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+          
+          try {
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.streams) {
+                // Find the stream matching our channel
+                const stream = data.streams.find(s => s.streampath === streamPath);
+                if (stream && stream.songtitle) {
+                  // songtitle format is "Artist - Title"
+                  const parts = stream.songtitle.split(' - ');
+                  if (parts.length >= 2) {
+                    return {
+                      artist: parts[0].trim(),
+                      title: parts.slice(1).join(' - ').trim(),
+                      album: ''
+                    };
+                  } else if (parts.length === 1) {
+                    return {
+                      artist: '',
+                      title: parts[0].trim(),
+                      album: ''
+                    };
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.log('Stereoscenic metadata fetch error:', error);
+          }
+          return null;
+        },
+        
         async fetchCurrentSong() {
           if (!this.currentChannel) {
             this.currentSong = null;
@@ -3003,7 +3052,7 @@
           
           let songData = null;
           
-          // Check which API to use based on tags
+          // Check which API to use based on tags or channel name
           if (channel.tags.indexOf('paradise') > -1) {
             songData = await this.fetchRadioParadiseMetadata();
           } else if (channel.tags.indexOf('soma') > -1) {
@@ -3012,6 +3061,8 @@
             songData = await this.fetchFIPMetadata();
           } else if (channel.tags.indexOf('flux') > -1) {
             songData = await this.fetchFluxFMMetadata();
+          } else if (['ambientsleepingpill', 'amambient', 'ambientmodern'].indexOf(this.currentChannel) > -1) {
+            songData = await this.fetchSteroscenicMetadata();
           }
           
           this.currentSong = songData;
