@@ -2420,6 +2420,9 @@
           // Set up metadata polling
           this.startMetadataPolling();
           
+          // Set up Media Session API for lock screen/Bluetooth/car stereo controls
+          this.setupMediaSession();
+          
           // Watch for channel changes to restart polling
           this.$watch('currentChannel', () => {
             this.currentSong = null;
@@ -2439,6 +2442,12 @@
           // Watch for channel changes and notify chat iframe
           this.$watch('currentChannel', () => {
             this.sendChannelToChat();
+            this.updateMediaSessionMetadata();
+          });
+          
+          // Watch for song changes to update media session metadata (lock screen, car stereo)
+          this.$watch('currentSong', () => {
+            this.updateMediaSessionMetadata();
           });
           
           // Set up postMessage listener for chat
@@ -2482,6 +2491,52 @@
             // Silently ignore - chat errors shouldn't affect radio
             console.log('Chat communication error (non-critical):', e);
           }
+        },
+        
+        setupMediaSession() {
+          if (!('mediaSession' in navigator)) return;
+          
+          // Set action handlers for media controls (lock screen, Bluetooth, car stereo)
+          navigator.mediaSession.setActionHandler('play', () => {
+            this.togglePlay();
+          });
+          navigator.mediaSession.setActionHandler('pause', () => {
+            this.togglePlay();
+          });
+          navigator.mediaSession.setActionHandler('previoustrack', () => {
+            nextChannel(-1, this, window.router);
+          });
+          navigator.mediaSession.setActionHandler('nexttrack', () => {
+            nextChannel(1, this, window.router);
+          });
+          navigator.mediaSession.setActionHandler('stop', () => {
+            const audio = document.getElementById('player');
+            if (audio) {
+              audio.pause();
+              audio.currentTime = 0;
+            }
+          });
+        },
+        
+        updateMediaSessionMetadata() {
+          if (!('mediaSession' in navigator)) return;
+          
+          const channelName = this.currentChannel 
+            ? this.currentChannel.replace(/_/g, ' ') 
+            : 'Radio Guaka';
+          
+          const artist = this.currentSong?.artist || '';
+          const title = this.currentSong?.title || channelName;
+          const album = this.currentSong?.album || 'Radio Guaka';
+          
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: title,
+            artist: artist,
+            album: album,
+            artwork: [
+              { src: 'og-image.png', sizes: '512x512', type: 'image/png' }
+            ]
+          });
         },
         
         startMetadataPolling() {
