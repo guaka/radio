@@ -1486,59 +1486,21 @@
             </a>
           </template>
           
-          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Other Stations</h2>
-          
-          <template x-for="channel in otherStationsChannels" :key="channel.name">
-            <a href="#"
-               @click.prevent="navigateTo('#' + channel.name)"
-               class="channel btn btn-large"
-               :class="channel.playing ? 'btn-success' : 'btn-primary'">
-              <span x-text="channel.name.replace(/_/g, ' ')"></span>
-            </a>
-          </template>
-          
-          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Radio Paradise</h2>
-          
-          <template x-for="channel in paradiseChannels" :key="channel.name">
-            <a href="#"
-               @click.prevent="navigateTo('#' + channel.name)"
-               class="channel btn btn-large"
-               :class="channel.playing ? 'btn-success' : 'btn-primary'">
-              <span x-text="channel.name === 'paradise' ? 'paradise' : channel.name.replace(/^paradise_?/, '').replace(/_/g, ' ')"></span>
-            </a>
-          </template>
-          
-          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">SomaFM</h2>
-          
-          <template x-for="channel in somaChannels" :key="channel.name">
-            <a href="#"
-               @click.prevent="navigateTo('#' + channel.name)"
-               class="channel btn btn-large"
-               :class="channel.playing ? 'btn-success' : 'btn-primary'">
-              <span x-text="channel.name"></span>
-            </a>
-          </template>
-          
-          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">FIP</h2>
-          
-          <template x-for="channel in fipChannels" :key="channel.name">
-            <a href="#"
-               @click.prevent="navigateTo('#' + channel.name)"
-               class="channel btn btn-large"
-               :class="channel.playing ? 'btn-success' : 'btn-primary'">
-              <span x-text="channel.name.replace(/_/g, ' ')"></span>
-            </a>
-          </template>
-          
-          <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;">Flux FM</h2>
-          
-          <template x-for="channel in fluxFmChannels" :key="channel.name">
-            <a href="#"
-               @click.prevent="navigateTo('#' + channel.name)"
-               class="channel btn btn-large"
-               :class="channel.playing ? 'btn-success' : 'btn-primary'">
-              <span x-text="channel.name.replace(/^flux_fm_/, '').replace(/_/g, ' ')"></span>
-            </a>
+          <template x-for="section in sortedSections" :key="section.name">
+            <template x-if="getSectionChannels(section).length > 0">
+              <div>
+                <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;" x-text="section.name"></h2>
+                
+                <template x-for="channel in getSectionChannels(section)" :key="channel.name">
+                  <a href="#"
+                     @click.prevent="navigateTo('#' + channel.name)"
+                     class="channel btn btn-large"
+                     :class="channel.playing ? 'btn-success' : 'btn-primary'">
+                    <span x-text="formatChannelName(channel.name, section.name)"></span>
+                  </a>
+                </template>
+              </div>
+            </template>
           </template>
         </div>
 
@@ -2245,59 +2207,31 @@
       // Get channels in visual order (as they appear on screen)
       const visualOrder = [];
       
-      // Other Stations first
-      const otherStationsChannels = Object.keys(channels)
-        .filter(name => {
-          const channel = channels[name];
-          return channel.tags && channel.tags.indexOf('other') > -1;
-        })
-        .sort();
-      visualOrder.push(...otherStationsChannels);
-      
-      // Then Paradise channels
-      const paradiseChannels = Object.keys(channels)
-        .filter(name => {
-          const channel = channels[name];
-          return channel.tags && channel.tags.indexOf('paradise') > -1;
-        })
-        .sort();
-      visualOrder.push(...paradiseChannels);
-      
-      // Then other channels (without special tags)
+      // First, add channels that don't belong to any section
+      const sectionTags = typeof sections !== 'undefined' ? sections.flatMap(s => s.tags) : [];
       const otherChannels = Object.keys(channels)
         .filter(name => {
           const channel = channels[name];
-          return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1 && channel.tags.indexOf('other') === -1 && channel.tags.indexOf('paradise') === -1);
+          if (!channel.tags) return true;
+          return !sectionTags.some(tag => channel.tags.indexOf(tag) > -1);
         })
         .sort();
       visualOrder.push(...otherChannels);
       
-      // Then SomaFM channels
-      const somaChannels = Object.keys(channels)
-        .filter(name => {
-          const channel = channels[name];
-          return channel.tags && channel.tags.indexOf('soma') > -1;
-        })
-        .sort();
-      visualOrder.push(...somaChannels);
-      
-      // Then FIP channels
-      const fipChannels = Object.keys(channels)
-        .filter(name => {
-          const channel = channels[name];
-          return channel.tags && channel.tags.indexOf('fip') > -1;
-        })
-        .sort();
-      visualOrder.push(...fipChannels);
-      
-      // Then Flux FM channels
-      const fluxFmChannels = Object.keys(channels)
-        .filter(name => {
-          const channel = channels[name];
-          return channel.tags && channel.tags.indexOf('flux') > -1;
-        })
-        .sort();
-      visualOrder.push(...fluxFmChannels);
+      // Then add channels from each section in order
+      if (typeof sections !== 'undefined') {
+        const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+        sortedSections.forEach(section => {
+          const sectionChannels = Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              if (!channel.tags) return false;
+              return section.tags.some(tag => channel.tags.indexOf(tag) > -1);
+            })
+            .sort();
+          visualOrder.push(...sectionChannels);
+        });
+      }
       
       // Add empty string at beginning for "silence"
       visualOrder.unshift('');
@@ -2797,16 +2731,57 @@
             console.error('channels is not defined');
             return [];
           }
+          // Channels that don't belong to any defined section
+          const sectionTags = typeof sections !== 'undefined' ? sections.flatMap(s => s.tags) : [];
           return Object.keys(channels)
             .filter(name => {
               const channel = channels[name];
-              return !channel.tags || (channel.tags.indexOf('soma') === -1 && channel.tags.indexOf('fip') === -1 && channel.tags.indexOf('flux') === -1 && channel.tags.indexOf('other') === -1 && channel.tags.indexOf('paradise') === -1);
+              if (!channel.tags) return true;
+              // Check if channel belongs to any section
+              return !sectionTags.some(tag => channel.tags.indexOf(tag) > -1);
             })
             .sort()
             .map(name => ({
               name: name,
               playing: name === this.currentChannel
             }));
+        },
+        
+        get sortedSections() {
+          if (typeof sections === 'undefined') {
+            return [];
+          }
+          return [...sections].sort((a, b) => a.order - b.order);
+        },
+        
+        getSectionChannels(section) {
+          if (typeof channels === 'undefined' || typeof section === 'undefined') {
+            return [];
+          }
+          return Object.keys(channels)
+            .filter(name => {
+              const channel = channels[name];
+              if (!channel.tags) return false;
+              // Channel must have at least one tag matching the section
+              return section.tags.some(tag => channel.tags.indexOf(tag) > -1);
+            })
+            .sort()
+            .map(name => ({
+              name: name,
+              playing: name === this.currentChannel
+            }));
+        },
+        
+        formatChannelName(channelName, sectionName) {
+          // Special formatting for different sections
+          if (sectionName === 'Radio Paradise') {
+            return channelName === 'paradise' ? 'paradise' : channelName.replace(/^paradise_?/, '').replace(/_/g, ' ');
+          }
+          if (sectionName === 'Flux FM') {
+            return channelName.replace(/^flux_fm_/, '').replace(/_/g, ' ');
+          }
+          // Default: replace underscores with spaces
+          return channelName.replace(/_/g, ' ');
         },
         
         get currentChannelData() {

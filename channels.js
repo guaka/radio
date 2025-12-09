@@ -87,6 +87,23 @@ const channels = {
     tags: ['paradise', 'US', 'electronic', 'future'],
     site: 'https://www.radioparadise.com/'
   },
+
+  // RTP - Portugal
+  'antena1': {
+    url: 'https://radiocast.rtp.pt/antena180a.mp3',
+    tags: ['portugal', 'pt', 'public', 'news', 'variety'],
+    site: 'https://www.rtp.pt/play/direto/antena1'
+  },
+  'antena2': {
+    url: 'https://radiocast.rtp.pt/antena280a.mp3',
+    tags: ['portugal', 'pt', 'public', 'classical', 'culture'],
+    site: 'https://www.rtp.pt/play/direto/antena2'
+  },
+  'antena3': {
+    url: 'https://radiocast.rtp.pt/antena380a.mp3',
+    tags: ['portugal', 'pt', 'public', 'alternative', 'rock'],
+    site: 'https://www.rtp.pt/play/direto/antena3'
+  },
   
   // Other Stations
   'wassoulou': {
@@ -100,17 +117,17 @@ const channels = {
   },
   'ambientsleepingpill': {
     url: 'https://radio.stereoscenic.com/asp-s',
-    tags: ['other', 'ambient', 'sleep', 'relaxation'],
+    tags: ['ambient', 'sleep', 'relaxation'],
     site: 'https://ambientsleepingpill.com/'
   },
   'amambient': {
     url: 'https://radio.stereoscenic.com/ama-s',
-    tags: ['other', 'ambient', 'bright', 'daytime'],
+    tags: ['ambient', 'bright', 'daytime'],
     site: 'https://amambient.com/'
   },
   'ambientmodern': {
     url: 'https://radio.stereoscenic.com/mod-s',
-    tags: ['other', 'ambient', 'modern'],
+    tags: ['ambient', 'modern'],
     site: 'https://ambientmodern.com/'
   },
   'urbanspaceradio': {
@@ -419,16 +436,56 @@ const channels = {
   // }
 };
 
+// Channel sections configuration
+// Each section defines:
+//   - name: Display name for the section
+//   - tags: Array of tags to filter channels (channel must have at least one matching tag)
+//   - order: Display order (lower numbers appear first)
+const sections = [
+  {
+    name: 'Other Stations',
+    tags: ['other'],
+    order: 1
+  },
+  {
+    name: 'Radio Paradise',
+    tags: ['paradise'],
+    order: 2
+  },
+  {
+    name: 'SomaFM',
+    tags: ['soma'],
+    order: 3
+  },
+  {
+    name: 'FIP',
+    tags: ['fip'],
+    order: 4
+  },
+  {
+    name: 'Flux FM',
+    tags: ['flux'],
+    order: 5
+  },
+  {
+    name: 'Portugal',
+    tags: ['portugal'],
+    order: 6
+  },
+  {
+    name: 'AMBIENT',
+    tags: ['ambient'],
+    order: 7
+  }
+];
+
 // Broken channels (for reference - commented out in channels.coffee.md)
 // These channels failed connection tests and are kept here for potential future fixes
 // const brokenChannels = {
-  // 'bagel': { tags: ['soma'] },
   // 'chillstep.info': { url: 'http://chillstep.info:1984/listen.ogg', tags: ['dubstep', 'chill'] },
-  // 'klara': { url: 'http://mp3.streampower.be/klara-high.mp3', tags: ['be', 'classical'] },
   // 'pmr': { url: 'http://pmr.lt/streams/pmr-2', tags: ['lt', 'eclectic', 'chill', 'world'], site: 'http://pmr.lt/en' },
   // 'neringa': { url: 'http://streamer.midiaudio.com:80/ner', tags: ['lt', 'eclectic', 'chill'], site: 'http://www.neringafm.lt/' },
   // 'bbcworld': { url: 'http://bbcwssc.ic.llnwd.net/stream/bbcwssc_mp1_ws-eieuk', tags: ['uk', 'news'] },
-  // 'fip': { url: 'http://audio.scdn.arkena.com/11016/fip-midfi128.mp3', tags: ['fr', 'paris', 'jazz', 'eclectic'], site: 'http://www.fipradio.fr/' },
   // 'radiopanik': { url: 'http://streaming.domainepublic.net:8000/radiopanik.ogg', tags: ['libre', 'bxl', 'be'] },
   // 'radioairlibre': { url: 'http://streaming.domainepublic.net:8000/radioairlibre.ogg', tags: ['libre', 'bxl', 'be'] },
   // 'radiocampusbxl': { url: 'http://streamer.radiocampusbruxelles.org:8000/stream.ogg', tags: ['bxl', 'be'] },
