@@ -1546,6 +1546,20 @@
     </footer>
   </div>
 
+  <script>
+    // Load build time (Jekyll-processed on GH Pages, may fail locally)
+    window.BUILD_TIME = '';
+    fetch('buildtime.js')
+      .then(r => r.text())
+      .then(text => {
+        // Extract the BUILD_TIME value from the processed JS
+        const match = text.match(/BUILD_TIME\s*=\s*'([^']+)'/);
+        if (match && /^\d/.test(match[1])) {
+          window.BUILD_TIME = match[1];
+        }
+      })
+      .catch(() => {});
+  </script>
   <script src="channels.js"></script>
   <script>
     // Network and ready state mappings
@@ -2277,11 +2291,12 @@
           return `chatiframe1.html?t=${this.chatIframeCacheBuster}`;
         },
         
-        // Build timestamp - injected by Jekyll at GitHub Pages build time
+        // Build timestamp from buildtime.js (injected by Jekyll)
         // Falls back to current time locally (when Jekyll tag isn't processed)
         get buildDate() {
-          const raw = '{{ site.time | date: "%y%m%d %H:%M" }}';
-          if (!raw.includes('{{')) return raw;
+          if (typeof BUILD_TIME !== 'undefined' && /^\d/.test(BUILD_TIME)) {
+            return BUILD_TIME;
+          }
           const now = new Date();
           const year = now.getFullYear().toString().slice(-2);
           const month = (now.getMonth() + 1).toString().padStart(2, '0');
