@@ -882,6 +882,20 @@
               }
             });
             
+            // Subscribe to deletions (kind 5)
+            const deletionSubscription = this.ndk.subscribe(
+              { kinds: [5] },
+              { closeOnEose: false }
+            );
+            
+            deletionSubscription.on('event', (event) => {
+              try {
+                this.handleDeletionEvent(event);
+              } catch (e) {
+                console.error('Error handling deletion event:', e);
+              }
+            });
+            
           } catch (error) {
             console.error('Subscription error:', error);
             this.errorMessage = 'Failed to subscribe to messages: ' + error.message;
@@ -982,6 +996,36 @@
             }
           } catch (e) {
             console.error('Error handling reaction:', e);
+          }
+        },
+        
+        // Handle deletion events (kind 5)
+        handleDeletionEvent(event) {
+          try {
+            const tags = event.tags || [];
+            // Get all 'e' tags (deleted event IDs)
+            const deletedIds = tags
+              .filter(tag => tag[0] === 'e')
+              .map(tag => tag[1]);
+            
+            if (deletedIds.length === 0) return;
+            
+            // Only delete messages that were authored by the deletion event's author
+            const originalCount = this.messages.length;
+            this.messages = this.messages.filter(m => {
+              if (deletedIds.includes(m.id)) {
+                // Verify the deletion is from the message author
+                return m.pubkey !== event.pubkey;
+              }
+              return true;
+            });
+            
+            // Update cache if messages were removed
+            if (this.messages.length < originalCount) {
+              this.saveCachedMessages();
+            }
+          } catch (e) {
+            console.error('Error handling deletion:', e);
           }
         },
         
