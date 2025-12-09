@@ -2307,8 +2307,11 @@
           return `chatiframe1.html?t=${this.chatIframeCacheBuster}`;
         },
         
+        // Build timestamp - injected by Jekyll at GitHub Pages build time
+        // Falls back to current time locally (when Jekyll tag isn't processed)
         get buildDate() {
-          // Format: yymmdd hh:mm
+          const raw = '{{ site.time | date: "%y%m%d %H:%M" }}';
+          if (!raw.includes('{{')) return raw;
           const now = new Date();
           const year = now.getFullYear().toString().slice(-2);
           const month = (now.getMonth() + 1).toString().padStart(2, '0');
