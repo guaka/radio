@@ -1276,6 +1276,29 @@
       letter-spacing: 0.5px;
       line-height: 1.4;
       margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .add-song-btn {
+      background: rgba(0, 255, 255, 0.1);
+      border: 1px solid rgba(0, 255, 255, 0.4);
+      border-radius: 4px;
+      color: rgba(0, 255, 255, 0.8);
+      font-size: clamp(10px, 1.8vw, 12px);
+      padding: 2px 6px;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+      text-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
+      white-space: nowrap;
+    }
+    
+    .add-song-btn:hover {
+      background: rgba(0, 255, 255, 0.2);
+      border-color: rgba(0, 255, 255, 0.7);
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
     }
 
     /* Smooth transitions */
@@ -1428,6 +1451,9 @@
               <template x-if="currentSong">
                 <div class="current-song">
                   <span x-text="currentSong.artist && currentSong.title ? currentSong.artist + ' - ' + currentSong.title : (currentSong.title || '')"></span>
+                  <button class="add-song-btn" 
+                          @click="sendSongToChat()" 
+                          title="Add song to chat">+💬</button>
                 </div>
               </template>
             </div>
@@ -2502,6 +2528,28 @@
             }
           } catch (e) {
             // Silently ignore - chat errors shouldn't affect radio
+            console.log('Chat communication error (non-critical):', e);
+          }
+        },
+        
+        sendSongToChat() {
+          try {
+            if (!this.currentSong) return;
+            
+            const iframe = this.$refs.chatIframe;
+            if (iframe && iframe.contentWindow) {
+              const songText = this.currentSong.artist && this.currentSong.title 
+                ? `${this.currentSong.artist} - ${this.currentSong.title}`
+                : (this.currentSong.title || '');
+              
+              if (songText) {
+                iframe.contentWindow.postMessage({
+                  type: 'addSongToMessage',
+                  song: songText
+                }, '*');
+              }
+            }
+          } catch (e) {
             console.log('Chat communication error (non-critical):', e);
           }
         },

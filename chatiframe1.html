@@ -613,6 +613,17 @@
                 try {
                   if (event.data.type === 'channelChange') {
                     this.currentChannel = event.data.channel || '';
+                  } else if (event.data.type === 'addSongToMessage' && event.data.song) {
+                    // Add song to message input
+                    const separator = this.messageInput.trim() ? ' ' : '';
+                    this.messageInput = this.messageInput + separator + event.data.song;
+                    // Focus the input
+                    this.$nextTick(() => {
+                      const input = this.$refs.chatInput;
+                      if (input) {
+                        input.focus();
+                      }
+                    });
                   }
                 } catch (e) {
                   console.error('Error handling postMessage:', e);
