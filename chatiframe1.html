@@ -641,6 +641,15 @@
               </div>
             </div>
             
+            <template x-if="currentUserNip05">
+              <div style="margin-top: 12px;">
+                <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">NIP-05:</div>
+                <div class="auth-input-row">
+                  <input type="text" readonly :value="currentUserNip05" style="width: 100%; color: #00ff88;">
+                </div>
+              </div>
+            </template>
+            
             <template x-if="!currentUserPrivateKey && !currentUserPubkey">
               <div style="margin-top: 12px;">
                 <button @click="generateNewKey()" class="auth-button" style="width: 100%;">generate keys</button>
@@ -690,6 +699,7 @@
         currentUserNpub: null,
         currentUserPrivateKey: null,
         currentUserNsec: null,
+        currentUserNip05: null, // NIP-05 identifier (e.g. user@domain.com)
         usingNip07: false, // Track if we're using NIP-07 extension (no nsec available)
         currentChannel: '',
         relays: [],
@@ -1180,8 +1190,14 @@
             const profile = JSON.parse(event.content);
             this.userProfiles[event.pubkey] = {
               name: profile.name || profile.display_name || 'Anonymous',
-              picture: profile.picture || ''
+              picture: profile.picture || '',
+              nip05: profile.nip05 || null
             };
+            
+            // If this is the current user's profile, update their NIP-05
+            if (this.currentUserPubkey && event.pubkey === this.currentUserPubkey) {
+              this.currentUserNip05 = profile.nip05 || null;
+            }
           } catch (e) {
             console.error('Error parsing profile:', e);
           }
@@ -2060,6 +2076,9 @@
             this.detectedNostrProvider = nostrProvider;
             await this.setupSigner();
             
+            // Fetch user's profile to get NIP-05 and other info
+            this.fetchCurrentUserProfile();
+            
             // Save pubkey to localStorage (but don't save private key - extension handles that)
             // With NIP-07, we only need the public key - the extension manages the private key securely
             localStorage.setItem('radio_guaka_chat_pubkey', pubkey);
@@ -2140,6 +2159,9 @@
                   console.error('Error getting pubkey from signer:', e);
                 }
               }
+              
+              // Fetch user's profile to get NIP-05
+              this.fetchCurrentUserProfile();
             } catch (e) {
               this.errorMessage = 'Invalid nsec format. Please check your key and try again.';
               setTimeout(() => {
@@ -2251,17 +2273,18 @@
           this.currentUserNsec = null;
           this.currentUserPubkey = null;
           this.currentUserNpub = null;
+          this.currentUserNip05 = null;
           this.usingNip07 = false;
           this.useNip7Checkbox = false;
           this.isAuthenticated = false;
           this.manualKey = '';
           this.showPrivateKey = false;
-          
+
           // Clear from localStorage
           localStorage.removeItem('radio_guaka_chat_private_key');
           localStorage.removeItem('radio_guaka_chat_pubkey');
           localStorage.removeItem('radio_guaka_chat_using_nip07');
-          
+
           // Clear signer
           if (this.ndk) {
             this.ndk.signer = null;
@@ -2421,6 +2444,35 @@
             }
           } catch (error) {
             console.error('Signer setup error:', error);
+          }
+        },
+        
+        // Fetch current user's profile to get NIP-05 and other info
+        async fetchCurrentUserProfile() {
+          try {
+            if (!this.ndk || !this.currentUserPubkey) return;
+            
+            // Check if we already have their profile cached
+            if (this.userProfiles[this.currentUserPubkey]?.nip05) {
+              this.currentUserNip05 = this.userProfiles[this.currentUserPubkey].nip05;
+              return;
+            }
+            
+            const filter = {
+              kinds: [0], // Profile metadata
+              authors: [this.currentUserPubkey],
+              limit: 1
+            };
+            
+            const events = await this.ndk.fetchEvents(filter);
+            
+            if (events && events.size > 0) {
+              for (const event of events) {
+                this.handleProfileEvent(event);
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching user profile:', error);
           }
         },
         
@@ -2592,6 +2644,8 @@
                     // Could not get pubkey from signer
                   }
                 }
+                // Fetch user's profile to get NIP-05
+                this.fetchCurrentUserProfile();
               }
             } else if (pubkey) {
               this.usingNip07 = false;
