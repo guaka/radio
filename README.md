@@ -47,9 +47,11 @@ Radio Guaka includes a Nostr-based chat feature built with [NDK (Nostr Dev Kit)]
 These are community relays aligned with the nomad/travel community.
 
 **Authentication options:**
-- Browser extension (nos2x, Alby, etc.) - auto-detected
-- Manual key entry (nsec or hex private key)
-- Generate anonymous keypair
+- **NIP-07 browser extension** (nos2x, Alby, etc.) - Recommended, most secure. The website never accesses your private key - the extension handles signing securely.
+- Manual key entry (nsec) - Fallback option. Stores key in localStorage (less secure).
+- Generate anonymous keypair - Creates new keypair, stores in localStorage.
+
+See [NOSTR.md](NOSTR.md) for detailed documentation on NIP-07 and security considerations.
 
 **Implementation:**
 - `chatiframe1.html` - Standalone chat component (can be embedded as iframe)

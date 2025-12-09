@@ -225,19 +225,77 @@
       50% { opacity: 0.5; }
     }
     
-    .auth-status {
-      font-size: 11px;
-      color: rgba(255, 68, 68, 0.8);
-      padding: 4px 8px;
-      border: 1px solid rgba(255, 68, 68, 0.3);
-      border-radius: 3px;
-      background: rgba(255, 68, 68, 0.1);
+    .auth-trigger {
+      margin-left: 8px;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 255, 255, 0.4);
+      background: rgba(0, 255, 255, 0.08);
+      color: #00ffff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.2s ease;
     }
     
-    .auth-status.authenticated {
+    .auth-trigger:hover {
+      background: rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+    }
+    
+    .auth-current {
+      margin: 10px 0 14px;
+      font-size: 12px;
+      color: rgba(0, 255, 255, 0.8);
+      word-break: break-all;
+    }
+    .auth-current .key-value {
       color: #00ff7f;
-      border-color: rgba(0, 255, 127, 0.3);
-      background: rgba(0, 255, 127, 0.1);
+      font-weight: 700;
+    }
+    .auth-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .auth-input-row input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      background: rgba(0, 255, 255, 0.08);
+      color: #00ffff;
+      font-family: 'Courier New', monospace;
+    }
+    .auth-input-row button {
+      padding: 10px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 255, 255, 0.5);
+      background: rgba(0, 255, 255, 0.15);
+      color: #00ffff;
+      cursor: pointer;
+    }
+    .auth-input-row button:hover {
+      background: rgba(0, 255, 255, 0.25);
+    }
+    .auth-modal-close {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: transparent;
+      border: none;
+      color: #00ffff;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+    }
+    .auth-modal-close:hover {
+      color: #ff00ff;
     }
     
     .chat-messages {
@@ -349,10 +407,11 @@
       bottom: 0;
       background: rgba(0, 0, 0, 0.9);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       z-index: 1000;
       backdrop-filter: blur(5px);
+      padding-top: 40px;
     }
     
     .auth-modal-content {
@@ -486,9 +545,7 @@
                  :title="relay"></div>
           </template>
         </div>
-        <div class="auth-status" :class="isAuthenticated ? 'authenticated' : ''" x-show="isAuthenticated">
-          <span>✓</span>
-        </div>
+        <button class="auth-trigger" @click="showAuthModal = true" title="Show key options">🔑</button>
       </div>
     </div>
     
@@ -523,46 +580,105 @@
     </div>
     
     <template x-if="showAuthModal">
-      <div class="auth-modal" @click.self="showAuthModal = false">
+      <div class="auth-modal" 
+           @click.self="showAuthModal = false" 
+           @keydown.escape="showAuthModal = false" 
+           x-ref="authModal"
+           x-effect="if (showAuthModal) { $nextTick(() => { $refs.authModal?.focus(); if (!useNip7Checkbox && !currentUserPrivateKey && $refs.nsecInput) { $refs.nsecInput.focus(); } }); }"
+           tabindex="-1">
         <div class="auth-modal-content">
-          <h3>connect</h3>
+          <button class="auth-modal-close" @click="showAuthModal = false" aria-label="Close">×</button>
+          <h3>Nostr keys</h3>
           
-          <div class="auth-option" @click="authenticateWithExtension()">
-            <div class="auth-option-title">browser extension</div>
-            <div class="auth-option-desc">Use Nostr extension (nos2x, Alby, etc.)</div>
-          </div>
+          <!-- Trigger detection check when modal opens -->
+          <div x-effect="if (showAuthModal) { startExtensionPolling(); } else { stopExtensionPolling(); }"></div>
           
-          <div class="auth-option" @click="showManualAuth = true">
-            <div class="auth-option-title">manual key entry</div>
-            <div class="auth-option-desc">Paste your nsec or npub</div>
-          </div>
-          
-          <div class="auth-option" @click="generateNewKey()">
-            <div class="auth-option-title">generate new key</div>
-            <div class="auth-option-desc">Create a new anonymous keypair</div>
-          </div>
-          
-          <template x-if="showManualAuth">
-            <div style="margin-top: 16px;">
-              <input 
-                type="text"
-                x-model="manualKey"
-                class="auth-input"
-                placeholder="nsec1... or npub1...">
-              <div>
-                <button @click="authenticateWithKey()" class="auth-button">connect</button>
-                <button @click="showManualAuth = false" class="auth-button">cancel</button>
-              </div>
+          <!-- NIP-07 checkbox (only if extension is available) -->
+          <template x-if="hasExtension()">
+            <div style="margin-bottom: 16px; padding: 12px; border: 1px solid rgba(0, 255, 255, 0.3); border-radius: 4px; background: rgba(0, 255, 255, 0.05);">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #00ffff;">
+                <input 
+                  type="checkbox" 
+                  x-model="useNip7Checkbox"
+                  @change="if (useNip7Checkbox) { authenticateWithExtension(); } else { usingNip07 = false; currentUserPrivateKey = null; currentUserNsec = null; currentUserPubkey = null; currentUserNpub = null; isAuthenticated = false; localStorage.removeItem('radio_guaka_chat_using_nip07'); }"
+                  style="width: 18px; height: 18px; cursor: pointer;">
+                <span style="font-size: 13px;">Use NIP-07 extension</span>
+              </label>
             </div>
           </template>
           
-          <button @click="showAuthModal = false" class="auth-button" style="margin-top: 12px; width: 100%;">close</button>
+          <!-- Unified key display -->
+          <div class="auth-current">
+            <template x-if="!useNip7Checkbox">
+              <div style="margin-bottom: 12px;">
+                <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">nsec:</div>
+                <div class="auth-input-row">
+                  <template x-if="usingNip07">
+                    <input type="text" readonly value="(stored in extension - not available)" style="color: rgba(255, 255, 255, 0.5); font-style: italic;">
+                  </template>
+                  <template x-if="!usingNip07 && currentUserPrivateKey">
+                    <input :type="showPrivateKey ? 'text' : 'password'" readonly :value="currentUserNsec || currentUserPrivateKey">
+                  </template>
+                  <template x-if="!usingNip07 && !currentUserPrivateKey">
+                    <input 
+                      type="text" 
+                      x-model="manualKey" 
+                      placeholder="nsec1..." 
+                      @keydown.enter="authenticateWithKey()"
+                      x-ref="nsecInput">
+                  </template>
+                  <template x-if="!usingNip07 && currentUserPrivateKey">
+                    <button @click="showPrivateKey = !showPrivateKey" x-text="showPrivateKey ? 'hide' : 'show'"></button>
+                  </template>
+                </div>
+              </div>
+            </template>
+            
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">npub:</div>
+              <div class="auth-input-row">
+                <input type="text" readonly :value="currentUserNpub || ''" placeholder="npub not available" style="width: 100%;">
+              </div>
+            </div>
+            
+            <template x-if="!currentUserPrivateKey && !currentUserPubkey">
+              <div style="margin-top: 12px;">
+                <button @click="generateNewKey()" class="auth-button" style="width: 100%;">generate keys</button>
+              </div>
+            </template>
+            
+            
+            <template x-if="currentUserPrivateKey || currentUserPubkey">
+              <div style="margin-top: 12px;">
+                <button @click="deleteKeys()" class="auth-button" style="width: 100%; background: rgba(255, 0, 100, 0.15); border-color: rgba(255, 0, 100, 0.5); color: #ff0064;">delete keys</button>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </template>
   </div>
   
   <script>
+    /**
+     * Radio Guaka Chat - Nostr-based chat component
+     * 
+     * AUTHENTICATION FLOW:
+     * 1. Chat loads immediately in read-only mode (anyone can view messages)
+     * 2. When user tries to post (focuses input or presses Enter):
+     *    a. First, automatically try NIP-07 browser extension (nos2x, Alby, etc.)
+     *    b. If NIP-07 succeeds: user is authenticated, can post
+     *    c. If NIP-07 fails/unavailable: show modal with options:
+     *       - Generate new key (creates anonymous keypair)
+     *       - Import key (paste nsec/npub)
+     *       - Retry extension (if extension detected)
+     * 3. Keys are saved to localStorage for future sessions
+     * 
+     * This flow prioritizes:
+     * - Immediate access to read chat
+     * - Seamless auth for users with browser extensions
+     * - Simple fallback for users without extensions
+     */
     function chatApp() {
       return {
         // State
@@ -571,7 +687,10 @@
         messageInput: '',
         isAuthenticated: false,
         currentUserPubkey: null,
+        currentUserNpub: null,
         currentUserPrivateKey: null,
+        currentUserNsec: null,
+        usingNip07: false, // Track if we're using NIP-07 extension (no nsec available)
         currentChannel: '',
         relays: [],
         relayStatus: {},
@@ -581,9 +700,24 @@
         isSending: false,
         showAuthModal: false,
         showManualAuth: false,
+        showPrivateKey: false,
+        useNip7Checkbox: false, // Checkbox state for NIP-07
         manualKey: '',
         errorMessage: '',
         isInIframe: window.parent !== window,
+        extensionPollInterval: null, // Interval ID for polling extension
+        extensionDetected: false, // Cached detection result
+        parentNostrProxy: null, // Proxy to parent window's nostr (if in iframe)
+        detectedNostrProvider: null, // The nostr provider we found (for use in setupSigner)
+        
+        // Method to check if extension is available (for template reactivity)
+        hasExtension() {
+          return this.extensionDetected || 
+                 !!this.parentNostrProxy || 
+                 (this.isInIframe && window.parent && window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') ||
+                 (window.nostr && typeof window.nostr.getPublicKey === 'function') ||
+                 (window.webln && window.webln.nostr && typeof window.webln.nostr.getPublicKey === 'function');
+        },
         
         // Initialize
         async init() {
@@ -596,6 +730,7 @@
             const hashtagParam = params.get('hashtag') || 'radioguaka';
             
             // Set up relays - using nomadwiki and trustroots community relays
+            // IMPORTANT: We only use these 2 relays, never use relays from extension or user profile
             this.relays = [
               'wss://relay.nomadwiki.org',
               'wss://relay.trustroots.org'
@@ -614,9 +749,13 @@
                   if (event.data.type === 'channelChange') {
                     this.currentChannel = event.data.channel || '';
                   } else if (event.data.type === 'addSongToMessage' && event.data.song) {
-                    // Add song to message input
-                    const separator = this.messageInput.trim() ? ' ' : '';
-                    this.messageInput = this.messageInput + separator + event.data.song;
+                    // Add song to message input (only if not already present)
+                    const songText = event.data.song;
+                    // Check if the song text is already in the input
+                    if (!this.messageInput.includes(songText)) {
+                      const separator = this.messageInput.trim() ? ' ' : '';
+                      this.messageInput = this.messageInput + separator + songText;
+                    }
                     // Focus the input
                     this.$nextTick(() => {
                       const input = this.$refs.chatInput;
@@ -634,33 +773,18 @@
               window.parent.postMessage({ type: 'chatReady' }, '*');
             }
             
-            // Detect and auto-authenticate with Nostr extensions (nos2x, Alby, etc.)
-            const hasExtension = this.detectNostrExtension();
+            /*
+             * AUTH FLOW:
+             * 1. Chat is shown immediately in read-only mode
+             * 2. When user tries to post (focus input or send):
+             *    - First try NIP-07 extension automatically
+             *    - If no NIP-07 or user denies: show modal to generate/import key
+             * 3. Keys are saved to localStorage for future sessions
+             */
             
-            if (hasExtension) {
-              // Extension detected, try to auto-authenticate
-              const extensionAuthSuccess = await this.authenticateWithExtension();
-              if (!extensionAuthSuccess) {
-                // If extension auth failed, fall back to saved keys
-                this.loadKeysFromStorage();
-              }
-            } else {
-              // No extension available, try saved keys
-              this.loadKeysFromStorage();
-              
-              // Also listen for extension becoming available (in case it loads late)
-              const checkForExtension = setInterval(() => {
-                if (this.detectNostrExtension() && !this.isAuthenticated) {
-                  clearInterval(checkForExtension);
-                  this.authenticateWithExtension();
-                }
-              }, 1000);
-              
-              // Stop checking after 10 seconds
-              setTimeout(() => {
-                clearInterval(checkForExtension);
-              }, 10000);
-            }
+            // Only load saved keys from storage (don't prompt or auto-auth)
+            // User will be prompted when they try to post
+            this.loadKeysFromStorage();
             
             // Wait for NDK to load
             if (window.NDKModule) {
@@ -714,8 +838,9 @@
             }
             
             // Try different initialization approaches for NDK v2.0.0
+            // IMPORTANT: Only use our 2 configured relays, ignore any from extension/user
             try {
-              // First try with explicitRelayUrls
+              // First try with explicitRelayUrls (this ensures only these relays are used)
               this.ndk = new NDKClass({
                 explicitRelayUrls: this.relays
               });
@@ -727,6 +852,7 @@
             }
             
             // Manually add relays if needed (for v2.0.0 compatibility)
+            // Only add our configured relays, never add relays from extension
             if (this.ndk && this.ndk.addExplicitRelay) {
               this.relays.forEach(relayUrl => {
                 try {
@@ -739,9 +865,72 @@
             
             await this.ndk.connect();
             
+            // Intercept pool.addRelay to prevent unwanted relays from being added
+            if (this.ndk.pool && this.ndk.pool.addRelay) {
+              const originalAddRelay = this.ndk.pool.addRelay.bind(this.ndk.pool);
+              this.ndk.pool.addRelay = async (relayUrlOrObject) => {
+                // Handle both string URLs and Relay objects
+                let relayUrl;
+                if (typeof relayUrlOrObject === 'string') {
+                  relayUrl = relayUrlOrObject;
+                } else if (relayUrlOrObject && relayUrlOrObject.url) {
+                  relayUrl = relayUrlOrObject.url;
+                } else if (relayUrlOrObject && typeof relayUrlOrObject.toString === 'function') {
+                  relayUrl = relayUrlOrObject.toString();
+                } else {
+                  // Unknown format, silently ignore
+                  return undefined;
+                }
+                
+                // Normalize relay URL (remove trailing slash)
+                const normalizedUrl = relayUrl.replace(/\/$/, '');
+                const normalizedRelays = this.relays.map(r => r.replace(/\/$/, ''));
+                
+                // Only allow our configured relays
+                if (normalizedRelays.includes(normalizedUrl)) {
+                  return await originalAddRelay(relayUrlOrObject);
+                } else {
+                  // Block any relay not in our configured list
+                  // Silently return undefined - don't throw or reject
+                  return undefined;
+                }
+              };
+            }
+            
+            // Also intercept addExplicitRelay if it exists
+            if (this.ndk.addExplicitRelay) {
+              const originalAddExplicitRelay = this.ndk.addExplicitRelay.bind(this.ndk);
+              this.ndk.addExplicitRelay = (relayUrlOrObject) => {
+                // Handle both string URLs and Relay objects
+                let relayUrl;
+                if (typeof relayUrlOrObject === 'string') {
+                  relayUrl = relayUrlOrObject;
+                } else if (relayUrlOrObject && relayUrlOrObject.url) {
+                  relayUrl = relayUrlOrObject.url;
+                } else if (relayUrlOrObject && typeof relayUrlOrObject.toString === 'function') {
+                  relayUrl = relayUrlOrObject.toString();
+                } else {
+                  // Unknown format, silently ignore
+                  return undefined;
+                }
+                
+                const normalizedUrl = relayUrl.replace(/\/$/, '');
+                const normalizedRelays = this.relays.map(r => r.replace(/\/$/, ''));
+                
+                if (normalizedRelays.includes(normalizedUrl)) {
+                  return originalAddExplicitRelay(relayUrlOrObject);
+                } else {
+                  // Silently ignore
+                  return undefined;
+                }
+              };
+            }
+            
             // Ensure relays are properly set in the pool
+            // Only use our 2 configured relays, ignore any others
             if (this.ndk.pool && (!this.ndk.pool.relays || this.ndk.pool.size === 0)) {
               // Manually add relays to pool if they're not there
+              // Only add our configured relays
               for (const relayUrl of this.relays) {
                 try {
                   if (this.ndk.pool.addRelay) {
@@ -754,6 +943,15 @@
                 }
               }
             }
+            
+            // Ensure we're not using any relays from extension or user profile
+            // Remove any relays that aren't in our configured list
+            this.cleanupRelays();
+            
+            // Set up a periodic cleanup to ensure no extension relays are added
+            setInterval(() => {
+              this.cleanupRelays();
+            }, 2000); // Check every 2 seconds (more aggressive)
             
             // Set up relay status tracking (only for the 2 configured relays)
             if (this.ndk.pool) {
@@ -807,6 +1005,11 @@
             // If authenticated, set up signer
             if (this.currentUserPrivateKey) {
               await this.setupSigner();
+            }
+            
+            // Recompute npub if we have a pubkey but npub wasn't set (NDK might not have been ready before)
+            if (this.currentUserPubkey && !this.currentUserNpub) {
+              this.setUserPubkey(this.currentUserPubkey);
             }
             
           } catch (error) {
@@ -1180,15 +1383,25 @@
         },
         
         // Check auth when user focuses input
-        checkAuthOnFocus() {
-          if (!this.isAuthenticated) {
-            // Small delay to let user see they can type, then show modal
-            setTimeout(() => {
-              if (!this.isAuthenticated && !this.showAuthModal) {
-                this.showAuthModal = true;
-              }
-            }, 300);
+        // Flow: silently try NIP-07; no modal here to avoid surprise popups
+        async checkAuthOnFocus() {
+          if (this.isAuthenticated) return;
+          
+          // Small delay to let user see they can type
+          await new Promise(r => setTimeout(r, 300));
+          if (this.isAuthenticated) return;
+          
+          // Try NIP-07 extension first (silently)
+          if (this.detectNostrExtension()) {
+            console.log('Trying NIP-07 extension on focus...');
+            const success = await this.authenticateWithExtension();
+            if (success) {
+              console.log('NIP-07 auth successful');
+              return;
+            }
+            console.log('NIP-07 auth failed or denied');
           }
+          // If still unauthenticated, do nothing here. Modal will appear on send or via header icon.
         },
         
         // Handle keyboard input
@@ -1205,24 +1418,241 @@
           }
         },
         
+        // Clean up relays - remove any that aren't in our configured list
+        cleanupRelays() {
+          if (!this.ndk || !this.ndk.pool || !this.ndk.pool.relays) return;
+          
+          // Normalize configured relays (remove trailing slashes)
+          const normalizedConfiguredRelays = new Set(
+            this.relays.map(r => r.replace(/\/$/, ''))
+          );
+          const relaysToRemove = [];
+          
+          // Check all relays in the pool
+          if (this.ndk.pool.relays instanceof Map) {
+            for (const [url, relay] of this.ndk.pool.relays) {
+              const normalizedUrl = url.replace(/\/$/, '');
+              if (!normalizedConfiguredRelays.has(normalizedUrl)) {
+                relaysToRemove.push(url);
+              }
+            }
+          } else if (Array.isArray(this.ndk.pool.relays)) {
+            for (const relay of this.ndk.pool.relays) {
+              const url = relay.url || relay;
+              const normalizedUrl = url.replace(/\/$/, '');
+              if (!normalizedConfiguredRelays.has(normalizedUrl)) {
+                relaysToRemove.push(url);
+              }
+            }
+          }
+          
+          // Remove any relays not in our configured list
+          for (const url of relaysToRemove) {
+            try {
+              if (this.ndk.pool.removeRelay) {
+                this.ndk.pool.removeRelay(url);
+              }
+            } catch (e) {
+              // Ignore removal errors
+            }
+          }
+          
+          // Ensure our configured relays are in the pool
+          for (const relayUrl of this.relays) {
+            try {
+              let relayExists = false;
+              if (this.ndk.pool.relays instanceof Map) {
+                relayExists = this.ndk.pool.relays.has(relayUrl);
+              } else if (Array.isArray(this.ndk.pool.relays)) {
+                relayExists = this.ndk.pool.relays.some(r => (r.url || r) === relayUrl);
+              }
+              
+              if (!relayExists) {
+                if (this.ndk.pool.addRelay) {
+                  this.ndk.pool.addRelay(relayUrl).catch(() => {});
+                } else if (this.ndk.addExplicitRelay) {
+                  this.ndk.addExplicitRelay(relayUrl);
+                }
+              }
+            } catch (e) {
+              // Could not add relay
+            }
+          }
+        },
+        
+        // Store WebSocket connections to our relays
+        relayWebSockets: {},
+        
+        // Get or create WebSocket connection to a relay
+        async getRelayWebSocket(relayUrl) {
+          // Check if we already have a connected WebSocket
+          if (this.relayWebSockets[relayUrl] && 
+              this.relayWebSockets[relayUrl].readyState === WebSocket.OPEN) {
+            return this.relayWebSockets[relayUrl];
+          }
+          
+          // Create a new WebSocket connection
+          return new Promise((resolve, reject) => {
+            try {
+              const ws = new WebSocket(relayUrl);
+              
+              ws.onopen = () => {
+                this.relayWebSockets[relayUrl] = ws;
+                resolve(ws);
+              };
+              
+              ws.onerror = (error) => {
+                reject(new Error(`WebSocket error for ${relayUrl}`));
+              };
+              
+              // Timeout after 5 seconds
+              setTimeout(() => {
+                if (ws.readyState !== WebSocket.OPEN) {
+                  ws.close();
+                  reject(new Error(`WebSocket connection timeout for ${relayUrl}`));
+                }
+              }, 5000);
+              
+            } catch (e) {
+              reject(e);
+            }
+          });
+        },
+        
+        // Publish event directly via WebSocket to a relay
+        async publishToRelayViaWebSocket(relayUrl, plainEvent) {
+          return new Promise(async (resolve, reject) => {
+            try {
+              const ws = await this.getRelayWebSocket(relayUrl);
+              
+              // Listen for OK response
+              const messageHandler = (msg) => {
+                try {
+                  const data = JSON.parse(msg.data);
+                  // ["OK", <event_id>, <true|false>, <message>]
+                  if (data[0] === 'OK' && data[1] === plainEvent.id) {
+                    ws.removeEventListener('message', messageHandler);
+                    if (data[2]) {
+                      resolve({ success: true, relay: relayUrl });
+                    } else {
+                      reject(new Error(`Relay rejected event: ${data[3] || 'unknown reason'}`));
+                    }
+                  }
+                } catch (e) {
+                  // Not JSON or not relevant message, ignore
+                }
+              };
+              
+              ws.addEventListener('message', messageHandler);
+              
+              // Send the event
+              const eventMessage = JSON.stringify(['EVENT', plainEvent]);
+              ws.send(eventMessage);
+              
+              // Timeout after 10 seconds
+              setTimeout(() => {
+                ws.removeEventListener('message', messageHandler);
+                reject(new Error(`Publish timeout for ${relayUrl}`));
+              }, 10000);
+              
+            } catch (e) {
+              reject(e);
+            }
+          });
+        },
+        
+        // Publish event to only our configured relays (ignore extension/user relays)
+        async publishToOurRelays(event) {
+          // Convert NDKEvent to plain event object for publishing
+          const plainEvent = {
+            id: event.id,
+            kind: event.kind,
+            created_at: event.created_at,
+            tags: event.tags || [],
+            content: event.content || '',
+            sig: event.sig,
+            pubkey: event.pubkey
+          };
+          
+          // Publish directly to each of our configured relays via WebSocket
+          // This completely bypasses NDK's relay management
+          const publishPromises = this.relays.map(relayUrl => 
+            this.publishToRelayViaWebSocket(relayUrl, plainEvent)
+              .catch(e => ({ error: e.message, relay: relayUrl }))
+          );
+          
+          // Wait for all publish attempts
+          const results = await Promise.allSettled(publishPromises);
+          
+          // Count successes
+          const successes = results.filter(r => 
+            r.status === 'fulfilled' && 
+            r.value && 
+            r.value.success
+          );
+          
+          if (successes.length === 0) {
+            const errors = results
+              .map(r => r.status === 'fulfilled' ? r.value?.error : r.reason?.message)
+              .filter(Boolean);
+            throw new Error(`Failed to publish to any relay: ${errors.join(', ')}`);
+          }
+          
+          return { success: true, publishedTo: successes.length };
+        },
+        
         // Send message
+        // Flow: try NIP-07 first if not authenticated, then show modal
         async sendMessage() {
-          // If not authenticated, show auth modal
+          // If not authenticated, try NIP-07 first, then show modal
           if (!this.isAuthenticated) {
-            this.showAuthModal = true;
-            return;
+            // Try NIP-07 extension first
+            if (this.detectNostrExtension()) {
+              console.log('sendMessage: Trying NIP-07...');
+              const success = await this.authenticateWithExtension();
+              if (!success) {
+                this.showAuthModal = true;
+                return;
+              }
+              // Success - continue to send
+            } else {
+              this.showAuthModal = true;
+              return;
+            }
           }
           
           if (!this.messageInput.trim() || !this.ndk || !this.ndk.signer) {
             if (!this.ndk || !this.ndk.signer) {
-              this.errorMessage = 'Not connected. Please wait or refresh.';
-              setTimeout(() => { this.errorMessage = ''; }, 3000);
+              // If using NIP-07, try to set up signer again
+              if (this.usingNip07 || this.useNip7Checkbox) {
+                await this.setupSigner();
+                if (this.ndk && this.ndk.signer) {
+                  // Signer set up, continue
+                } else {
+                  this.errorMessage = 'Extension signer not available. Please reconnect.';
+                  setTimeout(() => { this.errorMessage = ''; }, 3000);
+                  return;
+                }
+              } else {
+                this.errorMessage = 'Not connected. Please wait or refresh.';
+                setTimeout(() => { this.errorMessage = ''; }, 3000);
+                return;
+              }
+            } else {
+              return;
             }
-            return;
           }
           
           try {
             this.isSending = true;
+            
+            // Ensure signer is set up (especially for NIP-07)
+            if (this.usingNip07 || this.useNip7Checkbox) {
+              await this.setupSigner();
+              if (!this.ndk.signer) {
+                throw new Error('Extension signer not available');
+              }
+            }
             
             const messageContent = this.messageInput.trim();
             const NDKEvent = window.NDKModule?.NDKEvent;
@@ -1245,6 +1675,7 @@
               event.tags.push(['channel', this.currentChannel]);
             }
             
+            // Sign the event - if using NIP-07, this will use the extension's signEvent() method
             await event.sign();
             
             // Get event ID after signing (required for optimistic update)
@@ -1282,8 +1713,8 @@
             // Clear input immediately for better UX
             this.messageInput = '';
             
-            // Publish to relay
-            await event.publish();
+            // Publish to our configured relays only (ignore extension/user relays)
+            await this.publishToOurRelays(event);
             
             // Remove optimistic flag once published (message will come back through subscription)
             if (eventId) {
@@ -1330,7 +1761,7 @@
             event.tags = [['e', eventId]];
             
             await event.sign();
-            await event.publish();
+            await this.publishToOurRelays(event);
           } catch (error) {
             console.error('Reaction error:', error);
           }
@@ -1349,7 +1780,7 @@
             event.tags = [['e', eventId]];
             
             await event.sign();
-            await event.publish();
+            await this.publishToOurRelays(event);
             
             // Remove from local messages
             this.messages = this.messages.filter(m => m.id !== eventId);
@@ -1361,50 +1792,243 @@
           }
         },
         
+        // Set pubkey and compute npub
+        setUserPubkey(pubkey) {
+          this.currentUserPubkey = pubkey;
+          // Convert to npub using NDK
+          if (pubkey && !pubkey.includes('...') && !pubkey.startsWith('npub')) {
+            try {
+              const NDKUser = window.NDKModule?.NDKUser;
+              if (NDKUser) {
+                const user = new NDKUser({ pubkey: pubkey });
+                this.currentUserNpub = user.npub;
+                console.log('Computed npub:', this.currentUserNpub);
+              } else {
+                console.log('NDKUser not available yet, will retry when NDK loads');
+              }
+            } catch (e) {
+              console.log('Could not convert to npub:', e);
+            }
+          } else if (pubkey && pubkey.startsWith('npub')) {
+            // Already an npub
+            this.currentUserNpub = pubkey;
+          }
+        },
+        
+        // Set private key and compute nsec
+        setUserPrivateKey(privateKey) {
+          this.currentUserPrivateKey = privateKey;
+          // If already nsec format, use it directly
+          if (privateKey && privateKey.startsWith('nsec')) {
+            this.currentUserNsec = privateKey;
+            console.log('Using nsec directly:', this.currentUserNsec);
+          } else if (privateKey && !privateKey.includes('...')) {
+            // Convert hex to nsec using NDKPrivateKeySigner
+            try {
+              const NDKPrivateKeySigner = window.NDKModule?.NDKPrivateKeySigner;
+              if (NDKPrivateKeySigner) {
+                // Create signer to get user, then get nsec
+                const signer = new NDKPrivateKeySigner(privateKey);
+                signer.user().then(user => {
+                  if (user && user.nsec) {
+                    this.currentUserNsec = user.nsec;
+                    console.log('Computed nsec:', this.currentUserNsec);
+                  }
+                }).catch(e => {
+                  console.log('Could not get nsec from signer:', e);
+                });
+              } else {
+                console.log('NDKPrivateKeySigner not available yet, will retry when NDK loads');
+              }
+            } catch (e) {
+              console.log('Could not convert to nsec:', e);
+            }
+          }
+        },
+        
         // Detect Nostr extensions (nos2x, Alby, etc.)
         detectNostrExtension() {
+          // If in iframe, try to access parent window's extension
+          if (this.isInIframe) {
+            try {
+              if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
+                // Create a proxy to parent's nostr
+                this.parentNostrProxy = window.parent.nostr;
+                this.extensionDetected = true;
+                // Force Alpine.js to re-render
+                this.$nextTick(() => {});
+                return true;
+              }
+              if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
+                this.parentNostrProxy = window.parent.webln.nostr;
+                this.extensionDetected = true;
+                // Force Alpine.js to re-render
+                this.$nextTick(() => {});
+                return true;
+              }
+            } catch (e) {
+              // Cross-origin - can't access parent directly
+            }
+          }
+          
           // Check for standard window.nostr interface (nos2x, etc.)
           if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+            this.extensionDetected = true;
+            // Force Alpine.js to re-render
+            this.$nextTick(() => {});
             return true;
           }
           
           // Check for Alby's nostr provider
           if (window.webln && window.webln.nostr && typeof window.webln.nostr.getPublicKey === 'function') {
+            this.extensionDetected = true;
+            // Force Alpine.js to re-render
+            this.$nextTick(() => {});
             return true;
           }
           
+          this.extensionDetected = false;
           return false;
         },
         
-        // Authenticate with extension
+        // Start polling for extension (for extensions that inject async)
+        startExtensionPolling() {
+          // Clear any existing interval
+          if (this.extensionPollInterval) {
+            clearInterval(this.extensionPollInterval);
+          }
+          
+          // Try to trigger extension injection by accessing window.nostr
+          // Some extensions only inject after first access attempt
+          try {
+            if (!window.nostr) {
+              const test = window.nostr;
+            }
+          } catch (e) {
+            // Ignore
+          }
+          
+          // If in iframe, also try parent window
+          if (this.isInIframe) {
+            try {
+              if (!window.parent.nostr) {
+                const test = window.parent.nostr;
+              }
+            } catch (e) {
+              // Ignore
+            }
+          }
+          
+          // Check immediately
+          this.detectNostrExtension();
+          
+          // Poll every 500ms for up to 10 seconds
+          let attempts = 0;
+          const maxAttempts = 20; // 20 * 500ms = 10 seconds
+          
+          this.extensionPollInterval = setInterval(() => {
+            attempts++;
+            
+            const detected = this.detectNostrExtension();
+            if (detected) {
+              clearInterval(this.extensionPollInterval);
+              this.extensionPollInterval = null;
+              // Force Alpine.js to re-render by updating a reactive property
+              this.extensionDetected = true;
+              this.$nextTick(() => {});
+            } else if (attempts >= maxAttempts) {
+              clearInterval(this.extensionPollInterval);
+              this.extensionPollInterval = null;
+            }
+          }, 500);
+        },
+        
+        // Stop polling for extension
+        stopExtensionPolling() {
+          if (this.extensionPollInterval) {
+            clearInterval(this.extensionPollInterval);
+            this.extensionPollInterval = null;
+          }
+        },
+        
+        // Authenticate with extension (NIP-07)
+        // IMPORTANT: With NIP-07, the website NEVER needs access to the private key.
+        // The extension securely stores the private key and only provides:
+        // - getPublicKey() - returns the public key
+        // - signEvent(event) - signs events using the extension's private key
+        // The private key never leaves the extension's secure storage.
         async authenticateWithExtension() {
           try {
+            // If we have a parent proxy (from iframe detection), use it
+            let nostrProvider = this.parentNostrProxy;
+            
             // Try standard window.nostr first
-            let nostrProvider = window.nostr;
+            if (!nostrProvider) {
+              nostrProvider = window.nostr;
+            }
             
             // Fallback to Alby's nostr provider
             if (!nostrProvider && window.webln && window.webln.nostr) {
               nostrProvider = window.webln.nostr;
             }
             
+            // If in iframe and no provider yet, try parent window
+            if (!nostrProvider && this.isInIframe) {
+              try {
+                if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
+                  nostrProvider = window.parent.nostr;
+                  this.parentNostrProxy = nostrProvider;
+                } else if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
+                  nostrProvider = window.parent.webln.nostr;
+                  this.parentNostrProxy = nostrProvider;
+                }
+              } catch (e) {
+                this.errorMessage = 'Cannot access extension in parent window: ' + e.message;
+                setTimeout(() => { this.errorMessage = ''; }, 5000);
+                this.useNip7Checkbox = false;
+                return false;
+              }
+            }
+            
             if (!nostrProvider) {
-              // Silently return if extension not available (don't throw)
+              this.useNip7Checkbox = false; // Uncheck if extension not available
+              this.errorMessage = 'No NIP-07 extension found';
+              setTimeout(() => { this.errorMessage = ''; }, 3000);
               return false;
             }
             
             // Check if getPublicKey method exists
             if (typeof nostrProvider.getPublicKey !== 'function') {
+              this.useNip7Checkbox = false; // Uncheck if extension not working
+              this.errorMessage = 'Extension found but getPublicKey is not a function';
+              setTimeout(() => { this.errorMessage = ''; }, 3000);
               return false;
             }
             
             // Get public key from extension
-            const pubkey = await nostrProvider.getPublicKey();
-            if (!pubkey) {
+            let pubkey;
+            try {
+              pubkey = await nostrProvider.getPublicKey();
+            } catch (e) {
+              this.errorMessage = 'Error getting public key: ' + e.message;
+              setTimeout(() => { this.errorMessage = ''; }, 5000);
+              this.useNip7Checkbox = false;
               return false;
             }
             
-            this.currentUserPubkey = pubkey;
+            if (!pubkey) {
+              this.useNip7Checkbox = false; // Uncheck if auth failed
+              this.errorMessage = 'No public key returned from extension';
+              setTimeout(() => { this.errorMessage = ''; }, 3000);
+              return false;
+            }
+            
+            this.setUserPubkey(pubkey);
             this.isAuthenticated = true;
+            this.usingNip07 = true; // Mark that we're using NIP-07 (no nsec available)
+            this.currentUserPrivateKey = null; // Clear any stored private key
+            this.currentUserNsec = null; // No nsec with NIP-07
+            this.useNip7Checkbox = true; // Keep checkbox checked
             this.showAuthModal = false;
             
             // Wait for NDK to be ready before setting up signer
@@ -1430,25 +2054,36 @@
             }
             
             // Set up signer with extension
+            // The extension's signer will use nostrProvider.signEvent() internally
+            // The private key remains in the extension and is never exposed to the website
+            // Store the provider we found for use in setupSigner
+            this.detectedNostrProvider = nostrProvider;
             await this.setupSigner();
             
             // Save pubkey to localStorage (but don't save private key - extension handles that)
+            // With NIP-07, we only need the public key - the extension manages the private key securely
             localStorage.setItem('radio_guaka_chat_pubkey', pubkey);
             // Clear any saved private key since we're using extension
+            // This ensures we don't accidentally use a stored key when extension is available
             localStorage.removeItem('radio_guaka_chat_private_key');
+            // Mark that we're using NIP-07
+            localStorage.setItem('radio_guaka_chat_using_nip07', 'true');
             
             return true;
             
           } catch (error) {
+            this.useNip7Checkbox = false; // Uncheck on error
+            this.errorMessage = 'Authentication error: ' + (error.message || error.toString());
+            setTimeout(() => { this.errorMessage = ''; }, 5000);
             return false; // Return false instead of throwing
           }
         },
         
-        // Authenticate with key
+        // Authenticate with key (nsec only)
         async authenticateWithKey() {
           try {
             if (!this.manualKey.trim()) {
-              this.errorMessage = 'Please enter a key';
+              this.errorMessage = 'Please enter an nsec key';
               setTimeout(() => { this.errorMessage = ''; }, 3000);
               return;
             }
@@ -1456,93 +2091,60 @@
             const key = this.manualKey.trim();
             this.errorMessage = ''; // Clear previous errors
             
-            // Check if it's nsec or npub
-            if (key.startsWith('nsec')) {
-              // Private key - use NDK to decode
-              try {
-                const NDKUser = window.NDKModule?.NDKUser;
-                if (NDKUser) {
-                  const user = NDKUser.fromNsec(key);
-                  this.currentUserPrivateKey = key;
-                  this.currentUserPubkey = user.pubkey;
-                } else {
-                  // Fallback: store as-is
-                  this.currentUserPrivateKey = key;
-                  // Try to get pubkey from signer after setup
-                  this.currentUserPubkey = 'loading...';
-                }
-                
-                this.isAuthenticated = true;
-                this.showAuthModal = false;
-                this.showManualAuth = false;
-                
-                localStorage.setItem('radio_guaka_chat_private_key', key);
-                if (this.currentUserPubkey && this.currentUserPubkey !== 'loading...') {
-                  localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
-                }
-                
-                await this.setupSigner();
-                
-                // Update pubkey after signer is set up if needed
-                if (this.currentUserPubkey === 'loading...' && this.ndk && this.ndk.signer) {
-                  try {
-                    const user = await this.ndk.signer.user();
-                    if (user && user.pubkey) {
-                      this.currentUserPubkey = user.pubkey;
-                      localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
-                    }
-                  } catch (e) {
-                    console.error('Error getting pubkey from signer:', e);
-                  }
-                }
-              } catch (e) {
-                throw new Error('Invalid nsec format. Please check your key and try again.');
-              }
-            } else if (key.startsWith('npub')) {
-              // Public key only - read-only mode
-              this.currentUserPubkey = key;
-              this.isAuthenticated = false; // Can't send messages with just pubkey
-              this.showAuthModal = false;
-              this.showManualAuth = false;
-              this.manualKey = ''; // Clear input
-              
-              // Store pubkey for read-only viewing
-              localStorage.setItem('radio_guaka_chat_pubkey', key);
-              
-              this.errorMessage = 'Public key (npub) entered - read-only mode. Use nsec private key to send messages.';
+            // Only accept nsec
+            if (!key.startsWith('nsec')) {
+              this.errorMessage = 'Only nsec private keys are accepted. Please enter an nsec1... key.';
               setTimeout(() => {
                 this.errorMessage = '';
               }, 6000);
-            } else {
-              // Try as hex private key
-              if (key.length === 64 && /^[0-9a-f]+$/i.test(key)) {
-                this.currentUserPrivateKey = key;
-                this.isAuthenticated = true;
-                this.showAuthModal = false;
-                this.showManualAuth = false;
-                
-                localStorage.setItem('radio_guaka_chat_private_key', key);
-                
-                await this.setupSigner();
-                
-                // Get pubkey from signer
-                if (this.ndk && this.ndk.signer) {
-                  try {
-                    const user = await this.ndk.signer.user();
-                    if (user && user.pubkey) {
-                      this.currentUserPubkey = user.pubkey;
-                      localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
-                    }
-                  } catch (e) {
-                    console.error('Error getting pubkey from signer:', e);
-                  }
-                }
+              return;
+            }
+            
+            // Private key - use NDK to decode
+            try {
+              const NDKUser = window.NDKModule?.NDKUser;
+              if (NDKUser) {
+                const user = NDKUser.fromNsec(key);
+                this.setUserPrivateKey(key);
+                this.setUserPubkey(user.pubkey);
               } else {
-                this.errorMessage = 'Invalid key format. Use nsec1... (private key), npub1... (public key, read-only), or 64-character hex private key.';
-                setTimeout(() => {
-                  this.errorMessage = '';
-                }, 6000);
+                // Fallback: store as-is
+                this.setUserPrivateKey(key);
+                // Try to get pubkey from signer after setup
+                this.currentUserPubkey = 'loading...';
               }
+              
+              this.isAuthenticated = true;
+              this.showAuthModal = false;
+              this.showManualAuth = false;
+              
+              this.usingNip07 = false; // Not using NIP-07 when importing key
+              this.useNip7Checkbox = false; // Uncheck NIP-07 when importing key
+              localStorage.setItem('radio_guaka_chat_private_key', key);
+              localStorage.removeItem('radio_guaka_chat_using_nip07');
+              if (this.currentUserPubkey && this.currentUserPubkey !== 'loading...') {
+                localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
+              }
+              
+              await this.setupSigner();
+              
+              // Update pubkey after signer is set up if needed
+              if (this.currentUserPubkey === 'loading...' && this.ndk && this.ndk.signer) {
+                try {
+                  const user = await this.ndk.signer.user();
+                  if (user && user.pubkey) {
+                    this.setUserPubkey(user.pubkey);
+                    localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
+                  }
+                } catch (e) {
+                  console.error('Error getting pubkey from signer:', e);
+                }
+              }
+            } catch (e) {
+              this.errorMessage = 'Invalid nsec format. Please check your key and try again.';
+              setTimeout(() => {
+                this.errorMessage = '';
+              }, 6000);
             }
             
           } catch (error) {
@@ -1564,44 +2166,46 @@
         async generateNewKey() {
           try {
             this.errorMessage = ''; // Clear any previous errors
+            this.usingNip07 = false; // Not using NIP-07 when generating new key
+            this.useNip7Checkbox = false; // Uncheck NIP-07 when generating new key
             
             // Use NDK to generate a keypair
             if (window.NDKModule && window.NDKModule.generatePrivateKey) {
               const privateKey = window.NDKModule.generatePrivateKey();
-              const NDKUser = window.NDKModule.NDKUser;
+              const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
               
-              if (NDKUser) {
+              if (NDKPrivateKeySigner) {
                 try {
-                  const user = NDKUser.fromPrivateKey(privateKey);
-                  this.currentUserPrivateKey = privateKey;
-                  this.currentUserPubkey = user.pubkey;
+                  // Use signer to get user and pubkey
+                  const signer = new NDKPrivateKeySigner(privateKey);
+                  const user = await signer.user();
+                  if (user && user.pubkey) {
+                    this.setUserPrivateKey(privateKey);
+                    this.setUserPubkey(user.pubkey);
+                    // Try to get nsec if available
+                    if (user.nsec) {
+                      this.currentUserNsec = user.nsec;
+                    }
+                  } else {
+                    this.setUserPrivateKey(privateKey);
+                    this.currentUserPubkey = 'generating...';
+                  }
                 } catch (e) {
-                  // If fromPrivateKey fails, try with signer
-                  this.currentUserPrivateKey = privateKey;
+                  // If signer fails, just store the key
+                  this.setUserPrivateKey(privateKey);
                   this.currentUserPubkey = 'generating...';
                 }
               } else {
                 // Fallback: generate hex key and convert
-                this.currentUserPrivateKey = privateKey;
-                // Get pubkey from NDKPrivateKeySigner if available
-                const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
-                if (NDKPrivateKeySigner) {
-                  try {
-                    const signer = new NDKPrivateKeySigner(privateKey);
-                    this.currentUserPubkey = await signer.user().then(u => u.pubkey);
-                  } catch (e) {
-                    this.currentUserPubkey = 'generating...';
-                  }
-                } else {
-                  this.currentUserPubkey = 'generating...';
-                }
+                this.setUserPrivateKey(privateKey);
+                this.currentUserPubkey = 'generating...';
               }
             } else {
               // Fallback: generate random hex using Web Crypto API
               const bytes = new Uint8Array(32);
               crypto.getRandomValues(bytes);
               const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-              this.currentUserPrivateKey = hex;
+              this.setUserPrivateKey(hex);
               this.currentUserPubkey = 'generating...';
             }
             
@@ -1610,6 +2214,7 @@
             
             // Save to localStorage
             localStorage.setItem('radio_guaka_chat_private_key', this.currentUserPrivateKey);
+            localStorage.removeItem('radio_guaka_chat_using_nip07');
             if (this.currentUserPubkey && this.currentUserPubkey !== 'generating...') {
               localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
             }
@@ -1640,23 +2245,158 @@
           }
         },
         
+        // Delete all keys
+        deleteKeys() {
+          this.currentUserPrivateKey = null;
+          this.currentUserNsec = null;
+          this.currentUserPubkey = null;
+          this.currentUserNpub = null;
+          this.usingNip07 = false;
+          this.useNip7Checkbox = false;
+          this.isAuthenticated = false;
+          this.manualKey = '';
+          this.showPrivateKey = false;
+          
+          // Clear from localStorage
+          localStorage.removeItem('radio_guaka_chat_private_key');
+          localStorage.removeItem('radio_guaka_chat_pubkey');
+          localStorage.removeItem('radio_guaka_chat_using_nip07');
+          
+          // Clear signer
+          if (this.ndk) {
+            this.ndk.signer = null;
+          }
+        },
+        
+        // Create NIP-07 signer adapter (implements NDK signer interface)
+        createNip07Signer(nostrProvider, pubkey, ndkInstance) {
+          const NDKUser = window.NDKModule?.NDKUser;
+          if (!NDKUser) {
+            throw new Error('NDKUser not available');
+          }
+          
+          // Create a signer adapter that implements NDK's signer interface
+          // IMPORTANT: We do NOT expose getRelays() to prevent NDK from using extension relays
+          const signer = {
+            _pubkey: pubkey,
+            _nostrProvider: nostrProvider,
+            
+            // NDK expects signer.user() to return a Promise<NDKUser>
+            async user() {
+              const user = new NDKUser({ pubkey: pubkey });
+              if (ndkInstance) {
+                user.ndk = ndkInstance;
+              }
+              return user;
+            },
+            
+            // NDK calls sign() on the signer, passing the NDKEvent
+            // NDK expects sign() to update the event's sig and return the signature string
+            async sign(event) {
+              // Convert NDKEvent to plain object for extension
+              const plainEvent = {
+                kind: event.kind,
+                created_at: event.created_at || Math.floor(Date.now() / 1000),
+                tags: event.tags || [],
+                content: event.content || '',
+                pubkey: pubkey
+              };
+
+              // Use extension's signEvent method
+              const signedEvent = await nostrProvider.signEvent(plainEvent);
+
+              // Update the NDKEvent with signed data
+              event.id = signedEvent.id;
+              event.sig = signedEvent.sig;
+              event.pubkey = signedEvent.pubkey;
+              
+              // NDK expects sign() to return the signature string
+              return signedEvent.sig;
+            },
+            
+            // NOTE: We intentionally do NOT expose getRelays() here
+            // This prevents NDK from using extension/user relays
+            // Return empty array if NDK tries to call it
+            getRelays: async () => {
+              // Return empty array to prevent NDK from using extension relays
+              return [];
+            }
+          };
+          
+          return signer;
+        },
+        
         // Setup signer
         async setupSigner() {
           try {
             if (!this.ndk) return;
             
-            // Try to use extension signer
-            let nostrProvider = window.nostr;
+            // If using NIP-07, prioritize extension signer
+            if (this.usingNip07 || this.useNip7Checkbox) {
+              // Try to use extension signer
+              // Use the provider we detected (could be from parent window if in iframe)
+              let nostrProvider = this.detectedNostrProvider || this.parentNostrProxy;
+              
+              if (!nostrProvider) {
+                nostrProvider = window.nostr;
+              }
+              if (!nostrProvider && window.webln && window.webln.nostr) {
+                nostrProvider = window.webln.nostr;
+              }
+              // If in iframe, also try parent
+              if (!nostrProvider && this.isInIframe) {
+                try {
+                  if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
+                    nostrProvider = window.parent.nostr;
+                    this.parentNostrProxy = nostrProvider;
+                  } else if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
+                    nostrProvider = window.parent.webln.nostr;
+                    this.parentNostrProxy = nostrProvider;
+                  }
+                } catch (e) {
+                  // Cross-origin, can't access
+                }
+              }
+              
+              if (nostrProvider && this.currentUserPubkey) {
+                // Create NIP-07 signer adapter that implements NDK's signer interface
+                const signer = this.createNip07Signer(nostrProvider, this.currentUserPubkey, this.ndk);
+                this.ndk.signer = signer;
+                this.detectedNostrProvider = nostrProvider; // Store for future use
+                return; // Done - extension signer is set
+              }
+            }
+            
+            // Try to use extension signer (even if not explicitly using NIP-07)
+            // Use the provider we detected (could be from parent window if in iframe)
+            let nostrProvider = this.detectedNostrProvider || this.parentNostrProxy;
+            
+            if (!nostrProvider) {
+              nostrProvider = window.nostr;
+            }
             if (!nostrProvider && window.webln && window.webln.nostr) {
               nostrProvider = window.webln.nostr;
             }
+            // If in iframe, also try parent
+            if (!nostrProvider && this.isInIframe) {
+              try {
+                if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
+                  nostrProvider = window.parent.nostr;
+                  this.parentNostrProxy = nostrProvider;
+                } else if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
+                  nostrProvider = window.parent.webln.nostr;
+                  this.parentNostrProxy = nostrProvider;
+                }
+              } catch (e) {
+                // Cross-origin, can't access
+              }
+            }
             
             if (nostrProvider && this.currentUserPubkey) {
-              // Use extension signer
-              const NDKUser = window.NDKModule.NDKUser;
-              const user = new NDKUser({ pubkey: this.currentUserPubkey });
-              user.ndk = this.ndk;
-              this.ndk.signer = nostrProvider;
+              // Create NIP-07 signer adapter
+              const signer = this.createNip07Signer(nostrProvider, this.currentUserPubkey, this.ndk);
+              this.ndk.signer = signer;
+              this.detectedNostrProvider = nostrProvider; // Store for future use
             } else if (this.currentUserPrivateKey) {
               // Use private key signer
               try {
@@ -1812,14 +2552,29 @@
           try {
             const privateKey = localStorage.getItem('radio_guaka_chat_private_key');
             const pubkey = localStorage.getItem('radio_guaka_chat_pubkey');
+            const usingNip07 = localStorage.getItem('radio_guaka_chat_using_nip07') === 'true';
             
-            if (privateKey) {
-              this.currentUserPrivateKey = privateKey;
+            if (usingNip07 && pubkey) {
+              // We were using NIP-07 - restore that state
+              this.usingNip07 = true;
+              this.useNip7Checkbox = true; // Restore checkbox state
+              this.currentUserPrivateKey = null;
+              this.currentUserNsec = null;
+              this.setUserPubkey(pubkey);
+              this.isAuthenticated = true;
+              // Try to reconnect with extension
+              if (this.detectNostrExtension()) {
+                await this.authenticateWithExtension();
+              }
+            } else if (privateKey) {
+              this.useNip7Checkbox = false; // Not using NIP-07
+              this.usingNip07 = false;
+              this.setUserPrivateKey(privateKey);
               this.isAuthenticated = true;
               
               // If we have pubkey, use it; otherwise we'll get it from signer
               if (pubkey) {
-                this.currentUserPubkey = pubkey;
+                this.setUserPubkey(pubkey);
               }
               
               // Set up signer if NDK is ready
@@ -1830,7 +2585,7 @@
                   try {
                     const user = await this.ndk.signer.user();
                     if (user && user.pubkey) {
-                      this.currentUserPubkey = user.pubkey;
+                      this.setUserPubkey(user.pubkey);
                       localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
                     }
                   } catch (e) {
@@ -1839,8 +2594,12 @@
                 }
               }
             } else if (pubkey) {
-              this.currentUserPubkey = pubkey;
+              this.usingNip07 = false;
+              this.useNip7Checkbox = false;
+              this.setUserPubkey(pubkey);
               this.isAuthenticated = false; // Read-only
+            } else {
+              this.useNip7Checkbox = false; // Default to unchecked
             }
           } catch (e) {
             console.error('Error loading keys:', e);
