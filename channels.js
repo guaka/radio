@@ -129,6 +129,28 @@ const channels = {
     site: 'https://www.djam.radio/'
   },
   
+  // Country & Bluegrass
+  'wsm_nashville': {
+    url: 'https://stream01048.westreamradio.com/wsm-am-mp3',
+    tags: ['other', 'country', 'classic', 'nashville', 'US'],
+    site: 'https://wsmradio.com/'
+  },
+  'lautfm_country': {
+    url: 'https://stream.laut.fm/country',
+    tags: ['other', 'country', 'de'],
+    site: 'https://laut.fm/country'
+  },
+  'lautfm_nashville': {
+    url: 'https://stream.laut.fm/nashville',
+    tags: ['other', 'country', 'de'],
+    site: 'https://laut.fm/nashville'
+  },
+  'gotradio_bluegrass': {
+    url: 'http://gr01.cdnstream.com:8490/',
+    tags: ['other', 'bluegrass', 'country', 'US'],
+    site: 'https://www.gotradio.com/'
+  },
+  
   // FIP - Radio France
   'fip': {
     url: 'https://icecast.radiofrance.fr/fip-midfi.mp3?id=radiofrance',
