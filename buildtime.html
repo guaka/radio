@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Build Time Test</title>
+  <style>
+    body {
+      background: #0a0a0a;
+      color: #00ffff;
+      font-family: monospace;
+      padding: 40px;
+    }
+    .test {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #00ffff;
+    }
+    .label {
+      color: #ff00ff;
+      margin-bottom: 10px;
+    }
+    .value {
+      font-size: 24px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Jekyll Build Time Test</h1>
+  
+  <div class="test">
+    <div class="label">Raw Jekyll variable:</div>
+    <div class="value">{{ site.time }}</div>
+  </div>
+  
+  <div class="test">
+    <div class="label">Formatted (yymmdd HH:MM):</div>
+    <div class="value">{{ site.time | date: "%y%m%d %H:%M" }}</div>
+  </div>
+  
+  <div class="test">
+    <div class="label">ISO format:</div>
+    <div class="value">{{ site.time | date_to_xmlschema }}</div>
+  </div>
+  
+  <div class="test">
+    <div class="label">JavaScript check:</div>
+    <div class="value" id="js-result"></div>
+  </div>
+  
+  <script>
+    const raw = '{{ site.time | date: "%y%m%d %H:%M" }}';
+    const processed = !raw.includes('{{');
+    document.getElementById('js-result').textContent = processed 
+      ? `✓ Jekyll processed: ${raw}` 
+      : `✗ Not processed (local file) - showing: "${raw}"`;
+  </script>
+</body>
+</html>
