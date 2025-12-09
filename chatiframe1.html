@@ -318,6 +318,10 @@
       word-break: break-word;
     }
     
+    .message-new-user {
+      margin-top: 8px;
+    }
+    
     .message-username {
       color: #00ffff;
       text-shadow: 0 0 4px rgba(0, 255, 255, 0.4);
@@ -565,8 +569,8 @@
         <div class="loading">Loading messages...</div>
       </template>
       
-      <template x-for="message in messages" :key="message.id">
-        <div class="message"><span class="message-time" x-text="formatTime(message.created_at)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-username" x-text="getUsername(message.pubkey)"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
+      <template x-for="(message, index) in messages" :key="message.id">
+        <div class="message" :class="{ 'message-new-user': !isSameUserAsPrevious(index) }"><span class="message-time" x-show="!isSameUserAsPrevious(index)" x-text="formatTime(message.created_at)"></span><span class="message-username" x-show="!isSameUserAsPrevious(index)" x-text="getUsername(message.pubkey)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
       </template>
     </div>
     
@@ -1270,6 +1274,12 @@
           // Convert hex pubkey to npub format and abbreviate
           const npub = this.hexToNpub(pubkey);
           return npub.substring(0, 12) + '...';
+        },
+        
+        // Check if message is from the same user as previous message
+        isSameUserAsPrevious(index) {
+          if (index === 0) return false;
+          return this.messages[index].pubkey === this.messages[index - 1].pubkey;
         },
         
         // Convert hex pubkey to npub (bech32 encoding)
