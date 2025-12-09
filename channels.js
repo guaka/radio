@@ -104,6 +104,43 @@ const channels = {
     tags: ['portugal', 'pt', 'public', 'alternative', 'rock'],
     site: 'https://www.rtp.pt/play/direto/antena3'
   },
+
+  // Concertzender - Netherlands
+  'concertzender_live': {
+    url: 'https://streams.greenhost.nl:8006/live',
+    tags: ['concertzender', 'nl', 'classical', 'eclectic'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
+  'concertzender_barok': {
+    url: 'https://streams.greenhost.nl:8006/barok',
+    tags: ['concertzender', 'nl', 'baroque', 'classical'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
+  'concertzender_klassiek': {
+    url: 'https://streams.greenhost.nl:8006/klassiek',
+    tags: ['concertzender', 'nl', 'classical'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
+  'concertzender_oudemuziek': {
+    url: 'https://streams.greenhost.nl:8006/oudemuziek',
+    tags: ['concertzender', 'nl', 'early', 'baroque'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
+  'concertzender_jazz': {
+    url: 'https://streams.greenhost.nl:8006/jazz',
+    tags: ['concertzender', 'nl', 'jazz'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
+  'concertzender_jazznotjazz': {
+    url: 'https://streams.greenhost.nl:8006/jazznotjazz',
+    tags: ['concertzender', 'nl', 'jazz', 'eclectic'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
+  'concertzender_wereldmuziek': {
+    url: 'https://streams.greenhost.nl:8006/wereldmuziek',
+    tags: ['concertzender', 'nl', 'world'],
+    site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
+  },
   
   // Other Stations
   'wassoulou': {
@@ -134,11 +171,6 @@ const channels = {
     url: 'https://stream.urbanspaceradio.com:8443/urban-space-radio',
     site: 'https://urbanspaceradio.com/',
     tags: ['other', 'ua', 'eclectic', 'chill']
-  },
-  'concertzender': {
-    url: 'https://streams.greenhost.nl:8006/live',
-    tags: ['other', 'nl', 'classical', 'concert'],
-    site: 'https://www.concertzender.nl/'
   },
   'ledjam': {
     url: 'https://stream9.xdevel.com/audio1s976748-1515/stream/icecast.audio',
@@ -445,17 +477,17 @@ const sections = [
   {
     name: 'Other Stations',
     tags: ['other'],
-    order: 7
+    order: 8
   },
   {
     name: 'Country',
     tags: ['country'],
-    order: 8
+    order: 9
   },
   {
     name: 'Radio Paradise',
     tags: ['paradise'],
-    order: 6
+    order: 7
   },
   {
     name: 'SomaFM',
@@ -476,6 +508,11 @@ const sections = [
     name: 'Portugal',
     tags: ['portugal'],
     order: 2
+  },
+  {
+    name: 'Concertzender',
+    tags: ['concertzender'],
+    order: 6
   },
   {
     name: 'AMBIENT',
