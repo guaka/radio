@@ -177,6 +177,11 @@ const channels = {
     tags: ['other', 'fr', 'eclectic'],
     site: 'https://www.djam.radio/'
   },
+  'cumbiasinmortales': {
+    url: 'https://panel.retrolandigital.com/listen/cumbias_inmortales_radio/listen',
+    tags: ['other', 'mx', 'cumbia', 'latin'],
+    site: 'https://cumbiasinmortales.com/'
+  },
   
   // Country & Bluegrass
   'wsm_nashville': {
