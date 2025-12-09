@@ -74,12 +74,12 @@ const channels = {
   },
   'paradise_beyond': {
     url: 'https://stream.radioparadise.com/beyond-128',
-    tags: ['paradise', 'US', 'electronic', 'ambient'],
+    tags: ['paradise', 'US'],
     site: 'https://www.radioparadise.com/'
   },
   'paradise_serenity': {
     url: 'https://stream.radioparadise.com/serenity',
-    tags: ['paradise', 'US', 'ambient', 'relaxation'],
+    tags: ['paradise', 'US', 'relaxation'],
     site: 'https://www.radioparadise.com/'
   },
   'paradise_2050': {
@@ -149,22 +149,22 @@ const channels = {
   // Country & Bluegrass
   'wsm_nashville': {
     url: 'https://stream01048.westreamradio.com/wsm-am-mp3',
-    tags: ['other', 'country', 'classic', 'nashville', 'US'],
+    tags: ['country', 'classic', 'nashville', 'US'],
     site: 'https://wsmradio.com/'
   },
   'lautfm_country': {
     url: 'https://stream.laut.fm/country',
-    tags: ['other', 'country', 'de'],
+    tags: ['country', 'de'],
     site: 'https://laut.fm/country'
   },
   'lautfm_nashville': {
     url: 'https://stream.laut.fm/nashville',
-    tags: ['other', 'country', 'de'],
+    tags: ['country', 'de'],
     site: 'https://laut.fm/nashville'
   },
   'gotradio_bluegrass': {
     url: 'http://gr01.cdnstream.com:8490/',
-    tags: ['other', 'bluegrass', 'country', 'US'],
+    tags: ['bluegrass', 'country', 'US'],
     site: 'https://www.gotradio.com/'
   },
   
@@ -348,7 +348,7 @@ const channels = {
   },
   'flux_fm_neofm': {
     url: 'https://streams.fluxfm.de/neofm/mp3-320/radiode/',
-    tags: ['flux', 'neoclassical', 'ambient', 'berlin', 'de'],
+    tags: ['flux', 'neoclassical', 'berlin', 'de'],
     site: 'https://www.fluxfm.de'
   },
   'flux_fm_jaegermusic': {
@@ -445,12 +445,17 @@ const sections = [
   {
     name: 'Other Stations',
     tags: ['other'],
-    order: 1
+    order: 7
+  },
+  {
+    name: 'Country',
+    tags: ['country'],
+    order: 8
   },
   {
     name: 'Radio Paradise',
     tags: ['paradise'],
-    order: 2
+    order: 6
   },
   {
     name: 'SomaFM',
@@ -470,12 +475,12 @@ const sections = [
   {
     name: 'Portugal',
     tags: ['portugal'],
-    order: 6
+    order: 2
   },
   {
     name: 'AMBIENT',
     tags: ['ambient'],
-    order: 7
+    order: 1
   }
 ];
 
