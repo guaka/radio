@@ -1452,8 +1452,8 @@
                 <div class="current-song">
                   <span x-text="currentSong.artist && currentSong.title ? currentSong.artist + ' - ' + currentSong.title : (currentSong.title || '')"></span>
                   <button class="add-song-btn" 
-                          @click="sendSongToChat()" 
-                          title="Add song to chat">+💬</button>
+                          @click="likeSong()" 
+                          title="Like this song (public)">👍</button>
                 </div>
               </template>
             </div>
@@ -2494,6 +2494,28 @@
               if (songText) {
                 iframe.contentWindow.postMessage({
                   type: 'addSongToMessage',
+                  song: songText
+                }, '*');
+              }
+            }
+          } catch (e) {
+            console.log('Chat communication error (non-critical):', e);
+          }
+        },
+        
+        likeSong() {
+          try {
+            if (!this.currentSong) return;
+            
+            const iframe = this.$refs.chatIframe;
+            if (iframe && iframe.contentWindow) {
+              const songText = this.currentSong.artist && this.currentSong.title 
+                ? `${this.currentSong.artist} - ${this.currentSong.title}`
+                : (this.currentSong.title || '');
+              
+              if (songText) {
+                iframe.contentWindow.postMessage({
+                  type: 'likeSong',
                   song: songText
                 }, '*');
               }

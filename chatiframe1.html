@@ -780,6 +780,15 @@
                         input.focus();
                       }
                     });
+                  } else if (event.data.type === 'likeSong' && event.data.song) {
+                    // Immediately post the song with a like icon
+                    const songText = event.data.song;
+                    if (songText) {
+                      // Set the message input with song + like icon
+                      this.messageInput = `👍 ${songText}`;
+                      // Immediately send the message (will handle auth if needed)
+                      this.sendMessage();
+                    }
                   }
                 } catch (e) {
                   console.error('Error handling postMessage:', e);
