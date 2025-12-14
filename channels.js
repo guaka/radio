@@ -179,8 +179,58 @@ const channels = {
   },
   'cumbiasinmortales': {
     url: 'https://panel.retrolandigital.com/listen/cumbias_inmortales_radio/listen',
-    tags: ['other', 'mx', 'cumbia', 'latin'],
+    tags: ['mx', 'cumbia', 'latin'],
     site: 'https://cumbiasinmortales.com/'
+  },
+  
+  // Cuban Music
+  'radio_art_cuban': {
+    url: 'https://live.radioart.com/fCuban_lounge.mp3',
+    tags: ['cuban', 'cuba', 'latin', 'lounge'],
+    site: 'https://www.radioart.com/'
+  },
+  'cubania_radio': {
+    url: 'https://streaming.brol.tech/rtfmlounge',
+    tags: ['cuban', 'cuba', 'latin'],
+    site: 'https://radiosdecuba.com/cubania/'
+  },
+  'cubaradio80s': {
+    url: 'https://a7.asurahosting.com:7670/radio.mp3',
+    tags: ['cuban', 'cuba', 'latin', '80s'],
+    site: 'https://www.cuba80s.com/radio'
+  },
+  // Salsa Stations
+  'radio_pozo_de_la_salsa': {
+    url: 'https://cast4.my-control-panel.com/proxy/elpozosalsa/;',
+    tags: ['latin', 'salsa'],
+    site: 'https://elpozodelasalsa.com/'
+  },
+  'world_salsa_radio': {
+    url: 'https://s4.radio.co/sc6b77aa40/listen',
+    tags: ['latin', 'salsa'],
+    site: 'https://worldsalsaradio.com/'
+  },
+  '100_por_ciento_salsa': {
+    url: 'https://stm01.streammaximum.com:8194/;',
+    tags: ['latin', 'salsa'],
+    site: 'https://www.100porcientosalsa.com/'
+  },
+  'zonasalsa': {
+    url: 'https://cast6.asurahosting.com/proxy/salsafou/stream',
+    tags: ['latin', 'salsa'],
+    site: 'http://zonsalsaradio.com/'
+  },
+  
+  // Bachata Stations
+  'latina_bachata': {
+    url: 'https://latinabachata.ice.infomaniak.ch/latinabachata.mp3',
+    tags: ['latin', 'bachata'],
+    site: 'https://www.latina.fr/'
+  },
+  'top_bachata_radio': {
+    url: 'https://radio.dominiserver.com/proxy/topbachata?mp=/stream',
+    tags: ['latin', 'bachata'],
+    site: 'https://latina104.net/top-bachata-radio/'
   },
   
   // Country & Bluegrass
@@ -487,6 +537,11 @@ const sections = [
   {
     name: 'Country',
     tags: ['country'],
+    order: 10
+  },
+  {
+    name: 'Latin',
+    tags: ['latin'],
     order: 9
   },
   {
