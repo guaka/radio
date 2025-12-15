@@ -561,7 +561,7 @@
         <div class="error-message" x-text="errorMessage"></div>
       </template>
       
-      <template x-if="Array.isArray(messages) && messages.length === 0 && !isLoading">
+      <template x-if="safeMessages.length === 0 && !isLoading">
         <div class="loading">No messages yet. Be the first to chat!</div>
       </template>
       
@@ -569,7 +569,7 @@
         <div class="loading">Loading messages...</div>
       </template>
       
-      <template x-for="(message, index) in (Array.isArray(messages) ? messages : [])" :key="message.id || index">
+      <template x-for="(message, index) in safeMessages" :key="getMessageKey(message, index)">
         <div class="message" :class="{ 'message-new-user': !isSameUserAsPrevious(index) }"><span class="message-time" x-show="!isSameUserAsPrevious(index)" x-text="formatTime(message.created_at)"></span><span class="message-username" x-show="!isSameUserAsPrevious(index)" x-text="getUsername(message.pubkey)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
       </template>
     </div>
@@ -741,6 +741,51 @@
           if (!Array.isArray(this.messages)) {
             this.messages = [];
           }
+        },
+        
+        // Deduplicate messages array in place
+        deduplicateMessages() {
+          this.ensureMessagesArray();
+          const seen = new Set();
+          const deduplicated = [];
+          for (const msg of this.messages) {
+            if (msg && msg.id && !seen.has(msg.id)) {
+              seen.add(msg.id);
+              deduplicated.push(msg);
+            } else if (msg && !msg.id) {
+              // Keep messages without IDs (shouldn't happen, but be safe)
+              deduplicated.push(msg);
+            }
+          }
+          this.messages = deduplicated;
+        },
+        
+        // Get deduplicated messages array (computed property for template)
+        get safeMessages() {
+          try {
+            this.ensureMessagesArray();
+            // Deduplicate by ID, keeping the first occurrence
+            const seen = new Set();
+            const deduplicated = [];
+            for (const msg of this.messages) {
+              if (msg && msg.id && !seen.has(msg.id)) {
+                seen.add(msg.id);
+                deduplicated.push(msg);
+              }
+            }
+            return deduplicated;
+          } catch (e) {
+            console.error('Error in safeMessages getter:', e);
+            return [];
+          }
+        },
+        
+        // Get unique key for message (for Alpine.js x-for)
+        getMessageKey(message, index) {
+          if (message && message.id) {
+            return String(message.id);
+          }
+          return 'msg-' + String(index);
         },
         
         // Initialize
@@ -1206,6 +1251,9 @@
           if (this.messages.length > 200) {
             this.messages = this.messages.slice(-200);
           }
+          
+          // Deduplicate before saving
+          this.deduplicateMessages();
           
           // Save to localStorage cache
           this.saveCachedMessages();
@@ -2575,6 +2623,8 @@
                 // Filter out any messages without valid IDs
                 const validMessages = messages.filter(m => m && m.id);
                 this.messages = validMessages;
+                // Deduplicate after loading
+                this.deduplicateMessages();
                 
                 // Scroll to bottom after loading cached messages
                 this.$nextTick(() => {
