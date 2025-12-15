@@ -561,7 +561,7 @@
         <div class="error-message" x-text="errorMessage"></div>
       </template>
       
-      <template x-if="messages.length === 0 && !isLoading">
+      <template x-if="Array.isArray(messages) && messages.length === 0 && !isLoading">
         <div class="loading">No messages yet. Be the first to chat!</div>
       </template>
       
@@ -569,7 +569,7 @@
         <div class="loading">Loading messages...</div>
       </template>
       
-      <template x-for="(message, index) in messages" :key="message.id">
+      <template x-for="(message, index) in (Array.isArray(messages) ? messages : [])" :key="message.id || index">
         <div class="message" :class="{ 'message-new-user': !isSameUserAsPrevious(index) }"><span class="message-time" x-show="!isSameUserAsPrevious(index)" x-text="formatTime(message.created_at)"></span><span class="message-username" x-show="!isSameUserAsPrevious(index)" x-text="getUsername(message.pubkey)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
       </template>
     </div>
@@ -736,9 +736,19 @@
                  (window.webln && window.webln.nostr && typeof window.webln.nostr.getPublicKey === 'function');
         },
         
+        // Ensure messages is always an array
+        ensureMessagesArray() {
+          if (!Array.isArray(this.messages)) {
+            this.messages = [];
+          }
+        },
+        
         // Initialize
         async init() {
           try {
+            // Ensure messages is initialized as array
+            this.ensureMessagesArray();
+            
             // Load cached messages immediately for instant UI
             this.loadCachedMessages();
             
@@ -1145,8 +1155,17 @@
         
         // Handle message events
         handleMessageEvent(event) {
+          // Ensure messages is an array
+          this.ensureMessagesArray();
+          
+          // Validate event has required fields
+          if (!event || !event.id) {
+            console.warn('Invalid message event: missing id', event);
+            return;
+          }
+          
           // Check if message already exists (including optimistic ones)
-          const existingIndex = this.messages.findIndex(m => m.id === event.id);
+          const existingIndex = this.messages.findIndex(m => m && m.id === event.id);
           if (existingIndex !== -1) {
             // Update existing optimistic message with real data from relay
             if (this.messages[existingIndex].optimistic) {
@@ -1176,7 +1195,7 @@
           };
           
           // Insert sorted by timestamp
-          const insertIndex = this.messages.findIndex(m => m.created_at > event.created_at);
+          const insertIndex = this.messages.findIndex(m => m && m.created_at > event.created_at);
           if (insertIndex === -1) {
             this.messages.push(message);
           } else {
@@ -1248,6 +1267,9 @@
         // Handle deletion events (kind 5)
         handleDeletionEvent(event) {
           try {
+            // Ensure messages is an array
+            this.ensureMessagesArray();
+            
             const tags = event.tags || [];
             // Get all 'e' tags (deleted event IDs)
             const deletedIds = tags
@@ -1259,7 +1281,7 @@
             // Only delete messages that were authored by the deletion event's author
             const originalCount = this.messages.length;
             this.messages = this.messages.filter(m => {
-              if (deletedIds.includes(m.id)) {
+              if (m && deletedIds.includes(m.id)) {
                 // Verify the deletion is from the message author
                 return m.pubkey !== event.pubkey;
               }
@@ -1287,8 +1309,13 @@
         
         // Check if message is from the same user as previous message
         isSameUserAsPrevious(index) {
-          if (index === 0) return false;
-          return this.messages[index].pubkey === this.messages[index - 1].pubkey;
+          this.ensureMessagesArray();
+          if (index === 0 || !Array.isArray(this.messages)) return false;
+          if (index >= this.messages.length || index - 1 < 0) return false;
+          const current = this.messages[index];
+          const previous = this.messages[index - 1];
+          if (!current || !previous) return false;
+          return current.pubkey === previous.pubkey;
         },
         
         // Convert hex pubkey to npub (bech32 encoding)
@@ -1719,6 +1746,14 @@
             // Get event ID after signing (required for optimistic update)
             const eventId = event.id;
             
+            // Ensure we have a valid event ID
+            if (!eventId) {
+              throw new Error('Failed to generate event ID');
+            }
+            
+            // Ensure messages is an array
+            this.ensureMessagesArray();
+            
             // Optimistically add message to UI immediately (before publish)
             const optimisticMessage = {
               id: eventId,
@@ -1730,7 +1765,7 @@
             };
             
             // Insert sorted by timestamp
-            const insertIndex = this.messages.findIndex(m => m.created_at > optimisticMessage.created_at);
+            const insertIndex = this.messages.findIndex(m => m && m.created_at > optimisticMessage.created_at);
             if (insertIndex === -1) {
               this.messages.push(optimisticMessage);
             } else {
@@ -1770,8 +1805,9 @@
             
             // Remove optimistic message if send failed
             try {
+              this.ensureMessagesArray();
               if (event && event.id) {
-                this.messages = this.messages.filter(m => m.id !== event.id && !m.optimistic);
+                this.messages = this.messages.filter(m => m && m.id !== event.id && !m.optimistic);
               }
             } catch (e) {
               // Ignore cleanup errors
@@ -1821,7 +1857,8 @@
             await this.publishToOurRelays(event);
             
             // Remove from local messages
-            this.messages = this.messages.filter(m => m.id !== eventId);
+            this.ensureMessagesArray();
+            this.messages = this.messages.filter(m => m && m.id !== eventId);
             
             // Update cache
             this.saveCachedMessages();
@@ -2528,11 +2565,16 @@
         // Load cached messages from localStorage
         loadCachedMessages() {
           try {
+            // Ensure messages is initialized as array
+            this.ensureMessagesArray();
+            
             const cached = localStorage.getItem('radio_guaka_chat_messages');
             if (cached) {
               const messages = JSON.parse(cached);
               if (Array.isArray(messages) && messages.length > 0) {
-                this.messages = messages;
+                // Filter out any messages without valid IDs
+                const validMessages = messages.filter(m => m && m.id);
+                this.messages = validMessages;
                 
                 // Scroll to bottom after loading cached messages
                 this.$nextTick(() => {
@@ -2545,22 +2587,29 @@
             }
           } catch (e) {
             console.error('Error loading cached messages:', e);
-            // Clear corrupted cache
+            // Clear corrupted cache and ensure messages is an array
             localStorage.removeItem('radio_guaka_chat_messages');
+            this.ensureMessagesArray();
           }
         },
         
         // Save messages to localStorage cache
         saveCachedMessages() {
           try {
-            // Only save the last 200 messages to avoid storage limits
-            const toSave = this.messages.slice(-200).map(m => ({
-              id: m.id,
-              pubkey: m.pubkey,
-              content: m.content,
-              created_at: m.created_at,
-              tags: m.tags
-            }));
+            // Ensure messages is an array
+            this.ensureMessagesArray();
+            
+            // Only save the last 200 messages with valid IDs to avoid storage limits
+            const toSave = this.messages
+              .filter(m => m && m.id) // Only messages with valid IDs
+              .slice(-200)
+              .map(m => ({
+                id: m.id,
+                pubkey: m.pubkey,
+                content: m.content,
+                created_at: m.created_at,
+                tags: m.tags
+              }));
             localStorage.setItem('radio_guaka_chat_messages', JSON.stringify(toSave));
           } catch (e) {
             console.error('Error saving cached messages:', e);
