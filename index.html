@@ -2361,6 +2361,36 @@
               this.duration = audio.duration;
             });
             
+            // Try to listen for ICY metadata updates (non-standard, browser-dependent)
+            // Some browsers may fire metadataupdate events for Icecast streams
+            if ('onmetadataupdate' in audio || 'addEventListener' in audio) {
+              const metadataHandler = (e) => {
+                // Try to extract metadata from event or audio element
+                if (e && e.metadata) {
+                  const metadata = e.metadata;
+                  if (metadata.StreamTitle) {
+                    const parts = metadata.StreamTitle.split(' - ');
+                    if (parts.length >= 2) {
+                      this.currentSong = {
+                        artist: parts[0].trim(),
+                        title: parts.slice(1).join(' - ').trim(),
+                        album: ''
+                      };
+                    } else if (parts.length === 1) {
+                      this.currentSong = {
+                        artist: '',
+                        title: parts[0].trim(),
+                        album: ''
+                      };
+                    }
+                  }
+                }
+              };
+              // Try both standard and non-standard event names
+              audio.addEventListener('metadataupdate', metadataHandler);
+              audio.addEventListener('icy-metadata', metadataHandler);
+            }
+            
             // Update playing state
             this._playListener = () => {
               this.isPlaying = true;
@@ -3056,9 +3086,66 @@
         },
         
         async fetchFluxFMMetadata() {
-          // Flux FM doesn't provide a JSON API endpoint like SomaFM
-          // The metadata.fluxfm.de endpoint returns HTML, not JSON, and lacks CORS headers
-          // Unlike SomaFM which has CORS-enabled JSON API, Flux FM metadata is not accessible
+          if (!this.currentChannel) return null;
+          
+          // Flux FM streams are Icecast-based
+          // Try to extract ICY metadata from the audio element if available
+          // HTML5 audio element may expose metadata via metadataupdate event in some browsers
+          const audio = document.getElementById('player');
+          if (audio && audio.icyMetadata) {
+            // Some browsers expose icyMetadata property
+            const metadata = audio.icyMetadata;
+            if (metadata && metadata.StreamTitle) {
+              const parts = metadata.StreamTitle.split(' - ');
+              if (parts.length >= 2) {
+                return {
+                  artist: parts[0].trim(),
+                  title: parts.slice(1).join(' - ').trim(),
+                  album: ''
+                };
+              } else if (parts.length === 1) {
+                return {
+                  artist: '',
+                  title: parts[0].trim(),
+                  album: ''
+                };
+              }
+            }
+          }
+          
+          // Fallback: Try to extract from stream URL via proxy (complex, may not work due to CORS)
+          // For now, return null - ICY metadata extraction requires server-side support
+          return null;
+        },
+        
+        async fetchConcertzenderMetadata() {
+          if (!this.currentChannel) return null;
+          
+          // Concertzender streams are Icecast-based
+          // Try to extract ICY metadata from the audio element if available
+          const audio = document.getElementById('player');
+          if (audio && audio.icyMetadata) {
+            const metadata = audio.icyMetadata;
+            if (metadata && metadata.StreamTitle) {
+              const parts = metadata.StreamTitle.split(' - ');
+              if (parts.length >= 2) {
+                return {
+                  artist: parts[0].trim(),
+                  title: parts.slice(1).join(' - ').trim(),
+                  album: ''
+                };
+              } else if (parts.length === 1) {
+                return {
+                  artist: '',
+                  title: parts[0].trim(),
+                  album: ''
+                };
+              }
+            }
+          }
+          
+          // Fallback: Try to extract from stream URL via proxy (complex, may not work due to CORS)
+          // For now, return null - ICY metadata extraction requires server-side support
           return null;
         },
         
@@ -3075,38 +3162,46 @@
           const streamPath = streamPathMap[this.currentChannel];
           if (!streamPath) return null;
           
-          // Stereoscenic API doesn't have CORS headers, so we use a proxy
+          // Stereoscenic API doesn't have CORS headers, so we use proxies
           const apiUrl = 'https://radio.stereoscenic.com/statistics?json=1';
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+          const proxyUrls = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`
+          ];
           
-          try {
-            const response = await fetch(proxyUrl);
-            if (response.ok) {
-              const data = await response.json();
-              if (data && data.streams) {
-                // Find the stream matching our channel
-                const stream = data.streams.find(s => s.streampath === streamPath);
-                if (stream && stream.songtitle) {
-                  // songtitle format is "Artist - Title"
-                  const parts = stream.songtitle.split(' - ');
-                  if (parts.length >= 2) {
-                    return {
-                      artist: parts[0].trim(),
-                      title: parts.slice(1).join(' - ').trim(),
-                      album: ''
-                    };
-                  } else if (parts.length === 1) {
-                    return {
-                      artist: '',
-                      title: parts[0].trim(),
-                      album: ''
-                    };
+          for (const proxyUrl of proxyUrls) {
+            try {
+              const response = await fetch(proxyUrl, { 
+                signal: AbortSignal.timeout(5000) // 5 second timeout
+              });
+              if (response.ok) {
+                const data = await response.json();
+                if (data && data.streams) {
+                  // Find the stream matching our channel
+                  const stream = data.streams.find(s => s.streampath === streamPath);
+                  if (stream && stream.songtitle) {
+                    // songtitle format is "Artist - Title"
+                    const parts = stream.songtitle.split(' - ');
+                    if (parts.length >= 2) {
+                      return {
+                        artist: parts[0].trim(),
+                        title: parts.slice(1).join(' - ').trim(),
+                        album: ''
+                      };
+                    } else if (parts.length === 1) {
+                      return {
+                        artist: '',
+                        title: parts[0].trim(),
+                        album: ''
+                      };
+                    }
                   }
                 }
               }
+            } catch (error) {
+              // Try next proxy
+              continue;
             }
-          } catch (error) {
-            console.log('Stereoscenic metadata fetch error:', error);
           }
           return null;
         },
@@ -3134,6 +3229,8 @@
             songData = await this.fetchFIPMetadata();
           } else if (channel.tags.indexOf('flux') > -1) {
             songData = await this.fetchFluxFMMetadata();
+          } else if (channel.tags.indexOf('concertzender') > -1) {
+            songData = await this.fetchConcertzenderMetadata();
           } else if (['ambientsleepingpill', 'amambient', 'ambientmodern'].indexOf(this.currentChannel) > -1) {
             songData = await this.fetchSteroscenicMetadata();
           }
