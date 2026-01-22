@@ -216,93 +216,6 @@
       flex-wrap: wrap;
     }
     
-    header .volume-control {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      margin-left: auto;
-      padding: 8px 12px;
-      background: 
-        linear-gradient(135deg, rgba(20, 20, 40, 0.8) 0%, rgba(10, 10, 30, 0.9) 100%);
-      border: 1px solid rgba(0, 255, 255, 0.3);
-      border-radius: 6px;
-      box-shadow: 
-        inset 0 1px 2px rgba(0, 255, 255, 0.2),
-        0 0 15px rgba(0, 255, 255, 0.3),
-        0 0 25px rgba(0, 255, 255, 0.2);
-    }
-    
-    header .volume-control span {
-      font-size: clamp(14px, 2.5vw, 18px);
-      filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.9)) drop-shadow(0 0 16px rgba(0, 255, 255, 0.5));
-    }
-    
-    header .volume-control input[type="range"] {
-      -webkit-appearance: slider-vertical;
-      appearance: slider-vertical;
-      writing-mode: bt-lr;
-      width: 80px;
-      height: 6px;
-      transform: rotate(-90deg);
-      transform-origin: center;
-      margin: 25px 0;
-      padding: 0;
-      cursor: pointer;
-      background: 
-        linear-gradient(90deg, 
-          rgba(0, 0, 0, 0.8) 0%,
-          rgba(0, 255, 255, 0.2) 50%,
-          rgba(0, 0, 0, 0.8) 100%
-        );
-      border-radius: 3px;
-      outline: none;
-      border: 1px solid rgba(0, 255, 255, 0.3);
-      box-shadow: 
-        inset 0 1px 3px rgba(0, 0, 0, 0.5),
-        0 0 8px rgba(0, 255, 255, 0.2);
-    }
-    
-    header .volume-control input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      background: 
-        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
-      border: 2px solid rgba(0, 255, 255, 0.8);
-      border-radius: 50%;
-      cursor: pointer;
-      box-shadow: 
-        0 0 15px rgba(0, 255, 255, 1),
-        0 0 30px rgba(0, 255, 255, 0.7),
-        0 0 45px rgba(0, 255, 255, 0.4),
-        inset 0 1px 2px rgba(255, 255, 255, 0.4);
-      transition: all 0.2s ease;
-    }
-    
-    header .volume-control input[type="range"]::-webkit-slider-thumb:hover {
-      box-shadow: 
-        0 0 20px rgba(0, 255, 255, 1),
-        0 0 40px rgba(0, 255, 255, 0.8),
-        0 0 60px rgba(0, 255, 255, 0.5),
-        inset 0 1px 2px rgba(255, 255, 255, 0.5);
-      transform: scale(1.1);
-    }
-    
-    header .volume-control input[type="range"]::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      background: 
-        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
-      border: 2px solid rgba(0, 255, 255, 0.8);
-      border-radius: 50%;
-      cursor: pointer;
-      box-shadow: 
-        0 0 15px rgba(0, 255, 255, 1),
-        0 0 30px rgba(0, 255, 255, 0.7),
-        0 0 45px rgba(0, 255, 255, 0.4);
-    }
 
     header h1 {
       margin: 0;
@@ -355,7 +268,7 @@
       display: none;
     }
     
-    header input[type="range"]:not(.volume-control input) {
+    header input[type="range"] {
       -webkit-appearance: none;
       appearance: none;
       height: 6px;
@@ -373,7 +286,7 @@
         0 0 8px rgba(0, 255, 255, 0.2);
     }
     
-    header input[type="range"]:not(.volume-control input)::-webkit-slider-thumb {
+    header input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
       width: 14px;
@@ -388,7 +301,7 @@
         0 0 16px rgba(0, 255, 255, 0.4);
     }
     
-    header input[type="range"]:not(.volume-control input)::-moz-range-thumb {
+    header input[type="range"]::-moz-range-thumb {
       width: 14px;
       height: 14px;
       background: 
@@ -401,7 +314,7 @@
         0 0 16px rgba(0, 255, 255, 0.4);
     }
 
-    header > div > div:not(.volume-control) {
+    header > div > div {
       display: flex;
       align-items: center;
       gap: clamp(6px, 1.5vw, 10px);
@@ -911,10 +824,6 @@
         padding: clamp(4px, 0.8vh, 6px) clamp(8px, 1.8vw, 10px) !important;
       }
       
-      header .volume-control {
-        display: none;
-      }
-      
       article {
         padding-top: clamp(8px, 1.5vh, 12px);
         padding-bottom: clamp(80px, 12vh, 100px);
@@ -1006,10 +915,6 @@
         padding: clamp(4px, 1vh, 6px) !important;
       }
       
-      header .volume-control {
-        display: none;
-      }
-      
       article {
         padding-top: clamp(6px, 1.2vh, 8px);
       }
@@ -1099,30 +1004,6 @@
       .time-display {
         font-size: clamp(13px, 2vw, 16px) !important;
         padding: clamp(8px, 1.2vh, 10px) clamp(10px, 1.8vw, 12px) !important;
-      }
-      
-      header .volume-control {
-        display: flex !important;
-        width: auto !important;
-        flex-direction: column !important;
-        justify-content: center;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 12px;
-        margin-left: auto;
-        flex-shrink: 0;
-      }
-      
-      header .volume-control input[type="range"] {
-        transform: rotate(-90deg) !important;
-        writing-mode: bt-lr !important;
-        width: 80px !important;
-        height: 6px !important;
-        margin: 25px 0 !important;
-      }
-      
-      header .volume-control span {
-        font-size: clamp(14px, 2vw, 18px);
       }
       
       article {
@@ -1460,16 +1341,6 @@
           </template>
         </div>
         
-        <div class="volume-control">
-          <span style="font-size: clamp(10px, 1.5vw, 12px); color: #aaa;">🔊</span>
-          <input type="range" 
-                 min="0" 
-                 max="1" 
-                 step="0.01" 
-                 @input="setVolume($event.target.value)"
-                 :value="volume"
-                 title="Volume">
-        </div>
       </div>
     </header>
 
@@ -2210,7 +2081,7 @@
       if (audio) {
         const newVolume = Math.max(0, Math.min(audio.volume + delta, 1));
         audio.volume = newVolume;
-        // Update Alpine.js state to keep slider in sync
+        // Update Alpine.js state
         if (window.appState) {
           window.appState.volume = newVolume;
         }
@@ -2654,15 +2525,6 @@
         get hasValidDuration() {
           return isFinite(this.duration) && this.duration > 0;
         },
-        
-        setVolume(value) {
-          const audio = document.getElementById('player');
-          if (audio) {
-            this.volume = parseFloat(value);
-            audio.volume = this.volume;
-          }
-        },
-        
         navigateTo(hash) {
           // Extract channel name from hash
           const channelName = hash === '#' ? '' : hash.slice(1);
