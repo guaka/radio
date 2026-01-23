@@ -2327,23 +2327,31 @@
           console.log('Loaded channels:', Object.keys(channels).length);
           
           // Set up audio event listeners
-          const setupAudioListeners = () => {
+          const setupAudioListeners = (attempt = 0) => {
             const audio = document.getElementById('player');
             if (!audio) {
-              setTimeout(setupAudioListeners, 50);
+              if (this.srcUrl && attempt < 20) {
+                if (this._audioSetupTimeout) {
+                  clearTimeout(this._audioSetupTimeout);
+                }
+                this._audioSetupTimeout = setTimeout(() => {
+                  setupAudioListeners(attempt + 1);
+                }, 100);
+              }
               return;
             }
             
+            if (this._audioSetupTimeout) {
+              clearTimeout(this._audioSetupTimeout);
+              this._audioSetupTimeout = null;
+            }
+            
             // Remove old listeners if they exist
-            if (this._timeUpdateListener) {
-              audio.removeEventListener('timeupdate', this._timeUpdateListener);
+            if (this._audioElement && this._audioElement !== audio) {
+              this.teardownAudioListeners(this._audioElement);
             }
-            if (this._playListener) {
-              audio.removeEventListener('play', this._playListener);
-            }
-            if (this._pauseListener) {
-              audio.removeEventListener('pause', this._pauseListener);
-            }
+            this._audioElement = audio;
+            this.teardownAudioListeners(audio);
             
             // Update time display
             this._timeUpdateListener = () => {
@@ -2352,19 +2360,21 @@
             audio.addEventListener('timeupdate', this._timeUpdateListener);
             
             // Update duration when metadata loads
-            audio.addEventListener('loadedmetadata', () => {
+            this._loadedMetadataListener = () => {
               this.duration = audio.duration;
-            });
+            };
+            audio.addEventListener('loadedmetadata', this._loadedMetadataListener);
             
             // Update duration when duration changes
-            audio.addEventListener('durationchange', () => {
+            this._durationChangeListener = () => {
               this.duration = audio.duration;
-            });
+            };
+            audio.addEventListener('durationchange', this._durationChangeListener);
             
             // Try to listen for ICY metadata updates (non-standard, browser-dependent)
             // Some browsers may fire metadataupdate events for Icecast streams
             if ('onmetadataupdate' in audio || 'addEventListener' in audio) {
-              const metadataHandler = (e) => {
+              this._metadataHandler = (e) => {
                 // Try to extract metadata from event or audio element
                 if (e && e.metadata) {
                   const metadata = e.metadata;
@@ -2387,8 +2397,8 @@
                 }
               };
               // Try both standard and non-standard event names
-              audio.addEventListener('metadataupdate', metadataHandler);
-              audio.addEventListener('icy-metadata', metadataHandler);
+              audio.addEventListener('metadataupdate', this._metadataHandler);
+              audio.addEventListener('icy-metadata', this._metadataHandler);
             }
             
             // Update playing state
@@ -2421,8 +2431,20 @@
           setupAudioListeners();
           
           // Re-setup listeners when srcUrl changes (audio element might be recreated)
-          this.$watch('srcUrl', () => {
-            setTimeout(setupAudioListeners, 100);
+          this.$watch('srcUrl', (value) => {
+            if (!value) {
+              this.teardownAudioListeners();
+              this._audioElement = null;
+              if (this._audioSetupTimeout) {
+                clearTimeout(this._audioSetupTimeout);
+                this._audioSetupTimeout = null;
+              }
+              return;
+            }
+            
+            this.$nextTick(() => {
+              setupAudioListeners();
+            });
           });
           
           // Wait for router to be initialized by app.js
@@ -2483,6 +2505,38 @@
               console.log('Chat message error (non-critical):', e);
             }
           });
+        },
+
+        teardownAudioListeners(audioElement) {
+          const audio = audioElement || this._audioElement;
+          if (!audio) return;
+          
+          if (this._timeUpdateListener) {
+            audio.removeEventListener('timeupdate', this._timeUpdateListener);
+          }
+          if (this._playListener) {
+            audio.removeEventListener('play', this._playListener);
+          }
+          if (this._pauseListener) {
+            audio.removeEventListener('pause', this._pauseListener);
+          }
+          if (this._loadedMetadataListener) {
+            audio.removeEventListener('loadedmetadata', this._loadedMetadataListener);
+          }
+          if (this._durationChangeListener) {
+            audio.removeEventListener('durationchange', this._durationChangeListener);
+          }
+          if (this._metadataHandler) {
+            audio.removeEventListener('metadataupdate', this._metadataHandler);
+            audio.removeEventListener('icy-metadata', this._metadataHandler);
+          }
+          
+          this._timeUpdateListener = null;
+          this._playListener = null;
+          this._pauseListener = null;
+          this._loadedMetadataListener = null;
+          this._durationChangeListener = null;
+          this._metadataHandler = null;
         },
         
         toggleChat() {
