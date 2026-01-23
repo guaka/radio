@@ -1030,9 +1030,20 @@
             this.cleanupRelays();
             
             // Set up a periodic cleanup to ensure no extension relays are added
-            setInterval(() => {
-              this.cleanupRelays();
-            }, 2000); // Check every 2 seconds (more aggressive)
+            if (this._relayCleanupInterval) {
+              clearInterval(this._relayCleanupInterval);
+            }
+            this._relayCleanupInterval = setInterval(() => {
+              if (!document.hidden) {
+                this.cleanupRelays();
+              }
+            }, 30000); // Check every 30 seconds
+            
+            document.addEventListener('visibilitychange', () => {
+              if (!document.hidden) {
+                this.cleanupRelays();
+              }
+            });
             
             // Set up relay status tracking (only for the 2 configured relays)
             if (this.ndk.pool) {
