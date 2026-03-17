@@ -1398,8 +1398,12 @@
       }
     }
     
-    /* Desktop: adjust article margin when chat is visible */
+    /* Desktop: keep header and article clear of chat */
     @media (min-width: 769px) {
+      header .container {
+        padding-right: calc(350px + clamp(12px, 2vw, 20px));
+      }
+
       article {
         margin-right: 350px;
       }
