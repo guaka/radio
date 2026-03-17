@@ -141,7 +141,79 @@ const channels = {
     tags: ['concertzender', 'nl', 'world'],
     site: 'https://www.concertzender.nl/ontvangst/streamoverzicht/'
   },
-  
+
+  // Traxx FM - Switzerland (multiple genre channels)
+  'traxx_fm_ambient': {
+    url: 'https://traxx011.ice.infomaniak.ch/traxx011-low.mp3',
+    tags: ['traxx', 'ch', 'ambient', 'chill', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25089'
+  },
+  'traxx_fm_deluxe': {
+    url: 'https://traxx001.ice.infomaniak.ch/traxx001-low.mp3',
+    tags: ['traxx', 'ch', 'electronic', 'edm', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25092'
+  },
+  'traxx_fm_deep': {
+    url: 'https://traxx013.ice.infomaniak.ch/traxx013-low.mp3',
+    tags: ['traxx', 'ch', 'deep', 'house', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25091'
+  },
+  'traxx_fm_funk': {
+    url: 'https://traxx016.ice.infomaniak.ch/traxx016-low.mp3',
+    tags: ['traxx', 'ch', 'funk', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25093'
+  },
+  'traxx_fm_house': {
+    url: 'https://traxx002.ice.infomaniak.ch/traxx002-low.mp3',
+    tags: ['traxx', 'ch', 'house', 'electronic', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25095'
+  },
+  'traxx_fm_jazz': {
+    url: 'https://traxx014.ice.infomaniak.ch/traxx014-low.mp3',
+    tags: ['traxx', 'ch', 'jazz', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25096'
+  },
+  'traxx_fm_latino': {
+    url: 'https://traxx008.ice.infomaniak.ch/traxx008-low.mp3',
+    tags: ['traxx', 'ch', 'latin', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25097'
+  },
+  'traxx_fm_latino_pop': {
+    url: 'https://traxx022.ice.infomaniak.ch/traxx022-1.mp3',
+    tags: ['traxx', 'ch', 'latin', 'pop', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25099'
+  },
+  'traxx_fm_lounge': {
+    url: 'https://traxx004.ice.infomaniak.ch/traxx004-low.mp3',
+    tags: ['traxx', 'ch', 'lounge', 'chill', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25098'
+  },
+  'traxx_fm_pop': {
+    url: 'https://traxx009.ice.infomaniak.ch/traxx009-low.mp3',
+    tags: ['traxx', 'ch', 'pop', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25099'
+  },
+  'traxx_fm_rnb': {
+    url: 'https://traxx007.ice.infomaniak.ch/traxx007-low.mp3',
+    tags: ['traxx', 'ch', 'rnb', 'soul', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25101'
+  },
+  'traxx_fm_rock': {
+    url: 'https://traxx019.ice.infomaniak.ch/traxx019-low.mp3',
+    tags: ['traxx', 'ch', 'rock', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25102'
+  },
+  'traxx_fm_soul': {
+    url: 'https://traxx006.ice.infomaniak.ch/traxx006-low.mp3',
+    tags: ['traxx', 'ch', 'soul', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25103'
+  },
+  'traxx_fm_tech_minimal': {
+    url: 'https://traxx020.ice.infomaniak.ch/traxx020-low.mp3',
+    tags: ['traxx', 'ch', 'electronic', 'minimal', 'techno', 'switzerland'],
+    site: 'https://www.allradio.net/radio/25104'
+  },
+
   // Other Stations
   'wassoulou': {
     url: 'https://listen.radionomy.com/radio-wassoulou-internationale',
@@ -532,22 +604,22 @@ const sections = [
   {
     name: 'Other Stations',
     tags: ['other'],
-    order: 8
+    order: 9
   },
   {
     name: 'Country',
     tags: ['country'],
-    order: 10
+    order: 11
   },
   {
     name: 'Latin',
     tags: ['latin'],
-    order: 9
+    order: 10
   },
   {
     name: 'Radio Paradise',
     tags: ['paradise'],
-    order: 7
+    order: 8
   },
   {
     name: 'SomaFM',
@@ -562,6 +634,11 @@ const sections = [
   {
     name: 'Flux FM',
     tags: ['flux'],
+    order: 6
+  },
+  {
+    name: 'Traxx FM',
+    tags: ['traxx'],
     order: 5
   },
   {
@@ -572,7 +649,7 @@ const sections = [
   {
     name: 'Concertzender',
     tags: ['concertzender'],
-    order: 6
+    order: 7
   },
   {
     name: 'AMBIENT',
