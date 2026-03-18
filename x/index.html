@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <title>pleXtr</title>
   <style>
     :root {
@@ -155,6 +156,7 @@
       width: min(40rem, 100%);
       max-height: min(88dvh, 48rem);
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
       padding: 1rem;
       background: var(--surface);
       border: 1px solid var(--border);
@@ -196,10 +198,35 @@
       margin-top: 0.4rem;
       min-height: 1em;
     }
+    .mobile-token-hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0.5rem 0 0;
+      line-height: 1.4;
+    }
+    .mobile-token-hint a { color: var(--accent); }
     #settingsStatus {
+      position: fixed;
+      top: 4.8rem;
+      left: 1rem;
+      right: 1rem;
+      z-index: 30;
+      margin: 0;
+      padding: 0.65rem 0.9rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.85rem;
+      line-height: 1.35;
+      color: inherit;
+      text-align: center;
+      min-height: 0;
+      pointer-events: none;
+      display: none;
       transition: opacity 0.65s ease, transform 0.65s ease;
       opacity: 1;
       will-change: opacity, transform;
+      transform: translateY(0);
     }
     #settingsStatus.fade-out {
       opacity: 0;
@@ -267,6 +294,42 @@
       line-height: 1.3;
       display: none;
     }
+    .albums.list-view {
+      display: block;
+      grid-template-columns: none;
+      gap: 0;
+    }
+    .albums.list-view .album {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      margin-bottom: 0.25rem;
+    }
+    .albums.list-view .album img {
+      width: 48px;
+      height: 48px;
+      aspect-ratio: 1;
+      flex-shrink: 0;
+    }
+    .albums.list-view .album .meta {
+      flex: 1;
+      min-width: 0;
+      padding: 0;
+    }
+    .albums.list-view .album .song-matches {
+      margin-top: 0.2rem;
+    }
+    .view-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+    .view-toggle .btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     .breadcrumb {
       display: flex;
       align-items: center;
@@ -290,6 +353,26 @@
     .tracks .idx { color: var(--muted); font-size: 0.8rem; width: 1.5rem; }
     .tracks .name { flex: 1; }
     .tracks .dur { color: var(--muted); font-size: 0.8rem; }
+    .star-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .star-btn:hover { color: var(--accent-dim); }
+    .star-btn.starred { color: var(--accent); }
+    .star-btn svg { width: 1rem; height: 1rem; }
+    .star-btn.starred svg { fill: var(--accent); }
+    .album .star-wrap { position: absolute; top: 0.4rem; right: 0.4rem; z-index: 2; }
+    .album { position: relative; }
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -316,6 +399,27 @@
       text-decoration: underline;
       text-underline-offset: 2px;
     }
+    .player-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .player-controls .btn.icon-btn {
+      width: 2.5rem;
+      height: 2.5rem;
+    }
+    .player-controls .btn.icon-btn svg { width: 1.25rem; height: 1.25rem; }
+    .player-controls .btn.fav-btn {
+      width: auto;
+      min-width: 4.4rem;
+      padding: 0 0.75rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.01em;
+    }
+    .player-controls .btn.fav-btn.starred {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     .player-bar audio { height: 36px; max-width: 100%; flex: 1 1 24rem; min-width: 14rem; }
     .load-more { margin-top: 1.25rem; text-align: center; }
     .empty-state {
@@ -337,7 +441,7 @@
 </head>
 <body>
   <header>
-    <h1><a href="../" aria-label="Go to home screen">pleXtr</a></h1>
+    <h1><a href="./" id="logoHome" aria-label="Go to home screen">pleXtr</a></h1>
     <div class="header-right">
       <div class="header-library">
         <label for="inSection">Library</label>
@@ -347,6 +451,14 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
         <input id="inSearch" type="search" placeholder="Search metadata, folders, files..." autocomplete="off" />
       </label>
+      <div class="view-toggle" id="albumViewToggle" style="display:none" aria-label="Album view mode">
+        <button type="button" class="btn icon-btn" id="viewListBtn" aria-label="List view" title="List view">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+        </button>
+        <button type="button" class="btn icon-btn" id="viewGridBtn" aria-label="Album grid view" title="Album grid view">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
+      </div>
       <button type="button" class="btn icon-btn" id="btnReload" style="display:none" aria-label="Reload library" title="Reload library">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3v6h-6"></path><path d="M20 9a8 8 0 1 0 2.3 5.7"></path></svg>
       </button>
@@ -362,7 +474,7 @@
       <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">How to get X-Plex-Token</a>
     </div>
     <div id="error" class="msg error" style="display:none"></div>
-    <div class="inline-note" id="settingsStatus" style="margin-bottom:0.85rem"></div>
+    <div class="inline-note" id="settingsStatus" aria-live="polite"></div>
     <div class="modal" id="settingsModal">
       <div class="modal-card">
       <div class="modal-head">
@@ -379,6 +491,7 @@
       <div class="server-candidates" id="serverCandidates" style="display:none"></div>
       <label for="inToken">X-Plex-Token</label>
       <input id="inToken" type="text" placeholder="Your token" autocomplete="off" />
+      <p class="mobile-token-hint">On iPhone: if “Sign in with Plex” doesn’t open a window, use <a href="https://plex.tv/link" target="_blank" rel="noopener">plex.tv/link</a> in Safari, then paste the code or token here.</p>
       <div class="inline-actions">
         <button type="button" class="btn" id="btnPlexLogin">Sign in with Plex</button>
         <button type="button" class="btn" id="btnLoadLibraries">Load libraries</button>
@@ -398,15 +511,32 @@
       <div class="sub"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a></div>
       <div class="sub"><a id="npSub" href="#" target="_blank" rel="noopener"></a></div>
     </div>
+    <div class="player-controls">
+      <button type="button" class="btn fav-btn" id="btnFavNow" aria-label="Favorite current track" title="Favorite current track" disabled>☆ Fav</button>
+      <button type="button" class="btn icon-btn" id="btnPrev" aria-label="Previous track" title="Previous">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 6v12"></path>
+          <path d="M17 6 9 12l8 6"></path>
+        </svg>
+      </button>
+      <button type="button" class="btn icon-btn" id="btnNext" aria-label="Next track" title="Next">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M17 6v12"></path>
+          <path d="M7 6l8 6-8 6"></path>
+        </svg>
+      </button>
+    </div>
     <audio id="audio" controls></audio>
   </div>
 
   <script>
 (function () {
-  const LS = { server: 'plexServer', token: 'plexToken', section: 'plexSection', playback: 'plexPlaybackState' };
+  const LS = { server: 'plexServer', token: 'plexToken', section: 'plexSection', playback: 'plexPlaybackState', viewMode: 'plexAlbumViewMode', starredTracks: 'plexStarredTracks', starredAlbums: 'plexStarredAlbums' };
   const $ = (id) => document.getElementById(id);
   const PLEX_PRODUCT = 'Local Plex Music Player';
   const PLEX_CLIENT_ID = 'plex-player-' + Math.random().toString(36).slice(2, 10);
+  const CROSSFADE_DURATION_MS = 1200;
+  const CROSSFADE_STEP_MS = 50;
 
   function cfg() {
     return {
@@ -432,6 +562,85 @@
     try {
       localStorage.setItem(LS.playback, JSON.stringify(state));
     } catch (_) {}
+  }
+
+  function getStarredTracks() {
+    try {
+      const raw = localStorage.getItem(LS.starredTracks);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr.map(String) : []);
+    } catch (_) {
+      return new Set();
+    }
+  }
+
+  function getStarredAlbums() {
+    try {
+      const raw = localStorage.getItem(LS.starredAlbums);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr.map(String) : []);
+    } catch (_) {
+      return new Set();
+    }
+  }
+
+  function toggleTrackStar(ratingKey) {
+    const key = String(ratingKey);
+    const set = getStarredTracks();
+    if (set.has(key)) set.delete(key);
+    else set.add(key);
+    try {
+      localStorage.setItem(LS.starredTracks, JSON.stringify([...set]));
+    } catch (_) {}
+    return set.has(key);
+  }
+
+  function toggleAlbumStar(ratingKey) {
+    const key = String(ratingKey);
+    const set = getStarredAlbums();
+    if (set.has(key)) set.delete(key);
+    else set.add(key);
+    try {
+      localStorage.setItem(LS.starredAlbums, JSON.stringify([...set]));
+    } catch (_) {}
+    return set.has(key);
+  }
+
+  function runCrossfade(audio, targetVolume, onFadeOutDone) {
+    const startVol = audio.volume;
+    const steps = Math.max(1, Math.round(CROSSFADE_DURATION_MS / 2 / CROSSFADE_STEP_MS));
+    let step = 0;
+    const fadeOut = () => {
+      step++;
+      const t = step / steps;
+      audio.volume = Math.max(0, startVol * (1 - t));
+      if (step < steps) {
+        setTimeout(fadeOut, CROSSFADE_STEP_MS);
+      } else {
+        audio.volume = 0;
+        onFadeOutDone();
+      }
+    };
+    fadeOut();
+  }
+
+  function runFadeIn(audio, targetVolume, onDone) {
+    const steps = Math.max(1, Math.round(CROSSFADE_DURATION_MS / 2 / CROSSFADE_STEP_MS));
+    let step = 0;
+    const fadeIn = () => {
+      step++;
+      const t = step / steps;
+      audio.volume = Math.min(1, t * targetVolume);
+      if (step < steps) {
+        setTimeout(fadeIn, CROSSFADE_STEP_MS);
+      } else {
+        audio.volume = targetVolume;
+        if (onDone) onDone();
+      }
+    };
+    fadeIn();
   }
 
   function streamUrl(partKey) {
@@ -498,6 +707,14 @@
     );
   }
 
+  function starIconHtml(starred) {
+    const star =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="' +
+      (starred ? 'currentColor' : 'none') +
+      '" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+    return star;
+  }
+
   async function plexFetch(path) {
     const { server, token } = cfg();
     if (!server || !token) throw new Error('Configure server URL and token in Settings.');
@@ -541,7 +758,7 @@
       let popup = window.open(authUrl, 'plex-login', 'popup=yes,width=550,height=700');
       // Fallback for environments where app.plex.tv auth is blocked/redirected.
       if (!popup) popup = window.open('https://plex.tv/link', 'plex-login', 'popup=yes,width=550,height=700');
-      if (!popup) throw new Error('Popup blocked. Allow popups and try again.');
+      if (!popup) throw new Error('Popup blocked (common on iPhone). Open plex.tv/link in another tab, sign in, then paste the code or token in the Settings field.');
 
       statusEl.textContent = 'Complete login in the popup...';
 
@@ -612,18 +829,21 @@
     if (settingsStatusFadeTimer) clearTimeout(settingsStatusFadeTimer);
     if (settingsStatusClearTimer) clearTimeout(settingsStatusClearTimer);
 
+    const hasMsg = msg != null && String(msg).trim() !== '';
     el.textContent = msg || '';
+    el.style.display = hasMsg ? 'block' : 'none';
     el.classList.remove('fade-out');
     el.classList.remove('ok', 'error');
     if (kind === 'ok') el.classList.add('ok');
     if (kind === 'error') el.classList.add('error');
 
     // Auto-fade "ok" status messages so they don't distract during normal use.
-    if (kind === 'ok' && msg) {
+    if (kind === 'ok' && hasMsg) {
       settingsStatusFadeTimer = setTimeout(() => {
         el.classList.add('fade-out');
         settingsStatusClearTimer = setTimeout(() => {
           el.textContent = '';
+          el.style.display = 'none';
           el.classList.remove('fade-out');
         }, 650);
       }, 2400);
@@ -632,14 +852,22 @@
 
   function openSettingsModal() {
     $('settingsModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
     const c = cfg();
     $('inServer').value = c.server;
     $('inToken').value = c.token;
     setServerDiscoveryStatus('');
+    var card = $('settingsModal').querySelector('.modal-card');
+    if (card) card.scrollTop = 0;
+    setTimeout(function () {
+      var inp = $('inToken');
+      if (inp) inp.focus();
+    }, 150);
   }
 
   function closeSettingsModal() {
     $('settingsModal').classList.remove('open');
+    document.body.style.overflow = '';
   }
 
   function setServerDiscoveryStatus(msg, kind) {
@@ -906,6 +1134,27 @@
     return $('viewAlbums').style.display !== 'none';
   }
 
+  function getAlbumViewMode() {
+    return localStorage.getItem(LS.viewMode) || 'grid';
+  }
+
+  function setAlbumViewMode(mode) {
+    if (mode !== 'list' && mode !== 'grid') return;
+    localStorage.setItem(LS.viewMode, mode);
+    applyAlbumViewMode();
+  }
+
+  function applyAlbumViewMode() {
+    const grid = $('albumGrid');
+    if (!grid) return;
+    const isList = getAlbumViewMode() === 'list';
+    grid.classList.toggle('list-view', isList);
+    const listBtn = $('viewListBtn');
+    const gridBtn = $('viewGridBtn');
+    if (listBtn) listBtn.classList.toggle('active', isList);
+    if (gridBtn) gridBtn.classList.toggle('active', !isList);
+  }
+
   function scheduleAlbumAutoLoad(delayMs) {
     if (autoLoadAlbumsTimer) clearTimeout(autoLoadAlbumsTimer);
     autoLoadAlbumsTimer = setTimeout(() => {
@@ -1066,6 +1315,7 @@
       const total = data.MediaContainer.totalSize != null ? data.MediaContainer.totalSize : meta.length;
       if (!append) $('viewAlbums').innerHTML = '<div class="albums" id="albumGrid"></div>';
       const grid = $('albumGrid');
+      const starredAlbums = getStarredAlbums();
       meta.forEach((a) => {
         const div = document.createElement('div');
         div.className = 'album';
@@ -1075,15 +1325,30 @@
         const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
         const albumHref = albumHash(a.ratingKey);
         const artistHref = artistHash(a.parentRatingKey);
+        const albumStarred = starredAlbums.has(String(a.ratingKey));
         div.innerHTML =
+          '<div class="star-wrap"><button type="button" class="star-btn' + (albumStarred ? ' starred' : '') + '" data-rating-key="' + escapeHtml(String(a.ratingKey)) + '" aria-label="' + (albumStarred ? 'Unstar album' : 'Star album') + '" title="' + (albumStarred ? 'Unstar' : 'Star') + '">' + starIconHtml(albumStarred) + '</button></div>' +
           '<img src="' + img + '" alt="" loading="lazy" />' +
           '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
           '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
           '<div class="song-matches"></div></div>';
         div.onclick = (ev) => {
           if (ev.target.closest('a[data-meta-link]')) return;
+          if (ev.target.closest('.star-btn')) return;
           openAlbum(a);
         };
+        const starBtn = div.querySelector('.star-btn');
+        if (starBtn) {
+          starBtn.onclick = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const nowStarred = toggleAlbumStar(starBtn.dataset.ratingKey);
+            starBtn.classList.toggle('starred', nowStarred);
+            starBtn.setAttribute('aria-label', nowStarred ? 'Unstar album' : 'Star album');
+            starBtn.setAttribute('title', nowStarred ? 'Unstar' : 'Star');
+            starBtn.innerHTML = starIconHtml(nowStarred);
+          };
+        }
         grid.appendChild(div);
         if (isUnknownAlbumTitle(a.title)) {
           resolveAlbumFolderName(a.ratingKey)
@@ -1118,6 +1383,10 @@
         wrap.appendChild(b);
         $('viewAlbums').appendChild(wrap);
       }
+      if (!append) {
+        $('albumViewToggle').style.display = '';
+        applyAlbumViewMode();
+      }
       scheduleAlbumAutoLoad(20);
       return meta.length;
     } catch (e) {
@@ -1137,6 +1406,7 @@
     $('viewAlbums').style.display = 'none';
     $('viewTracks').style.display = 'block';
     $('btnReload').style.display = 'none';
+    $('albumViewToggle').style.display = 'none';
     $('viewTracks').innerHTML =
       '<div class="breadcrumb"><button type="button" id="backAlb">← Albums</button></div>' +
       '<h2 style="margin:0 0 1rem;font-size:1.15rem">' + escapeHtml(album.title) + '</h2>' +
@@ -1151,18 +1421,20 @@
       if (displayTitle && displayTitle !== album.title) albumFolderNameCache.set(album.ratingKey, displayTitle);
       const albumHref = albumHash(album.ratingKey);
       const artistHref = artistHash(album.parentRatingKey);
+      const starredTracks = getStarredTracks();
       const list = currentTracks
         .map((t, i) => {
           const dur = t.duration ? Math.round(t.duration / 1000) : 0;
           const mm = Math.floor(dur / 60);
           const ss = dur % 60;
           const durStr = dur ? mm + ':' + (ss < 10 ? '0' : '') + ss : '';
+          const trackStarred = starredTracks.has(String(t.ratingKey));
           return (
             '<li data-i="' +
             i +
             '"><span class="idx">' +
             (i + 1) +
-            '</span><span class="name">' +
+            '</span><button type="button" class="star-btn' + (trackStarred ? ' starred' : '') + '" data-rating-key="' + escapeHtml(String(t.ratingKey)) + '" aria-label="' + (trackStarred ? 'Unstar track' : 'Star track') + '" title="' + (trackStarred ? 'Unstar' : 'Star') + '">' + starIconHtml(trackStarred) + '</button><span class="name">' +
             escapeHtml(t.title) +
             '</span><span class="dur">' +
             durStr +
@@ -1183,7 +1455,24 @@
         '</ul>';
       $('backAlb2').onclick = backToAlbums;
       $('viewTracks').querySelectorAll('.tracks li').forEach((li) => {
-        li.onclick = () => playIndex(parseInt(li.dataset.i, 10));
+        li.onclick = (ev) => {
+          if (ev.target.closest('.star-btn')) return;
+          playIndex(parseInt(li.dataset.i, 10));
+        };
+      });
+      $('viewTracks').querySelectorAll('.tracks li .star-btn').forEach((btn) => {
+        btn.onclick = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const nowStarred = toggleTrackStar(btn.dataset.ratingKey);
+          btn.classList.toggle('starred', nowStarred);
+          btn.setAttribute('aria-label', nowStarred ? 'Unstar track' : 'Star track');
+          btn.setAttribute('title', nowStarred ? 'Unstar' : 'Star');
+          btn.innerHTML = starIconHtml(nowStarred);
+          if (nowPlayingTrackKey && String(btn.dataset.ratingKey || '') === String(nowPlayingTrackKey)) {
+            updateNowPlayingFavButton(nowPlayingTrackKey);
+          }
+        };
       });
       $('viewTracks').querySelectorAll('.tracks li').forEach((li, i) => {
         li.dataset.search = makeSearchBlob(currentTracks[i]);
@@ -1204,8 +1493,10 @@
     $('viewTracks').style.display = 'none';
     $('viewAlbums').style.display = 'block';
     $('btnReload').style.display = '';
+    $('albumViewToggle').style.display = '';
     currentAlbum = null;
     currentTracks = [];
+    document.title = 'pleXtr';
     updateFilterState();
     scheduleAlbumAutoLoad(50);
   }
@@ -1252,6 +1543,7 @@
         loadAlbums(false);
       };
       const grid = $('albumGrid');
+      const starredAlbums = getStarredAlbums();
       albums.forEach((a) => {
         const div = document.createElement('div');
         div.className = 'album';
@@ -1261,17 +1553,33 @@
         const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
         const albumHref = albumHash(a.ratingKey);
         const artistHref = artistHash(a.parentRatingKey);
+        const albumStarred = starredAlbums.has(String(a.ratingKey));
         div.innerHTML =
+          '<div class="star-wrap"><button type="button" class="star-btn' + (albumStarred ? ' starred' : '') + '" data-rating-key="' + escapeHtml(String(a.ratingKey)) + '" aria-label="' + (albumStarred ? 'Unstar album' : 'Star album') + '" title="' + (albumStarred ? 'Unstar' : 'Star') + '">' + starIconHtml(albumStarred) + '</button></div>' +
           '<img src="' + img + '" alt="" loading="lazy" />' +
           '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
           '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
           '<div class="song-matches"></div></div>';
         div.onclick = (ev) => {
           if (ev.target.closest('a[data-meta-link]')) return;
+          if (ev.target.closest('.star-btn')) return;
           openAlbum(a);
         };
+        const starBtn = div.querySelector('.star-btn');
+        if (starBtn) {
+          starBtn.onclick = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const nowStarred = toggleAlbumStar(starBtn.dataset.ratingKey);
+            starBtn.classList.toggle('starred', nowStarred);
+            starBtn.setAttribute('aria-label', nowStarred ? 'Unstar album' : 'Star album');
+            starBtn.setAttribute('title', nowStarred ? 'Unstar' : 'Star');
+            starBtn.innerHTML = starIconHtml(nowStarred);
+          };
+        }
         grid.appendChild(div);
       });
+      applyAlbumViewMode();
       location.hash = artistHash(artistKey);
     } catch (e) {
       console.error(e);
@@ -1299,6 +1607,7 @@
   }
 
   let playingIdx = -1;
+  let nowPlayingTrackKey = '';
   let lastPlaybackPersistMs = 0;
 
   function persistCurrentPlaybackState(overrides) {
@@ -1331,32 +1640,39 @@
     persistCurrentPlaybackState();
   }
 
-  function playIndex(i, options) {
-    const opts = options || {};
-    const t = currentTracks[i];
-    if (!t || !t.Media || !t.Media[0] || !t.Media[0].Part || !t.Media[0].Part[0]) {
-      showError('No playable file for this track.');
+  function syncVisibleTrackStarButtons(trackRatingKey, starred) {
+    const key = String(trackRatingKey || '');
+    if (!key) return;
+    $('viewTracks').querySelectorAll('.tracks li .star-btn').forEach((btn) => {
+      if (String(btn.dataset.ratingKey || '') !== key) return;
+      btn.classList.toggle('starred', starred);
+      btn.setAttribute('aria-label', starred ? 'Unstar track' : 'Star track');
+      btn.setAttribute('title', starred ? 'Unstar' : 'Star');
+      btn.innerHTML = starIconHtml(starred);
+    });
+  }
+
+  function updateNowPlayingFavButton(trackRatingKey) {
+    const btn = $('btnFavNow');
+    const key = String(trackRatingKey || '');
+    nowPlayingTrackKey = key;
+    if (!key) {
+      btn.disabled = true;
+      btn.classList.remove('starred');
+      btn.textContent = '☆ Fav';
+      btn.setAttribute('aria-label', 'Favorite current track');
+      btn.setAttribute('title', 'Favorite current track');
       return;
     }
-    playingIdx = i;
-    const key = t.Media[0].Part[0].key;
-    const audio = $('audio');
-    audio.src = streamUrl(key);
-    const seekTime = Number(opts.seekTime);
-    if (Number.isFinite(seekTime) && seekTime > 0) {
-      const applySeek = () => {
-        try {
-          audio.currentTime = seekTime;
-        } catch (_) {}
-      };
-      if (audio.readyState >= 1) applySeek();
-      else audio.addEventListener('loadedmetadata', applySeek, { once: true });
-    }
-    if (opts.autoplay === false) {
-      audio.pause();
-    } else {
-      audio.play().catch(() => {});
-    }
+    const starred = getStarredTracks().has(key);
+    btn.disabled = false;
+    btn.classList.toggle('starred', starred);
+    btn.textContent = starred ? '★ Fav' : '☆ Fav';
+    btn.setAttribute('aria-label', starred ? 'Unfavorite current track' : 'Favorite current track');
+    btn.setAttribute('title', starred ? 'Unfavorite current track' : 'Favorite current track');
+  }
+
+  function updateNowPlayingUI(t, i) {
     const albumTitle = albumDisplayTitleFromTracks(currentAlbum, currentTracks) || t.parentTitle || t.grandparentTitle || t.title || '—';
     const artistTitle = (currentAlbum && currentAlbum.parentTitle) || t.grandparentTitle || '';
     const trackTitle = t.title ? String(t.title) : '';
@@ -1367,26 +1683,113 @@
     const npTitle = $('npTitle');
     const npAlbum = $('npAlbum');
     const npSub = $('npSub');
-    // Bottom player shows: track name, album, artist.
     npTitle.textContent = trackTitle || '—';
     npTitle.href = '#';
     npTitle.style.pointerEvents = 'none';
-
     npAlbum.textContent = albumTitle || '';
     npAlbum.href = albumHref || '#';
     npAlbum.style.pointerEvents = albumHref ? '' : 'none';
     npSub.textContent = artistTitle;
     npSub.href = artistHref || '#';
     npSub.style.pointerEvents = artistHref ? '' : 'none';
+    updateNowPlayingFavButton(t && t.ratingKey ? String(t.ratingKey) : '');
     $('viewTracks').querySelectorAll('.tracks li').forEach((li, j) => {
       li.classList.toggle('playing', j === i);
     });
-    persistCurrentPlaybackState();
+    document.title = artistTitle && trackTitle
+      ? `${artistTitle} - ${trackTitle} | pleXtr`
+      : (trackTitle ? `${trackTitle} | pleXtr` : 'pleXtr');
   }
 
+  function playIndex(i, options) {
+    const opts = options || {};
+    const t = currentTracks[i];
+    if (!t || !t.Media || !t.Media[0] || !t.Media[0].Part || !t.Media[0].Part[0]) {
+      showError('No playable file for this track.');
+      return;
+    }
+    playingIdx = i;
+    const key = t.Media[0].Part[0].key;
+    const audio = $('audio');
+    const newUrl = streamUrl(key);
+    const seekTime = Number(opts.seekTime);
+    const targetVolume = Math.max(0, Math.min(1, typeof audio._targetVolume === 'number' ? audio._targetVolume : (audio.volume || 1)));
+    audio._targetVolume = targetVolume;
+
+    const applyPlay = () => {
+      updateNowPlayingUI(t, i);
+      audio.src = newUrl;
+      if (Number.isFinite(seekTime) && seekTime > 0) {
+        const applySeek = () => {
+          try {
+            audio.currentTime = seekTime;
+          } catch (_) {}
+        };
+        if (audio.readyState >= 1) applySeek();
+        else audio.addEventListener('loadedmetadata', applySeek, { once: true });
+      }
+      if (opts.autoplay === false) {
+        audio.pause();
+        audio.volume = targetVolume;
+        persistCurrentPlaybackState();
+      } else {
+        audio.volume = 0;
+        audio.play().catch(() => {});
+        runFadeIn(audio, targetVolume, () => {
+          persistCurrentPlaybackState();
+        });
+      }
+    };
+
+    const useCrossfade = opts.crossfade !== false && audio.currentSrc && audio.currentSrc !== newUrl && (!audio.paused || audio.ended);
+    if (useCrossfade) {
+      runCrossfade(audio, targetVolume, () => {
+        audio.pause();
+        applyPlay();
+      });
+    } else {
+      applyPlay();
+    }
+  }
+
+  $('btnPrev').onclick = () => {
+    const audio = $('audio');
+    if (playingIdx < 0 || !currentTracks.length) return;
+    if (playingIdx > 0) {
+      playIndex(playingIdx - 1);
+    } else if (audio.currentTime > 4) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+  };
+
+  $('btnFavNow').onclick = () => {
+    if (!nowPlayingTrackKey) return;
+    const nowStarred = toggleTrackStar(nowPlayingTrackKey);
+    syncVisibleTrackStarButtons(nowPlayingTrackKey, nowStarred);
+    updateNowPlayingFavButton(nowPlayingTrackKey);
+  };
+
+  $('btnNext').onclick = () => {
+    if (playingIdx < 0 || !currentTracks.length) return;
+    if (playingIdx + 1 < currentTracks.length) playIndex(playingIdx + 1);
+    else {
+      $('audio').pause();
+      persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
+    }
+  };
+
   $('audio').addEventListener('timeupdate', maybePersistPlaybackState);
-  $('audio').addEventListener('pause', () => persistCurrentPlaybackState({ wasPlaying: false }));
-  $('audio').addEventListener('play', () => persistCurrentPlaybackState({ wasPlaying: true }));
+  $('audio').addEventListener('volumechange', () => {
+    const a = $('audio');
+    a._targetVolume = a.volume;
+  });
+  $('audio').addEventListener('pause', () => {
+    persistCurrentPlaybackState({ wasPlaying: false });
+  });
+  $('audio').addEventListener('play', () => {
+    persistCurrentPlaybackState({ wasPlaying: true });
+  });
   $('audio').addEventListener('ended', () => {
     if (playingIdx >= 0 && playingIdx + 1 < currentTracks.length) playIndex(playingIdx + 1);
     else persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
@@ -1462,6 +1865,12 @@
   };
 
   $('btnReload').onclick = () => loadAlbums(false);
+  $('viewListBtn').onclick = () => setAlbumViewMode('list');
+  $('viewGridBtn').onclick = () => setAlbumViewMode('grid');
+  $('logoHome').onclick = (e) => {
+    e.preventDefault();
+    backToAlbums();
+  };
   $('btnPlexLogin').onclick = async () => {
     showError('');
     try {
@@ -1534,6 +1943,7 @@
   window.addEventListener('hashchange', applyHashRoute);
 
   (function init() {
+    updateNowPlayingFavButton('');
     const c = cfg();
     $('inServer').value = c.server;
     $('inToken').value = c.token;
