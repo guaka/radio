@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pleXtr</title>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16161a;
+      --border: #2a2a30;
+      --text: #e8e6e3;
+      --muted: #8a8794;
+      --accent: #c9a227;
+      --accent-dim: #8f7619;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "SF Pro Text", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: 5.5rem;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    h1 a:hover {
+      color: var(--accent);
+    }
+    .header-right {
+      margin-left: 0.75rem;
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .header-library {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      min-width: 14rem;
+    }
+    .header-library label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .header-library select {
+      width: 100%;
+      min-width: 11rem;
+      padding: 0.45rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+    .btn {
+      padding: 0.45rem 0.85rem;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+    .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+    .btn.primary:hover { filter: brightness(1.08); }
+    .icon-btn {
+      width: 2.2rem;
+      height: 2.2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .icon-btn svg {
+      width: 1.1rem;
+      height: 1.1rem;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .search-wrap {
+      position: relative;
+      min-width: 15rem;
+      flex: 1 1 20rem;
+      max-width: 30rem;
+    }
+    .search-wrap svg {
+      position: absolute;
+      left: 0.7rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0.95rem;
+      height: 0.95rem;
+      stroke: var(--muted);
+      stroke-width: 1.9;
+      fill: none;
+      pointer-events: none;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 0.52rem 0.65rem 0.52rem 2.05rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-wrap input:focus {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
+    }
+    main { padding: 1rem 1.25rem; width: 100%; max-width: none; margin: 0; }
+    .msg { padding: 1rem; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); margin-bottom: 1rem; font-size: 0.9rem; line-height: 1.5; }
+    .msg.error { border-color: #6b3030; color: #e8a0a0; }
+    .msg a { color: var(--accent); }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 25;
+    }
+    .modal.open { display: flex; }
+    .modal-card {
+      width: min(40rem, 100%);
+      max-height: min(88dvh, 48rem);
+      overflow: auto;
+      padding: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .modal-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .settings-form label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.25rem; margin-top: 0.75rem; }
+    .settings-form label:first-of-type { margin-top: 0; }
+    .settings-form input, .settings-form select {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .inline-note {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.4rem;
+      min-height: 1em;
+    }
+    #settingsStatus {
+      transition: opacity 0.65s ease, transform 0.65s ease;
+      opacity: 1;
+      will-change: opacity, transform;
+    }
+    #settingsStatus.fade-out {
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+    .inline-note.error { color: #e8a0a0; }
+    .inline-note.ok { color: #9dd8b5; }
+    .server-candidates {
+      margin-top: 0.55rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .server-candidate {
+      width: 100%;
+      text-align: left;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.83rem;
+      line-height: 1.3;
+    }
+    .server-candidate:hover { border-color: var(--accent-dim); }
+    .server-candidate .sub { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    .albums {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 1rem;
+    }
+    .album {
+      cursor: pointer;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      transition: border-color 0.15s;
+    }
+    .album:hover { border-color: var(--accent-dim); }
+    .album img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+      background: var(--border);
+    }
+    .album .meta { padding: 0.5rem 0.65rem 0.65rem; }
+    .album .title { font-size: 0.85rem; font-weight: 600; line-height: 1.25; }
+    .album .artist { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+    .meta-link {
+      color: inherit;
+      text-decoration: none;
+    }
+    .meta-link:hover {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .album .song-matches {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-top: 0.35rem;
+      line-height: 1.3;
+      display: none;
+    }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .breadcrumb button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font: inherit; }
+    .breadcrumb button:hover { text-decoration: underline; }
+    .tracks { list-style: none; padding: 0; margin: 0; }
+    .tracks li {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .tracks li:hover { background: var(--surface); }
+    .tracks li.playing { color: var(--accent); }
+    .tracks .idx { color: var(--muted); font-size: 0.8rem; width: 1.5rem; }
+    .tracks .name { flex: 1; }
+    .tracks .dur { color: var(--muted); font-size: 0.8rem; }
+    .player-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.65rem 1rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .player-bar .info { flex: 1; min-width: 0; }
+    .player-bar .title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-bar .sub { font-size: 0.75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-bar .title a,
+    .player-bar .sub a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .player-bar .title a:hover,
+    .player-bar .sub a:hover {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .player-bar audio { height: 36px; max-width: 100%; flex: 1 1 24rem; min-width: 14rem; }
+    .load-more { margin-top: 1.25rem; text-align: center; }
+    .empty-state {
+      margin-top: 0.85rem;
+      color: var(--muted);
+      font-size: 0.87rem;
+    }
+    @media (max-width: 720px) {
+      .header-library { min-width: 100%; }
+      .search-wrap { max-width: none; min-width: 100%; order: 10; }
+    }
+    @media (min-width: 900px) {
+      .player-bar .info { flex: 0 1 clamp(14rem, 34vw, 26rem); }
+      .player-bar audio { min-width: clamp(22rem, 48vw, 56rem); }
+    }
+    .spinner { display: inline-block; width: 1.25rem; height: 1.25rem; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="../" aria-label="Go to home screen">pleXtr</a></h1>
+    <div class="header-right">
+      <div class="header-library">
+        <label for="inSection">Library</label>
+        <select id="inSection"><option value="">— connect first —</option></select>
+      </div>
+      <label class="search-wrap" for="inSearch" title="Search metadata, folders and files">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
+        <input id="inSearch" type="search" placeholder="Search metadata, folders, files..." autocomplete="off" />
+      </label>
+      <button type="button" class="btn icon-btn" id="btnReload" style="display:none" aria-label="Reload library" title="Reload library">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3v6h-6"></path><path d="M20 9a8 8 0 1 0 2.3 5.7"></path></svg>
+      </button>
+      <button type="button" class="btn icon-btn" id="btnSettings" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.9a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.08V2.9a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.08.4h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"></path></svg>
+      </button>
+    </div>
+  </header>
+  <main>
+    <div id="corsHint" class="msg" style="display:none">
+      <strong>Can’t reach Plex from this page (often CORS).</strong><br />
+      Serve this file through a reverse proxy on the same host as you use for API calls, with CORS enabled, e.g. proxy <code>/plex</code> → <code>http://127.0.0.1:32400</code> and set Server URL to that proxy base.<br />
+      <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">How to get X-Plex-Token</a>
+    </div>
+    <div id="error" class="msg error" style="display:none"></div>
+    <div class="inline-note" id="settingsStatus" style="margin-bottom:0.85rem"></div>
+    <div class="modal" id="settingsModal">
+      <div class="modal-card">
+      <div class="modal-head">
+        <p class="modal-title">Settings</p>
+        <button type="button" class="btn" id="btnCloseSettings">Close</button>
+      </div>
+      <div class="settings-form">
+      <label for="inServer">Server URL (Plex or CORS proxy)</label>
+      <input id="inServer" type="url" placeholder="http://192.168.1.10:32400" autocomplete="off" />
+      <div class="inline-actions">
+        <button type="button" class="btn" id="btnDetectServer">Detect server from token</button>
+      </div>
+      <div class="inline-note" id="serverDiscoveryStatus"></div>
+      <div class="server-candidates" id="serverCandidates" style="display:none"></div>
+      <label for="inToken">X-Plex-Token</label>
+      <input id="inToken" type="text" placeholder="Your token" autocomplete="off" />
+      <div class="inline-actions">
+        <button type="button" class="btn" id="btnPlexLogin">Sign in with Plex</button>
+        <button type="button" class="btn" id="btnLoadLibraries">Load libraries</button>
+      </div>
+      <div class="inline-note" id="plexLoginStatus"></div>
+      <p style="margin:1rem 0 0;font-size:0.8rem;color:var(--muted)">Token is stored only in this browser (localStorage).</p>
+      <button type="button" class="btn primary" id="btnSave" style="margin-top:1rem">Save settings</button>
+      </div>
+      </div>
+    </div>
+    <div id="viewAlbums"></div>
+    <div id="viewTracks" style="display:none"></div>
+  </main>
+  <div class="player-bar">
+    <div class="info">
+      <div class="title"><a id="npTitle" href="#" target="_blank" rel="noopener">—</a></div>
+      <div class="sub"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a></div>
+      <div class="sub"><a id="npSub" href="#" target="_blank" rel="noopener"></a></div>
+    </div>
+    <audio id="audio" controls></audio>
+  </div>
+
+  <script>
+(function () {
+  const LS = { server: 'plexServer', token: 'plexToken', section: 'plexSection', playback: 'plexPlaybackState' };
+  const $ = (id) => document.getElementById(id);
+  const PLEX_PRODUCT = 'Local Plex Music Player';
+  const PLEX_CLIENT_ID = 'plex-player-' + Math.random().toString(36).slice(2, 10);
+
+  function cfg() {
+    return {
+      server: (localStorage.getItem(LS.server) || '').replace(/\/$/, ''),
+      token: localStorage.getItem(LS.token) || '',
+      sectionKey: localStorage.getItem(LS.section) || ''
+    };
+  }
+
+  function loadPlaybackState() {
+    try {
+      const raw = localStorage.getItem(LS.playback);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function savePlaybackState(state) {
+    if (!state || typeof state !== 'object') return;
+    try {
+      localStorage.setItem(LS.playback, JSON.stringify(state));
+    } catch (_) {}
+  }
+
+  function streamUrl(partKey) {
+    const { server, token } = cfg();
+    const sep = partKey.includes('?') ? '&' : '?';
+    return server + partKey + sep + 'X-Plex-Token=' + encodeURIComponent(token);
+  }
+
+  function thumbUrl(thumbPath) {
+    if (!thumbPath) return '';
+    const { server, token } = cfg();
+    const path = thumbPath.startsWith('http') ? thumbPath : server + thumbPath;
+    return path + (path.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(token);
+  }
+
+  function metadataUrl(path) {
+    if (!path) return '';
+    const { server, token } = cfg();
+    if (!server) return '';
+    const full = path.startsWith('http') ? path : server + path;
+    if (!token) return full;
+    return full + (full.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(token);
+  }
+
+  function albumMetadataPath(album) {
+    if (!album) return '';
+    if (album.parentRatingKey) return '/library/metadata/' + encodeURIComponent(String(album.parentRatingKey));
+    if (album.parentKey) return album.parentKey;
+    if (album.ratingKey) return '/library/metadata/' + encodeURIComponent(String(album.ratingKey));
+    return album.key || '';
+  }
+
+  function artistMetadataPath(album) {
+    if (!album) return '';
+    if (album.grandparentRatingKey) return '/library/metadata/' + encodeURIComponent(String(album.grandparentRatingKey));
+    if (album.grandparentKey) return album.grandparentKey;
+    if (album.parentRatingKey) return '/library/metadata/' + encodeURIComponent(String(album.parentRatingKey));
+    return album.parentKey || '';
+  }
+
+  function albumHash(ratingKey) {
+    if (ratingKey == null || ratingKey === '') return '';
+    return '#album/' + encodeURIComponent(String(ratingKey));
+  }
+
+  function artistHash(ratingKey) {
+    if (ratingKey == null || ratingKey === '') return '';
+    return '#artist/' + encodeURIComponent(String(ratingKey));
+  }
+
+  function makeMetaLinkHtml(label, href, kind) {
+    if (!label) return '';
+    if (!href) return escapeHtml(label);
+    const isInternal = String(href).startsWith('#');
+    const targetAttr = isInternal ? '' : ' target="_blank" rel="noopener"';
+    return (
+      '<a class="meta-link" data-meta-link="' +
+      escapeHtml(kind || 'meta') +
+      '" href="' +
+      escapeHtml(href) +
+      '"' + targetAttr + '>' +
+      escapeHtml(label) +
+      '</a>'
+    );
+  }
+
+  async function plexFetch(path) {
+    const { server, token } = cfg();
+    if (!server || !token) throw new Error('Configure server URL and token in Settings.');
+    const url = server + path + (path.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(token);
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json', 'X-Plex-Token': token }
+    });
+    if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+    return res.json();
+  }
+
+  function plexHeaders(extra) {
+    const base = {
+      Accept: 'application/json',
+      'X-Plex-Product': PLEX_PRODUCT,
+      'X-Plex-Client-Identifier': PLEX_CLIENT_ID
+    };
+    return Object.assign(base, extra || {});
+  }
+
+  async function plexSignInGetToken() {
+    const statusEl = $('plexLoginStatus');
+    const btn = $('btnPlexLogin');
+    statusEl.textContent = 'Creating Plex login session...';
+    btn.disabled = true;
+    try {
+      const pinRes = await fetch('https://plex.tv/api/v2/pins?strong=true', {
+        method: 'POST',
+        headers: plexHeaders()
+      });
+      if (!pinRes.ok) throw new Error('Unable to start Plex login (' + pinRes.status + ').');
+      const pin = await pinRes.json();
+      if (!pin || !pin.id || !pin.code) throw new Error('Unexpected response from Plex login.');
+
+      const authUrl =
+        'https://app.plex.tv/auth#?' +
+        'clientID=' + encodeURIComponent(PLEX_CLIENT_ID) +
+        '&code=' + encodeURIComponent(pin.code) +
+        '&context%5Bdevice%5D%5Bproduct%5D=' + encodeURIComponent(PLEX_PRODUCT);
+
+      let popup = window.open(authUrl, 'plex-login', 'popup=yes,width=550,height=700');
+      // Fallback for environments where app.plex.tv auth is blocked/redirected.
+      if (!popup) popup = window.open('https://plex.tv/link', 'plex-login', 'popup=yes,width=550,height=700');
+      if (!popup) throw new Error('Popup blocked. Allow popups and try again.');
+
+      statusEl.textContent = 'Complete login in the popup...';
+
+      const start = Date.now();
+      const timeoutMs = 3 * 60 * 1000;
+      while (Date.now() - start < timeoutMs) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const checkRes = await fetch('https://plex.tv/api/v2/pins/' + encodeURIComponent(pin.id), {
+          headers: plexHeaders()
+        });
+        if (!checkRes.ok) continue;
+        const check = await checkRes.json();
+        if (check && check.authToken) {
+          $('inToken').value = check.authToken;
+          localStorage.setItem(LS.token, check.authToken);
+          statusEl.textContent = 'Token received from Plex.';
+          setServerDiscoveryStatus('Token received. Detecting server/IP...');
+          try {
+            await detectServersFromToken();
+          } catch (detectErr) {
+            setServerDiscoveryStatus(
+              'Token OK, but server auto-detect failed: ' + (detectErr.message || String(detectErr)),
+              'error'
+            );
+          }
+          try { popup.close(); } catch (_) {}
+          return;
+        }
+        if (popup.closed) {
+          statusEl.textContent = 'Finishing login...';
+        }
+      }
+      throw new Error('Login timed out. Try again.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  let albumStart = 0;
+  const PAGE = 40;
+  let currentAlbum = null;
+  let currentArtistKey = null;
+  let currentTracks = [];
+  let searchQuery = '';
+  let isLoadingAlbums = false;
+  let hasMoreAlbums = false;
+  let autoLoadAlbumsTimer = 0;
+  let filterVersion = 0;
+  const albumTrackSearchCache = new Map();
+  const albumTrackFetchCache = new Map();
+  const albumFolderNameCache = new Map();
+  const albumFolderNameFetchCache = new Map();
+  let settingsStatusFadeTimer = 0;
+  let settingsStatusClearTimer = 0;
+
+  function showError(msg) {
+    const el = $('error');
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function showCors(b) {
+    $('corsHint').style.display = b ? 'block' : 'none';
+  }
+
+  function setSettingsStatus(msg, kind) {
+    const el = $('settingsStatus');
+    if (settingsStatusFadeTimer) clearTimeout(settingsStatusFadeTimer);
+    if (settingsStatusClearTimer) clearTimeout(settingsStatusClearTimer);
+
+    el.textContent = msg || '';
+    el.classList.remove('fade-out');
+    el.classList.remove('ok', 'error');
+    if (kind === 'ok') el.classList.add('ok');
+    if (kind === 'error') el.classList.add('error');
+
+    // Auto-fade "ok" status messages so they don't distract during normal use.
+    if (kind === 'ok' && msg) {
+      settingsStatusFadeTimer = setTimeout(() => {
+        el.classList.add('fade-out');
+        settingsStatusClearTimer = setTimeout(() => {
+          el.textContent = '';
+          el.classList.remove('fade-out');
+        }, 650);
+      }, 2400);
+    }
+  }
+
+  function openSettingsModal() {
+    $('settingsModal').classList.add('open');
+    const c = cfg();
+    $('inServer').value = c.server;
+    $('inToken').value = c.token;
+    setServerDiscoveryStatus('');
+  }
+
+  function closeSettingsModal() {
+    $('settingsModal').classList.remove('open');
+  }
+
+  function setServerDiscoveryStatus(msg, kind) {
+    const el = $('serverDiscoveryStatus');
+    el.textContent = msg || '';
+    el.classList.remove('ok', 'error');
+    if (kind === 'ok') el.classList.add('ok');
+    if (kind === 'error') el.classList.add('error');
+  }
+
+  function renderServerCandidates(candidates) {
+    const wrap = $('serverCandidates');
+    if (!candidates || !candidates.length) {
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.style.display = 'flex';
+    wrap.innerHTML = '';
+    candidates.forEach((c) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'server-candidate';
+      const localLabel = c.local ? 'local' : 'remote';
+      b.innerHTML =
+        '<div>' +
+        escapeHtml(c.deviceName) +
+        ' - ' +
+        escapeHtml(c.address || c.uri) +
+        ' (' +
+        localLabel +
+        ')</div>' +
+        '<div class="sub">' +
+        escapeHtml(c.uri) +
+        '</div>';
+      b.onclick = () => {
+        const chosenServer = (c.uri || '').replace(/\/$/, '');
+        $('inServer').value = chosenServer;
+        localStorage.setItem(LS.server, chosenServer);
+        if (c.deviceToken) {
+          $('inToken').value = c.deviceToken;
+          localStorage.setItem(LS.token, c.deviceToken);
+        }
+        setServerDiscoveryStatus(
+          'Using ' + (c.address || c.uri) + (c.local ? ' (local).' : '.'),
+          'ok'
+        );
+      };
+      wrap.appendChild(b);
+    });
+  }
+
+  function scoreConnection(c) {
+    let s = 0;
+    if (c.local) s += 4;
+    if ((c.uri || '').startsWith('http://')) s += 1;
+    if (c.relay) s -= 2;
+    return s;
+  }
+
+  async function detectServersFromToken() {
+    const token = $('inToken').value.trim();
+    if (!token) throw new Error('Enter token first.');
+    setServerDiscoveryStatus('Detecting Plex servers from token...');
+    const res = await fetch('https://plex.tv/api/resources?includeHttps=1&includeRelay=1', {
+      headers: plexHeaders({ 'X-Plex-Token': token })
+    });
+    if (!res.ok) throw new Error('Could not query Plex resources (' + res.status + ').');
+    const xml = await res.text();
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('Unexpected Plex resources response.');
+
+    const devices = Array.from(doc.querySelectorAll('Device')).filter((d) =>
+      String(d.getAttribute('provides') || '').toLowerCase().includes('server')
+    );
+    const candidates = [];
+    devices.forEach((d) => {
+      const deviceName = d.getAttribute('name') || 'Plex server';
+      const deviceToken = d.getAttribute('accessToken') || '';
+      const conns = Array.from(d.querySelectorAll('Connection'));
+      conns.forEach((c) => {
+        const uri = c.getAttribute('uri') || '';
+        if (!uri) return;
+        candidates.push({
+          deviceName,
+          deviceToken,
+          uri,
+          address: c.getAttribute('address') || '',
+          local: c.getAttribute('local') === '1',
+          relay: c.getAttribute('relay') === '1'
+        });
+      });
+    });
+
+    if (!candidates.length) throw new Error('No Plex servers found for this token.');
+    candidates.sort((a, b) => scoreConnection(b) - scoreConnection(a));
+    renderServerCandidates(candidates);
+
+    const chosen = candidates[0];
+    const chosenServer = (chosen.uri || '').replace(/\/$/, '');
+    $('inServer').value = chosenServer;
+    localStorage.setItem(LS.server, chosenServer);
+    if (chosen.deviceToken) {
+      $('inToken').value = chosen.deviceToken;
+      localStorage.setItem(LS.token, chosen.deviceToken);
+    }
+    setServerDiscoveryStatus(
+      'Detected ' +
+        candidates.length +
+        ' server connection(s). Auto-selected ' +
+        (chosen.address || chosen.uri) +
+        (chosen.local ? ' (local).' : '.'),
+      'ok'
+    );
+    return candidates;
+  }
+
+  function looksLikeMusicLibrary(d) {
+    const type = String(d.type || '').toLowerCase();
+    const title = String(d.title || '').toLowerCase();
+    const scanner = String(d.scanner || '').toLowerCase();
+    const agent = String(d.agent || '').toLowerCase();
+    return (
+      type === 'artist' ||
+      type === 'album' ||
+      type === 'music' ||
+      scanner.includes('music') ||
+      agent.includes('music') ||
+      title.includes('music')
+    );
+  }
+
+  async function loadSections() {
+    const sel = $('inSection');
+    setSettingsStatus('Connecting to Plex and loading libraries...');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    const data = await plexFetch('/library/sections');
+    const dirs = data.MediaContainer.Directory || [];
+    const music = dirs.filter(looksLikeMusicLibrary);
+    const list = music.length ? music : dirs;
+    sel.innerHTML = list.length
+      ? list
+          .map((d) => {
+            const suffix = music.length ? '' : ' (' + escapeHtml(d.type || 'unknown') + ')';
+            return '<option value="' + d.key + '">' + escapeHtml(d.title) + suffix + '</option>';
+          })
+          .join('')
+      : '<option value="">No libraries found</option>';
+
+    if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
+    else if (music.length) setSettingsStatus('Connected. Found ' + music.length + ' music librar' + (music.length === 1 ? 'y' : 'ies') + '.', 'ok');
+    else setSettingsStatus('Connected, but no libraries were returned.', 'error');
+    const saved = cfg().sectionKey;
+    if (saved && list.some((d) => String(d.key) === String(saved))) sel.value = saved;
+    else if (list[0]) sel.value = list[0].key;
+  }
+
+  function escapeHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function flattenMetaToSearchText(value, chunks, seen) {
+    if (value == null) return;
+    const kind = typeof value;
+    if (kind === 'string') {
+      if (value) {
+        chunks.push(value);
+        if (value.includes('/') || value.includes('\\')) {
+          value.split(/[\\/]+/).forEach((segment) => {
+            if (segment) chunks.push(segment);
+          });
+        }
+      }
+      return;
+    }
+    if (kind === 'number' || kind === 'boolean') {
+      chunks.push(String(value));
+      return;
+    }
+    if (seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      value.forEach((entry) => flattenMetaToSearchText(entry, chunks, seen));
+      return;
+    }
+    Object.entries(value).forEach(([key, val]) => {
+      chunks.push(key);
+      if (/file|folder|path|directory|dir/i.test(key) && typeof val === 'string') {
+        chunks.push(val);
+      }
+      flattenMetaToSearchText(val, chunks, seen);
+    });
+  }
+
+  function makeSearchBlob(meta) {
+    const chunks = [];
+    flattenMetaToSearchText(meta, chunks, new Set());
+    return chunks.join(' ').toLowerCase();
+  }
+
+  function isUnknownAlbumTitle(title) {
+    const raw = String(title || '').trim().toLowerCase();
+    return raw === '[unknown album]' || raw === 'unknown album';
+  }
+
+  function extractAlbumFolderFromTrack(track) {
+    const filePath =
+      (track && track.Media && track.Media[0] && track.Media[0].Part && track.Media[0].Part[0] && track.Media[0].Part[0].file) || '';
+    if (!filePath) return '';
+    const parts = String(filePath)
+      .split(/[\\/]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length < 2) return '';
+    return parts[parts.length - 2];
+  }
+
+  function mostFrequentValue(values) {
+    const counts = new Map();
+    let best = '';
+    let bestCount = 0;
+    values.forEach((value) => {
+      if (!value) return;
+      const next = (counts.get(value) || 0) + 1;
+      counts.set(value, next);
+      if (next > bestCount) {
+        best = value;
+        bestCount = next;
+      }
+    });
+    return best;
+  }
+
+  function albumDisplayTitleFromTracks(album, tracks) {
+    if (!isUnknownAlbumTitle(album && album.title)) return String((album && album.title) || '');
+    const folderName = mostFrequentValue((tracks || []).map(extractAlbumFolderFromTrack));
+    return folderName || '[Unknown Album]';
+  }
+
+  async function resolveAlbumFolderName(albumKey) {
+    if (!albumKey) return '';
+    if (albumFolderNameCache.has(albumKey)) return albumFolderNameCache.get(albumKey);
+    if (albumFolderNameFetchCache.has(albumKey)) return albumFolderNameFetchCache.get(albumKey);
+    const promise = plexFetch('/library/metadata/' + albumKey + '/children')
+      .then((data) => {
+        const tracks = (data.MediaContainer.Metadata || []).filter((m) => m.type === 'track');
+        const folder = mostFrequentValue(tracks.map(extractAlbumFolderFromTrack));
+        albumFolderNameCache.set(albumKey, folder || '');
+        albumFolderNameFetchCache.delete(albumKey);
+        return folder || '';
+      })
+      .catch((err) => {
+        albumFolderNameFetchCache.delete(albumKey);
+        throw err;
+      });
+    albumFolderNameFetchCache.set(albumKey, promise);
+    return promise;
+  }
+
+  function albumsViewVisible() {
+    return $('viewAlbums').style.display !== 'none';
+  }
+
+  function scheduleAlbumAutoLoad(delayMs) {
+    if (autoLoadAlbumsTimer) clearTimeout(autoLoadAlbumsTimer);
+    autoLoadAlbumsTimer = setTimeout(() => {
+      autoLoadAlbumsTimer = 0;
+      autoLoadMoreAlbums().catch((err) => {
+        console.error(err);
+      });
+    }, delayMs == null ? 60 : delayMs);
+  }
+
+  function shouldAutoLoadAlbumsForViewport() {
+    if (!albumsViewVisible() || !hasMoreAlbums || isLoadingAlbums) return false;
+    const marker = $('loadMoreAlb');
+    if (!marker) return false;
+    const rect = marker.getBoundingClientRect();
+    // Trigger before the user hits the bottom, and when filtered results leave empty space.
+    return rect.top <= window.innerHeight + 220;
+  }
+
+  async function autoLoadMoreAlbums() {
+    let loops = 0;
+    while (loops < 8 && shouldAutoLoadAlbumsForViewport()) {
+      loops += 1;
+      const loaded = await loadAlbums(true);
+      if (!loaded) break;
+    }
+  }
+
+  function updateFilterState() {
+    const activeVersion = ++filterVersion;
+    searchQuery = $('inSearch').value.trim().toLowerCase();
+    const query = searchQuery;
+    const albumGrid = $('albumGrid');
+    const tracksWrap = $('viewTracks');
+    let albumMatches = 0;
+    let trackMatches = 0;
+
+    const updateAlbumCards = async () => {
+      if (!albumGrid) return;
+      const cards = Array.from(albumGrid.querySelectorAll('.album'));
+      if (query) {
+        await Promise.allSettled(
+          cards
+            .filter((card) => {
+              const albumHit = (card.dataset.search || '').includes(query);
+              return !albumHit && !albumTrackSearchCache.has(card.dataset.key);
+            })
+            .map((card) => ensureAlbumTrackSearch(card.dataset.key))
+        );
+        if (activeVersion !== filterVersion) return;
+      }
+
+      cards.forEach((card) => {
+        const albumHit = !query || (card.dataset.search || '').includes(query);
+        const trackData = query ? albumTrackSearchCache.get(card.dataset.key) : null;
+        const trackHit = !albumHit && !!trackData && trackData.search.includes(query);
+        const hit = albumHit || trackHit;
+        card.style.display = hit ? '' : 'none';
+        if (hit) albumMatches++;
+        renderAlbumSongMatches(card, query, trackData, albumHit);
+      });
+
+      let empty = $('albumFilterEmpty');
+      if (!empty) {
+        empty = document.createElement('p');
+        empty.className = 'empty-state';
+        empty.id = 'albumFilterEmpty';
+        empty.textContent = 'No albums or songs matched this search.';
+        albumGrid.parentElement.appendChild(empty);
+      }
+      empty.style.display = albumMatches ? 'none' : '';
+      scheduleAlbumAutoLoad(40);
+    };
+
+    const updateTrackRows = () => {
+      if (tracksWrap.style.display === 'none') return;
+      tracksWrap.querySelectorAll('.tracks li').forEach((row) => {
+        const hit = !query || (row.dataset.search || '').includes(query);
+        row.style.display = hit ? '' : 'none';
+        if (hit) trackMatches++;
+      });
+      let emptyTracks = $('trackFilterEmpty');
+      if (!emptyTracks) {
+        emptyTracks = document.createElement('p');
+        emptyTracks.className = 'empty-state';
+        emptyTracks.id = 'trackFilterEmpty';
+        emptyTracks.textContent = 'No tracks matched this search.';
+        const list = tracksWrap.querySelector('.tracks');
+        if (list) list.after(emptyTracks);
+      }
+      if (emptyTracks) emptyTracks.style.display = trackMatches ? 'none' : '';
+    };
+
+    updateTrackRows();
+    updateAlbumCards().catch((err) => {
+      console.error(err);
+    });
+  }
+
+  async function ensureAlbumTrackSearch(albumKey) {
+    if (!albumKey) return { search: '', titles: [] };
+    if (albumTrackSearchCache.has(albumKey)) return albumTrackSearchCache.get(albumKey);
+    if (albumTrackFetchCache.has(albumKey)) return albumTrackFetchCache.get(albumKey);
+    const promise = plexFetch('/library/metadata/' + albumKey + '/children')
+      .then((data) => {
+        const tracks = (data.MediaContainer.Metadata || []).filter((m) => m.type === 'track');
+        const titles = tracks.map((t) => String(t.title || '').trim()).filter(Boolean);
+        const search = tracks.map((t) => makeSearchBlob(t)).join(' ');
+        const payload = { search, titles };
+        albumTrackSearchCache.set(albumKey, payload);
+        albumTrackFetchCache.delete(albumKey);
+        return payload;
+      })
+      .catch((err) => {
+        albumTrackFetchCache.delete(albumKey);
+        throw err;
+      });
+    albumTrackFetchCache.set(albumKey, promise);
+    return promise;
+  }
+
+  function renderAlbumSongMatches(card, query, trackData, albumHit) {
+    const box = card.querySelector('.song-matches');
+    if (!box || !query || !trackData || !trackData.titles.length || albumHit) {
+      if (box) {
+        box.textContent = '';
+        box.style.display = 'none';
+      }
+      return;
+    }
+    const matches = trackData.titles.filter((title) => title.toLowerCase().includes(query));
+    if (!matches.length) {
+      box.textContent = '';
+      box.style.display = 'none';
+      return;
+    }
+    const top = matches.slice(0, 3).map(escapeHtml).join(' • ');
+    const extra = matches.length > 3 ? ' +' + (matches.length - 3) + ' more' : '';
+    box.innerHTML = 'Song match: ' + top + extra;
+    box.style.display = 'block';
+  }
+
+  async function loadAlbums(append) {
+    const section = cfg().sectionKey || $('inSection').value;
+    if (!section) return 0;
+    if (isLoadingAlbums) return 0;
+    isLoadingAlbums = true;
+    if (!append) {
+      albumStart = 0;
+      $('viewAlbums').innerHTML = '<p class="msg"><span class="spinner"></span> Loading albums…</p>';
+    }
+    showError('');
+    showCors(false);
+    try {
+      const path = '/library/sections/' + section + '/albums?X-Plex-Container-Start=' + albumStart + '&X-Plex-Container-Size=' + PAGE;
+      const data = await plexFetch(path);
+      const meta = data.MediaContainer.Metadata || [];
+      const total = data.MediaContainer.totalSize != null ? data.MediaContainer.totalSize : meta.length;
+      if (!append) $('viewAlbums').innerHTML = '<div class="albums" id="albumGrid"></div>';
+      const grid = $('albumGrid');
+      meta.forEach((a) => {
+        const div = document.createElement('div');
+        div.className = 'album';
+        div.dataset.key = a.ratingKey;
+        div.dataset.search = makeSearchBlob(a);
+        const img = thumbUrl(a.thumb || a.parentThumb) || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%232a2a30"><rect width="100%" height="100%"/></svg>');
+        const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
+        const albumHref = albumHash(a.ratingKey);
+        const artistHref = artistHash(a.parentRatingKey);
+        div.innerHTML =
+          '<img src="' + img + '" alt="" loading="lazy" />' +
+          '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
+          '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
+          '<div class="song-matches"></div></div>';
+        div.onclick = (ev) => {
+          if (ev.target.closest('a[data-meta-link]')) return;
+          openAlbum(a);
+        };
+        grid.appendChild(div);
+        if (isUnknownAlbumTitle(a.title)) {
+          resolveAlbumFolderName(a.ratingKey)
+            .then((folderName) => {
+              if (!folderName || !document.body.contains(div)) return;
+              const titleLink = div.querySelector('.title a[data-meta-link="album"]');
+              if (titleLink) titleLink.textContent = folderName;
+              else {
+                const titleEl = div.querySelector('.title');
+                if (!titleEl) return;
+                titleEl.textContent = folderName;
+              }
+              div.dataset.search = (div.dataset.search || '') + ' ' + folderName.toLowerCase();
+              if (searchQuery) updateFilterState();
+            })
+            .catch(() => {});
+        }
+      });
+      updateFilterState();
+      albumStart += meta.length;
+      const more = $('loadMoreAlb');
+      if (more) more.remove();
+      hasMoreAlbums = albumStart < total;
+      if (hasMoreAlbums) {
+        const wrap = document.createElement('div');
+        wrap.className = 'load-more';
+        wrap.id = 'loadMoreAlb';
+        const b = document.createElement('button');
+        b.className = 'btn';
+        b.textContent = 'Load more albums';
+        b.onclick = () => loadAlbums(true);
+        wrap.appendChild(b);
+        $('viewAlbums').appendChild(wrap);
+      }
+      scheduleAlbumAutoLoad(20);
+      return meta.length;
+    } catch (e) {
+      console.error(e);
+      if (!append) $('viewAlbums').innerHTML = '';
+      showError(e.message || String(e));
+      if (String(e.message).includes('Failed to fetch') || e.name === 'TypeError') showCors(true);
+      return 0;
+    } finally {
+      isLoadingAlbums = false;
+    }
+  }
+
+  async function openAlbum(album) {
+    currentAlbum = album;
+    location.hash = albumHash(album.ratingKey);
+    $('viewAlbums').style.display = 'none';
+    $('viewTracks').style.display = 'block';
+    $('btnReload').style.display = 'none';
+    $('viewTracks').innerHTML =
+      '<div class="breadcrumb"><button type="button" id="backAlb">← Albums</button></div>' +
+      '<h2 style="margin:0 0 1rem;font-size:1.15rem">' + escapeHtml(album.title) + '</h2>' +
+      '<p class="msg"><span class="spinner"></span> Loading tracks…</p>';
+    $('backAlb').onclick = backToAlbums;
+    showError('');
+    try {
+      const data = await plexFetch('/library/metadata/' + album.ratingKey + '/children');
+      const meta = data.MediaContainer.Metadata || [];
+      currentTracks = meta.filter((m) => m.type === 'track');
+      const displayTitle = albumDisplayTitleFromTracks(album, currentTracks);
+      if (displayTitle && displayTitle !== album.title) albumFolderNameCache.set(album.ratingKey, displayTitle);
+      const albumHref = albumHash(album.ratingKey);
+      const artistHref = artistHash(album.parentRatingKey);
+      const list = currentTracks
+        .map((t, i) => {
+          const dur = t.duration ? Math.round(t.duration / 1000) : 0;
+          const mm = Math.floor(dur / 60);
+          const ss = dur % 60;
+          const durStr = dur ? mm + ':' + (ss < 10 ? '0' : '') + ss : '';
+          return (
+            '<li data-i="' +
+            i +
+            '"><span class="idx">' +
+            (i + 1) +
+            '</span><span class="name">' +
+            escapeHtml(t.title) +
+            '</span><span class="dur">' +
+            durStr +
+            '</span></li>'
+          );
+        })
+        .join('');
+      $('viewTracks').innerHTML =
+        '<div class="breadcrumb"><button type="button" id="backAlb2">← Albums</button></div>' +
+        '<h2 style="margin:0 0 0.5rem;font-size:1.15rem">' +
+        makeMetaLinkHtml(displayTitle, albumHref, 'album') +
+        '</h2>' +
+        '<p style="color:var(--muted);font-size:0.85rem;margin:0 0 1rem">' +
+        makeMetaLinkHtml(String(album.parentTitle || ''), artistHref, 'artist') +
+        '</p>' +
+        '<ul class="tracks">' +
+        list +
+        '</ul>';
+      $('backAlb2').onclick = backToAlbums;
+      $('viewTracks').querySelectorAll('.tracks li').forEach((li) => {
+        li.onclick = () => playIndex(parseInt(li.dataset.i, 10));
+      });
+      $('viewTracks').querySelectorAll('.tracks li').forEach((li, i) => {
+        li.dataset.search = makeSearchBlob(currentTracks[i]);
+      });
+      updateFilterState();
+    } catch (e) {
+      $('viewTracks').innerHTML =
+        '<div class="breadcrumb"><button type="button" id="backAlb3">← Albums</button></div><p class="msg error">' +
+        escapeHtml(e.message) +
+        '</p>';
+      $('backAlb3').onclick = backToAlbums;
+    }
+  }
+
+  function backToAlbums() {
+    currentArtistKey = null;
+    location.hash = '';
+    $('viewTracks').style.display = 'none';
+    $('viewAlbums').style.display = 'block';
+    $('btnReload').style.display = '';
+    currentAlbum = null;
+    currentTracks = [];
+    updateFilterState();
+    scheduleAlbumAutoLoad(50);
+  }
+
+  async function openAlbumByKey(ratingKey) {
+    if (!ratingKey) return;
+    try {
+      const data = await plexFetch('/library/metadata/' + encodeURIComponent(String(ratingKey)));
+      const meta = data.MediaContainer.Metadata;
+      const album = meta && meta[0];
+      if (album) await openAlbum(album);
+    } catch (e) {
+      console.error(e);
+      showError(e.message || String(e));
+    }
+  }
+
+  async function showArtistView(artistKey) {
+    if (!artistKey) return;
+    currentArtistKey = String(artistKey);
+    $('viewTracks').style.display = 'none';
+    $('viewAlbums').style.display = 'block';
+    $('btnReload').style.display = 'none';
+    $('viewAlbums').innerHTML = '<p class="msg"><span class="spinner"></span> Loading artist…</p>';
+    showError('');
+    try {
+      const [artistData, childrenData] = await Promise.all([
+        plexFetch('/library/metadata/' + encodeURIComponent(String(artistKey))),
+        plexFetch('/library/metadata/' + encodeURIComponent(String(artistKey)) + '/children')
+      ]);
+      const artistMeta = artistData.MediaContainer.Metadata && artistData.MediaContainer.Metadata[0];
+      const artistTitle = (artistMeta && artistMeta.title) || 'Artist';
+      const albums = (childrenData.MediaContainer.Metadata || []).filter((m) => m.type === 'album');
+      const gridHtml = '<div class="albums" id="albumGrid"></div>';
+      $('viewAlbums').innerHTML =
+        '<div class="breadcrumb">' +
+        '<button type="button" id="backToAllAlbums">← Albums</button>' +
+        '<span style="color:var(--muted)"> / ' + escapeHtml(artistTitle) + '</span></div>' +
+        gridHtml;
+      $('backToAllAlbums').onclick = () => {
+        currentArtistKey = null;
+        location.hash = '';
+        $('btnReload').style.display = '';
+        loadAlbums(false);
+      };
+      const grid = $('albumGrid');
+      albums.forEach((a) => {
+        const div = document.createElement('div');
+        div.className = 'album';
+        div.dataset.key = a.ratingKey;
+        div.dataset.search = makeSearchBlob(a);
+        const img = thumbUrl(a.thumb || a.parentThumb) || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%232a2a30"><rect width="100%" height="100%"/></svg>');
+        const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
+        const albumHref = albumHash(a.ratingKey);
+        const artistHref = artistHash(a.parentRatingKey);
+        div.innerHTML =
+          '<img src="' + img + '" alt="" loading="lazy" />' +
+          '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
+          '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
+          '<div class="song-matches"></div></div>';
+        div.onclick = (ev) => {
+          if (ev.target.closest('a[data-meta-link]')) return;
+          openAlbum(a);
+        };
+        grid.appendChild(div);
+      });
+      location.hash = artistHash(artistKey);
+    } catch (e) {
+      console.error(e);
+      $('viewAlbums').innerHTML = '';
+      showError(e.message || String(e));
+    }
+  }
+
+  function applyHashRoute() {
+    const hash = (location.hash || '').trim();
+    const albumMatch = hash.match(/^#album\/([^/]+)$/);
+    const artistMatch = hash.match(/^#artist\/([^/]+)$/);
+    if (albumMatch) {
+      const key = decodeURIComponent(albumMatch[1]);
+      if (currentAlbum && String(currentAlbum.ratingKey) === String(key)) return;
+      openAlbumByKey(key);
+      return;
+    }
+    if (artistMatch) {
+      const key = decodeURIComponent(artistMatch[1]);
+      if (currentArtistKey != null && String(currentArtistKey) === String(key)) return;
+      showArtistView(key);
+      return;
+    }
+  }
+
+  let playingIdx = -1;
+  let lastPlaybackPersistMs = 0;
+
+  function persistCurrentPlaybackState(overrides) {
+    const track = currentTracks[playingIdx];
+    if (!track || !track.Media || !track.Media[0] || !track.Media[0].Part || !track.Media[0].Part[0]) return;
+    const audio = $('audio');
+    const sectionKey = $('inSection').value || cfg().sectionKey || '';
+    const now = Date.now();
+    const state = {
+      sectionKey: sectionKey || '',
+      albumRatingKey: currentAlbum && currentAlbum.ratingKey ? String(currentAlbum.ratingKey) : '',
+      albumTitle: currentAlbum && currentAlbum.title ? String(currentAlbum.title) : '',
+      albumParentTitle: currentAlbum && currentAlbum.parentTitle ? String(currentAlbum.parentTitle) : '',
+      trackIndex: playingIdx,
+      trackRatingKey: track.ratingKey ? String(track.ratingKey) : '',
+      trackTitle: track.title ? String(track.title) : '',
+      partKey: String(track.Media[0].Part[0].key || ''),
+      currentTime: Number(audio.currentTime) || 0,
+      wasPlaying: !audio.paused && !audio.ended,
+      savedAt: now
+    };
+    if (overrides && typeof overrides === 'object') Object.assign(state, overrides);
+    savePlaybackState(state);
+    lastPlaybackPersistMs = now;
+  }
+
+  function maybePersistPlaybackState() {
+    const now = Date.now();
+    if (now - lastPlaybackPersistMs < 2000) return;
+    persistCurrentPlaybackState();
+  }
+
+  function playIndex(i, options) {
+    const opts = options || {};
+    const t = currentTracks[i];
+    if (!t || !t.Media || !t.Media[0] || !t.Media[0].Part || !t.Media[0].Part[0]) {
+      showError('No playable file for this track.');
+      return;
+    }
+    playingIdx = i;
+    const key = t.Media[0].Part[0].key;
+    const audio = $('audio');
+    audio.src = streamUrl(key);
+    const seekTime = Number(opts.seekTime);
+    if (Number.isFinite(seekTime) && seekTime > 0) {
+      const applySeek = () => {
+        try {
+          audio.currentTime = seekTime;
+        } catch (_) {}
+      };
+      if (audio.readyState >= 1) applySeek();
+      else audio.addEventListener('loadedmetadata', applySeek, { once: true });
+    }
+    if (opts.autoplay === false) {
+      audio.pause();
+    } else {
+      audio.play().catch(() => {});
+    }
+    const albumTitle = albumDisplayTitleFromTracks(currentAlbum, currentTracks) || t.parentTitle || t.grandparentTitle || t.title || '—';
+    const artistTitle = (currentAlbum && currentAlbum.parentTitle) || t.grandparentTitle || '';
+    const trackTitle = t.title ? String(t.title) : '';
+    const albumKey = (currentAlbum && currentAlbum.ratingKey) || t.parentRatingKey;
+    const artistKey = (currentAlbum && currentAlbum.parentRatingKey) || t.grandparentRatingKey;
+    const albumHref = albumHash(albumKey);
+    const artistHref = artistHash(artistKey);
+    const npTitle = $('npTitle');
+    const npAlbum = $('npAlbum');
+    const npSub = $('npSub');
+    // Bottom player shows: track name, album, artist.
+    npTitle.textContent = trackTitle || '—';
+    npTitle.href = '#';
+    npTitle.style.pointerEvents = 'none';
+
+    npAlbum.textContent = albumTitle || '';
+    npAlbum.href = albumHref || '#';
+    npAlbum.style.pointerEvents = albumHref ? '' : 'none';
+    npSub.textContent = artistTitle;
+    npSub.href = artistHref || '#';
+    npSub.style.pointerEvents = artistHref ? '' : 'none';
+    $('viewTracks').querySelectorAll('.tracks li').forEach((li, j) => {
+      li.classList.toggle('playing', j === i);
+    });
+    persistCurrentPlaybackState();
+  }
+
+  $('audio').addEventListener('timeupdate', maybePersistPlaybackState);
+  $('audio').addEventListener('pause', () => persistCurrentPlaybackState({ wasPlaying: false }));
+  $('audio').addEventListener('play', () => persistCurrentPlaybackState({ wasPlaying: true }));
+  $('audio').addEventListener('ended', () => {
+    if (playingIdx >= 0 && playingIdx + 1 < currentTracks.length) playIndex(playingIdx + 1);
+    else persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
+  });
+  window.addEventListener('beforeunload', () => persistCurrentPlaybackState());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persistCurrentPlaybackState();
+  });
+
+  async function restorePlaybackFromState() {
+    const saved = loadPlaybackState();
+    if (!saved || !saved.albumRatingKey) return;
+    const activeSection = $('inSection').value || cfg().sectionKey || '';
+    if (saved.sectionKey && activeSection && String(saved.sectionKey) !== String(activeSection)) return;
+    const album = {
+      ratingKey: saved.albumRatingKey,
+      title: saved.albumTitle || '[Album]',
+      parentTitle: saved.albumParentTitle || ''
+    };
+    await openAlbum(album);
+    let index = Number(saved.trackIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= currentTracks.length) {
+      index = currentTracks.findIndex((t) => String(t.ratingKey || '') === String(saved.trackRatingKey || ''));
+    }
+    if (index < 0 || index >= currentTracks.length) return;
+    playIndex(index, {
+      autoplay: !!saved.wasPlaying,
+      seekTime: Number(saved.currentTime) || 0
+    });
+  }
+
+  $('btnSettings').onclick = () => {
+    openSettingsModal();
+    const c = cfg();
+    if (c.server && c.token) {
+      loadSections().catch(() => {
+        $('inSection').innerHTML = '<option value="">Error loading sections</option>';
+        setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
+      });
+    }
+  };
+  $('btnCloseSettings').onclick = closeSettingsModal;
+  $('settingsModal').onclick = (e) => {
+    if (e.target.id === 'settingsModal') closeSettingsModal();
+  };
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSettingsModal();
+  });
+
+  $('btnSave').onclick = async () => {
+    const server = $('inServer').value.trim().replace(/\/$/, '');
+    const token = $('inToken').value.trim();
+    if (!server || !token) {
+      setSettingsStatus('Enter server URL and token before saving.', 'error');
+      return;
+    }
+    localStorage.setItem(LS.server, server);
+    localStorage.setItem(LS.token, token);
+    if (!$('inSection').value) {
+      try {
+        await loadSections();
+      } catch (_) {
+        setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
+      }
+    }
+    setSettingsStatus('Settings saved. Choose a library from the header.', 'ok');
+    closeSettingsModal();
+    $('btnReload').style.display = '';
+    if ($('inSection').value) {
+      localStorage.setItem(LS.section, $('inSection').value);
+      await loadAlbums(false);
+    }
+  };
+
+  $('btnReload').onclick = () => loadAlbums(false);
+  $('btnPlexLogin').onclick = async () => {
+    showError('');
+    try {
+      await plexSignInGetToken();
+      const server = $('inServer').value.trim().replace(/\/$/, '');
+      const token = $('inToken').value.trim();
+      if (server && token) {
+        localStorage.setItem(LS.server, server);
+        localStorage.setItem(LS.token, token);
+        await loadSections();
+      }
+    } catch (e) {
+      $('plexLoginStatus').textContent = '';
+      showError(e.message || String(e));
+    }
+  };
+  $('btnLoadLibraries').onclick = async () => {
+    showError('');
+    let server = $('inServer').value.trim().replace(/\/$/, '');
+    const token = $('inToken').value.trim();
+    localStorage.setItem(LS.server, server);
+    localStorage.setItem(LS.token, token);
+    if (!token) {
+      setSettingsStatus('Enter token first.', 'error');
+      return;
+    }
+    if (!server) {
+      try {
+        await detectServersFromToken();
+        server = $('inServer').value.trim().replace(/\/$/, '');
+      } catch (e) {
+        setSettingsStatus('Server URL is empty and auto-detect failed.', 'error');
+        return;
+      }
+    }
+    try {
+      await loadSections();
+    } catch (e) {
+      $('inSection').innerHTML = '<option value="">Error loading sections</option>';
+      setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
+      if (String(e.message).includes('Failed to fetch') || e.name === 'TypeError') showCors(true);
+    }
+  };
+  $('btnDetectServer').onclick = async () => {
+    showError('');
+    try {
+      await detectServersFromToken();
+    } catch (e) {
+      renderServerCandidates([]);
+      setServerDiscoveryStatus(e.message || String(e), 'error');
+    }
+  };
+  $('inSection').onchange = async () => {
+    const section = $('inSection').value;
+    localStorage.setItem(LS.section, section || '');
+    if (!section) {
+      setSettingsStatus('Pick a library from the header.', 'error');
+      return;
+    }
+    setSettingsStatus('Loading library...', 'ok');
+    await loadAlbums(false);
+  };
+  $('inSearch').addEventListener('input', updateFilterState);
+  window.addEventListener('scroll', () => {
+    if (albumsViewVisible()) scheduleAlbumAutoLoad(30);
+  }, { passive: true });
+  window.addEventListener('resize', () => {
+    if (albumsViewVisible()) scheduleAlbumAutoLoad(50);
+  });
+  window.addEventListener('hashchange', applyHashRoute);
+
+  (function init() {
+    const c = cfg();
+    $('inServer').value = c.server;
+    $('inToken').value = c.token;
+    if (c.server && c.token) {
+      $('btnReload').style.display = '';
+      loadSections().then(() => {
+        if (!$('inSection').value) return;
+        const hash = (location.hash || '').trim();
+        const isAlbumRoute = /^#album\/[^/]+$/.test(hash);
+        const isArtistRoute = /^#artist\/[^/]+$/.test(hash);
+        if (isAlbumRoute || isArtistRoute) {
+          applyHashRoute();
+        } else {
+          loadAlbums(false)
+            .then(() => restorePlaybackFromState())
+            .catch(() => {});
+        }
+      }).catch(() => {
+        setSettingsStatus('Could not load libraries. Open Settings to check connection.', 'error');
+      });
+    } else {
+      openSettingsModal();
+    }
+    updateFilterState();
+  })();
+})();
+  </script>
+</body>
+</html>
