@@ -409,17 +409,7 @@
       height: 2.5rem;
     }
     .player-controls .btn.icon-btn svg { width: 1.25rem; height: 1.25rem; }
-    .player-controls .btn.fav-btn {
-      width: auto;
-      min-width: 4.4rem;
-      padding: 0 0.75rem;
-      font-size: 0.8rem;
-      letter-spacing: 0.01em;
-    }
-    .player-controls .btn.fav-btn.starred {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
+    .player-controls .star-btn svg { width: 1rem; height: 1rem; }
     .player-bar audio { height: 36px; max-width: 100%; flex: 1 1 24rem; min-width: 14rem; }
     .load-more { margin-top: 1.25rem; text-align: center; }
     .empty-state {
@@ -512,7 +502,7 @@
       <div class="sub"><a id="npSub" href="#" target="_blank" rel="noopener"></a></div>
     </div>
     <div class="player-controls">
-      <button type="button" class="btn fav-btn" id="btnFavNow" aria-label="Favorite current track" title="Favorite current track" disabled>☆ Fav</button>
+      <button type="button" class="star-btn" id="btnFavNow" aria-label="Favorite current track" title="Favorite current track" disabled><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>
       <button type="button" class="btn icon-btn" id="btnPrev" aria-label="Previous track" title="Previous">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M7 6v12"></path>
@@ -525,8 +515,14 @@
           <path d="M7 6l8 6-8 6"></path>
         </svg>
       </button>
+      <button type="button" class="btn icon-btn" id="btnAirPlay" aria-label="AirPlay" title="AirPlay" style="display:none">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 22h12l-6-6-6 6z"/>
+          <path d="M12 2v12m0 0 4-4m-4 4-4-4"/>
+        </svg>
+      </button>
     </div>
-    <audio id="audio" controls></audio>
+    <audio id="audio" controls x-webkit-airplay="allow"></audio>
   </div>
 
   <script>
@@ -726,11 +722,19 @@
     return res.json();
   }
 
+  function getPlexClientId() {
+    try {
+      const stored = sessionStorage.getItem('plexLoginPinClientId');
+      if (stored) return stored;
+    } catch (_) {}
+    return PLEX_CLIENT_ID;
+  }
+
   function plexHeaders(extra) {
     const base = {
       Accept: 'application/json',
       'X-Plex-Product': PLEX_PRODUCT,
-      'X-Plex-Client-Identifier': PLEX_CLIENT_ID
+      'X-Plex-Client-Identifier': getPlexClientId()
     };
     return Object.assign(base, extra || {});
   }
@@ -758,7 +762,17 @@
       let popup = window.open(authUrl, 'plex-login', 'popup=yes,width=550,height=700');
       // Fallback for environments where app.plex.tv auth is blocked/redirected.
       if (!popup) popup = window.open('https://plex.tv/link', 'plex-login', 'popup=yes,width=550,height=700');
-      if (!popup) throw new Error('Popup blocked (common on iPhone). Open plex.tv/link in another tab, sign in, then paste the code or token in the Settings field.');
+      if (!popup) {
+        // Safari iOS often blocks window.open; open in same tab and resume polling when user returns.
+        try {
+          sessionStorage.setItem('plexLoginPinId', String(pin.id));
+          sessionStorage.setItem('plexLoginPinClientId', PLEX_CLIENT_ID);
+          sessionStorage.setItem('plexLoginPinExpiry', String(Date.now() + 10 * 60 * 1000));
+        } catch (_) {}
+        statusEl.textContent = 'Opening Plex login… Return here after signing in.';
+        window.location.href = authUrl;
+        return;
+      }
 
       statusEl.textContent = 'Complete login in the popup...';
 
@@ -794,6 +808,53 @@
       throw new Error('Login timed out. Try again.');
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  async function resumePlexPinPoll(pinId) {
+    const statusEl = $('plexLoginStatus');
+    const btn = $('btnPlexLogin');
+    btn.disabled = true;
+    try {
+      statusEl.textContent = 'Checking for Plex authorization…';
+      const start = Date.now();
+      const timeoutMs = 3 * 60 * 1000;
+      while (Date.now() - start < timeoutMs) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const checkRes = await fetch('https://plex.tv/api/v2/pins/' + encodeURIComponent(pinId), {
+          headers: plexHeaders()
+        });
+        if (!checkRes.ok) continue;
+        const check = await checkRes.json();
+        if (check && check.authToken) {
+          try {
+            sessionStorage.removeItem('plexLoginPinId');
+            sessionStorage.removeItem('plexLoginPinClientId');
+            sessionStorage.removeItem('plexLoginPinExpiry');
+          } catch (_) {}
+          $('inToken').value = check.authToken;
+          localStorage.setItem(LS.token, check.authToken);
+          statusEl.textContent = 'Token received from Plex.';
+          setServerDiscoveryStatus('Token received. Detecting server/IP...');
+          try {
+            await detectServersFromToken();
+          } catch (detectErr) {
+            setServerDiscoveryStatus(
+              'Token OK, but server auto-detect failed: ' + (detectErr.message || String(detectErr)),
+              'error'
+            );
+          }
+          return;
+        }
+      }
+      statusEl.textContent = 'Login timed out. Try Sign in with Plex again.';
+    } finally {
+      btn.disabled = false;
+      try {
+        sessionStorage.removeItem('plexLoginPinId');
+        sessionStorage.removeItem('plexLoginPinClientId');
+        sessionStorage.removeItem('plexLoginPinExpiry');
+      } catch (_) {}
     }
   }
 
@@ -1316,11 +1377,13 @@
       if (!append) $('viewAlbums').innerHTML = '<div class="albums" id="albumGrid"></div>';
       const grid = $('albumGrid');
       const starredAlbums = getStarredAlbums();
+      const filterActive = append && ($('inSearch').value || '').trim().toLowerCase().length > 0;
       meta.forEach((a) => {
         const div = document.createElement('div');
         div.className = 'album';
         div.dataset.key = a.ratingKey;
         div.dataset.search = makeSearchBlob(a);
+        if (filterActive) div.style.display = 'none';
         const img = thumbUrl(a.thumb || a.parentThumb) || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%232a2a30"><rect width="100%" height="100%"/></svg>');
         const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
         const albumHref = albumHash(a.ratingKey);
@@ -1659,7 +1722,7 @@
     if (!key) {
       btn.disabled = true;
       btn.classList.remove('starred');
-      btn.textContent = '☆ Fav';
+      btn.innerHTML = starIconHtml(false);
       btn.setAttribute('aria-label', 'Favorite current track');
       btn.setAttribute('title', 'Favorite current track');
       return;
@@ -1667,7 +1730,7 @@
     const starred = getStarredTracks().has(key);
     btn.disabled = false;
     btn.classList.toggle('starred', starred);
-    btn.textContent = starred ? '★ Fav' : '☆ Fav';
+    btn.innerHTML = starIconHtml(starred);
     btn.setAttribute('aria-label', starred ? 'Unfavorite current track' : 'Favorite current track');
     btn.setAttribute('title', starred ? 'Unfavorite current track' : 'Favorite current track');
   }
@@ -1794,6 +1857,29 @@
     if (playingIdx >= 0 && playingIdx + 1 < currentTracks.length) playIndex(playingIdx + 1);
     else persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
   });
+
+  (function initAirPlay() {
+    const audio = $('audio');
+    const btn = $('btnAirPlay');
+    if (!audio || !btn || typeof audio.webkitShowPlaybackTargetPicker !== 'function') return;
+    btn.style.display = '';
+    btn.onclick = () => {
+      try {
+        audio.webkitShowPlaybackTargetPicker();
+      } catch (_) {}
+    };
+    function updateAirPlayLabel(isWireless) {
+      btn.setAttribute('aria-label', isWireless ? 'Playing to AirPlay' : 'AirPlay');
+      btn.setAttribute('title', isWireless ? 'Playing to AirPlay' : 'AirPlay');
+    }
+    audio.addEventListener('webkitplaybacktargetavailabilitychanged', function (e) {
+      btn.disabled = e.availability === 'not_available';
+    });
+    audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', function (e) {
+      updateAirPlayLabel(!!e.isWireless);
+    });
+  })();
+
   window.addEventListener('beforeunload', () => persistCurrentPlaybackState());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') persistCurrentPlaybackState();
@@ -1887,6 +1973,25 @@
       showError(e.message || String(e));
     }
   };
+
+  // Resume Plex login when returning from same-tab auth (e.g. Safari iPhone)
+  try {
+    const pendingPinId = sessionStorage.getItem('plexLoginPinId');
+    const expiry = sessionStorage.getItem('plexLoginPinExpiry');
+    if (pendingPinId && expiry && Date.now() < parseInt(expiry, 10)) {
+      openSettingsModal();
+      resumePlexPinPoll(pendingPinId).then(() => {
+        const server = $('inServer').value.trim().replace(/\/$/, '');
+        const token = $('inToken').value.trim();
+        if (server && token) {
+          localStorage.setItem(LS.server, server);
+          localStorage.setItem(LS.token, token);
+          loadSections().catch(() => {});
+        }
+      });
+    }
+  } catch (_) {}
+
   $('btnLoadLibraries').onclick = async () => {
     showError('');
     let server = $('inServer').value.trim().replace(/\/$/, '');
