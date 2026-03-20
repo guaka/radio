@@ -17,7 +17,7 @@ This is a static site that can be deployed on GitHub Pages. The current implemen
 
 ## Channels
 
-Channels are defined in `channels.js`. You're welcome to add channels and metadata by editing (i.e. fork and send pull requests).
+Channels are defined in `public/channels.js`. You're welcome to add channels and metadata by editing (i.e. fork and send pull requests).
 
 Active channels are in the main `channels` object. Broken/non-working channels are kept in comments for reference.
 
@@ -29,6 +29,41 @@ Active channels are in the main `channels` object. Broken/non-working channels a
   - Arrow keys ↑ ↓ : Change volume
   - Space : Stop/pause
   - Letter key : Jump to channel starting with that letter (no modifier needed)
+
+## Go Backend (same-origin pleXtr)
+
+The repo now includes an optional Go server that serves `public/index.html` and API endpoints from the same origin.
+
+- Entry point: `cmd/server/main.go`
+- Health check: `GET /api/health`
+- Nostr auth: `POST /auth/nostr/challenge`, `POST /auth/nostr/verify`
+- Plex browse/stream (friend-gated): `GET /libraries`, `GET /tracks`, `GET /stream/:trackId`
+- Public share links (revokable): `POST /share/song/:trackId`, `DELETE /share/:token`, `GET /s/:token`
+
+### Run
+
+Set these env vars as needed:
+
+- `OWNER_PUBKEY` (required for friend access policy)
+- `PLEX_BASE_URL` (e.g. `http://127.0.0.1:32400`)
+- `PLEX_TOKEN` (server-side Plex token)
+- Optional: `NOSTR_RELAYS`, `SESSION_SECRET`, `ADDR`
+
+Then start:
+
+`go run ./cmd/server`
+
+### Docker Compose
+
+Run the same-origin server on `http://localhost:3030`:
+
+`docker compose up --build`
+
+Set env vars in your shell or `.env`:
+
+- `OWNER_PUBKEY`
+- `PLEX_TOKEN`
+- optional overrides: `PLEX_BASE_URL`, `SESSION_SECRET`, `NOSTR_RELAYS`
 
 ## Chat
 

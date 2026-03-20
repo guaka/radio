@@ -1,0 +1,27 @@
+services:
+  plextr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: plextr
+    restart: unless-stopped
+    ports:
+      - "3030:8080"
+    environment:
+      # Core server
+      ADDR: ":8080"
+      SESSION_SECRET: "${SESSION_SECRET:-change-me-in-production}"
+      SESSION_COOKIE_NAME: "${SESSION_COOKIE_NAME:-plextr_session}"
+
+      # Nostr friend policy
+      OWNER_PUBKEY: "${OWNER_PUBKEY:-}"
+      NOSTR_RELAYS: "${NOSTR_RELAYS:-wss://relay.nomadwiki.org,wss://relay.trustroots.org}"
+      NOSTR_CONTACTS_TTL: "${NOSTR_CONTACTS_TTL:-10m}"
+
+      # Plex upstream
+      PLEX_BASE_URL: "${PLEX_BASE_URL:-http://host.docker.internal:32400}"
+      PLEX_TOKEN: "${PLEX_TOKEN:-}"
+      PLEX_CLIENT_ID: "${PLEX_CLIENT_ID:-plextr-go-gateway}"
+
+      # Share links
+      SHARE_TOKEN_BYTES: "${SHARE_TOKEN_BYTES:-24}"
