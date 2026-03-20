@@ -142,10 +142,15 @@
       z-index: 1;
     }
     
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
     .chat-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: 100%;
+      min-height: 100%;
       position: relative;
       z-index: 10;
     }
@@ -351,6 +356,26 @@
       display: inline;
     }
     
+    .message-song-link {
+      display: inline;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: none;
+      font: inherit;
+      line-height: inherit;
+      color: #6ee7ff;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      text-align: left;
+    }
+    
+    .message-song-link:hover {
+      color: #00ffff;
+      text-shadow: 0 0 6px rgba(0, 255, 255, 0.45);
+    }
+    
     .message-actions {
       display: inline;
       margin-left: 8px;
@@ -539,22 +564,24 @@
 </head>
 <body x-data="chatApp()" x-init="init()">
   <div class="chat-container">
-    <div class="chat-header">
-      <div>
-        <h2 class="chat-title">chat</h2>
-      </div>
-      <div class="chat-status">
-        <div class="relay-status" x-show="relays.length > 0">
-          <!-- Render exactly 2 dots (one for each relay) -->
-          <template x-for="(relay, index) in relays.slice(0, 2)" :key="index">
-            <div class="relay-dot" 
-                 :class="relayStatus[relay]?.status || 'disconnected'"
-                 :title="relay"></div>
-          </template>
+    <template x-if="!minimalEmbed">
+      <div class="chat-header">
+        <div>
+          <h2 class="chat-title">chat</h2>
         </div>
-        <button class="auth-trigger" @click="showAuthModal = true" title="Show key options">🔑</button>
+        <div class="chat-status">
+          <div class="relay-status" x-show="relays.length > 0">
+            <!-- Render exactly 2 dots (one for each relay) -->
+            <template x-for="(relay, index) in relays.slice(0, 2)" :key="index">
+              <div class="relay-dot" 
+                   :class="relayStatus[relay]?.status || 'disconnected'"
+                   :title="relay"></div>
+            </template>
+          </div>
+          <button class="auth-trigger" @click="showAuthModal = true" title="Show key options">🔑</button>
+        </div>
       </div>
-    </div>
+    </template>
     
     <div class="chat-messages" x-ref="messagesContainer">
       <template x-if="errorMessage">
@@ -570,7 +597,7 @@
       </template>
       
       <template x-for="(message, index) in safeMessages" :key="getMessageKey(message, index)">
-        <div class="message" :class="{ 'message-new-user': !isSameUserAsPrevious(index) }"><span class="message-time" x-show="!isSameUserAsPrevious(index)" x-text="formatTime(message.created_at)"></span><span class="message-username" x-show="!isSameUserAsPrevious(index)" x-text="getUsername(message.pubkey)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-content" x-text="message.content"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
+        <div class="message" :class="{ 'message-new-user': !isSameUserAsPrevious(index) }"><span class="message-time" x-show="!isSameUserAsPrevious(index)" x-text="formatTime(message.created_at)"></span><span class="message-username" x-show="!isSameUserAsPrevious(index)" x-text="getUsername(message.pubkey)"></span><span class="message-channel" x-show="getMessageChannel(message)" x-text="getMessageChannel(message)" @click="tuneToChannel(getMessageChannel(message))"></span><span class="message-content" x-html="formatMessageContentHtml(message.content)" @click="onMessageContentClick($event)"></span><span class="message-actions" x-show="isAuthenticated"><span class="message-action" @click="reactToMessage(message.id, '👍')" x-show="message.pubkey !== currentUserPubkey">👍<span class="reaction-count" x-text="getReactionCount(message.id, '👍')"></span></span><span class="message-action" @click="deleteMessage(message.id)" x-show="message.pubkey === currentUserPubkey">×</span></span></div>
       </template>
     </div>
     
@@ -586,7 +613,7 @@
         autofocus></textarea>
     </div>
     
-    <template x-if="showAuthModal">
+    <template x-if="showAuthModal && !minimalEmbed">
       <div class="auth-modal" 
            @click.self="showAuthModal = false" 
            @keydown.escape="showAuthModal = false" 
@@ -726,6 +753,11 @@
         extensionDetected: false, // Cached detection result
         parentNostrProxy: null, // Proxy to parent window's nostr (if in iframe)
         detectedNostrProvider: null, // The nostr provider we found (for use in setupSigner)
+        /** pleXtr embed: no chat header / no in-chat Nostr UI; parent supplies nsec */
+        minimalEmbed: false,
+        _pendingPlextrNsec: null,
+        /** Subscribe / display notes with any of these #t values (Radio Guaka legacy + pleXtr) */
+        chatRoomTags: Object.freeze(['plextr', 'radioguaka']),
         
         // Method to check if extension is available (for template reactivity)
         hasExtension() {
@@ -740,6 +772,38 @@
         ensureMessagesArray() {
           if (!Array.isArray(this.messages)) {
             this.messages = [];
+          }
+        },
+        
+        hasRoomTag(tags) {
+          const set = new Set(this.chatRoomTags);
+          return (tags || []).some((tag) => tag && tag[0] === 't' && set.has(tag[1]));
+        },
+        
+        /** Other tabs wrote radio_guaka_chat_messages — merge into this tab */
+        mergeChatFromStorageJson(jsonStr) {
+          try {
+            const incoming = JSON.parse(jsonStr);
+            if (!Array.isArray(incoming)) return;
+            this.ensureMessagesArray();
+            const byId = new Map();
+            this.messages.forEach((m) => {
+              if (m && m.id) byId.set(m.id, m);
+            });
+            incoming.forEach((m) => {
+              if (m && m.id) byId.set(m.id, m);
+            });
+            this.messages = Array.from(byId.values()).sort(
+              (a, b) => (Number(a.created_at) || 0) - (Number(b.created_at) || 0)
+            );
+            this.deduplicateMessages();
+            this.messages = [...this.messages];
+            this.$nextTick(() => {
+              const container = this.$refs.messagesContainer;
+              if (container) container.scrollTop = container.scrollHeight;
+            });
+          } catch (e) {
+            console.warn('mergeChatFromStorageJson:', e);
           }
         },
         
@@ -797,9 +861,27 @@
             // Load cached messages immediately for instant UI
             this.loadCachedMessages();
             
+            const cacheKey = 'radio_guaka_chat_messages';
+            window.addEventListener('storage', (e) => {
+              if (e.key !== cacheKey || e.newValue == null) return;
+              this.mergeChatFromStorageJson(e.newValue);
+            });
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible' && this.ndk) {
+                this.fetchPastMessages();
+              }
+            });
+            window.addEventListener('pageshow', (e) => {
+              if (e.persisted && this.ndk) {
+                this.fetchPastMessages();
+              }
+            });
+            
             // Parse URL parameters
             const params = new URLSearchParams(window.location.search);
-            const hashtagParam = params.get('hashtag') || 'radioguaka';
+            const hashtagParam = params.get('hashtag') || 'plextr';
+            this.minimalEmbed = params.get('minimal') === '1' || params.get('embed') === 'plextr';
+            if (this.minimalEmbed) this.showAuthModal = false;
             
             // Set up relays - using nomadwiki and trustroots community relays
             // IMPORTANT: We only use these 2 relays, never use relays from extension or user profile
@@ -844,6 +926,14 @@
                       // Immediately send the message (will handle auth if needed)
                       this.sendMessage();
                     }
+                  } else if (event.data.type === 'setChatNsec' && typeof event.data.nsec === 'string') {
+                    const ns = event.data.nsec.trim();
+                    if (ns.startsWith('nsec')) {
+                      this.manualKey = ns;
+                      this.authenticateWithKey().catch(() => {});
+                    }
+                  } else if (event.data.type === 'clearChatNsec') {
+                    this.deleteKeys();
                   }
                 } catch (e) {
                   console.error('Error handling postMessage:', e);
@@ -1083,8 +1173,11 @@
             // Also try a direct fetch as fallback after a delay
             setTimeout(() => this.fetchPastMessages(), 3000);
             
-            // If authenticated, set up signer
-            if (this.currentUserPrivateKey) {
+            if (this.minimalEmbed && this._pendingPlextrNsec) {
+              this.manualKey = this._pendingPlextrNsec;
+              this._pendingPlextrNsec = null;
+              await this.authenticateWithKey();
+            } else if (this.currentUserPrivateKey) {
               await this.setupSigner();
             }
             
@@ -1105,49 +1198,46 @@
           try {
             if (!this.ndk) return;
             
-            // Subscribe to kind 1 messages with #radioguaka tag
-            const messageFilter = { 
-              kinds: [1],
-              '#t': ['radioguaka'],
-              limit: 100
-            };
-            
-            const subscription = this.ndk.subscribe(messageFilter, { closeOnEose: false });
-            
-            // Attach event handlers using the correct NDK API
-            subscription.on('event', (event) => {
-              try {
-                this.handleMessageEvent(event);
-                // Receiving events means relays are connected - update status
+            // One subscription per room tag (OR semantics vary by relay; this is reliable)
+            this.chatRoomTags.forEach((roomTag) => {
+              const messageFilter = {
+                kinds: [1],
+                '#t': [roomTag],
+                limit: 100
+              };
+              
+              const subscription = this.ndk.subscribe(messageFilter, { closeOnEose: false });
+              
+              subscription.on('event', (event) => {
+                try {
+                  this.handleMessageEvent(event);
+                  this.markRelaysConnected();
+                } catch (e) {
+                  console.error('Error handling message event:', e);
+                }
+              });
+              
+              subscription.on('eose', () => {
+                this.isLoading = false;
                 this.markRelaysConnected();
-              } catch (e) {
-                console.error('Error handling message event:', e);
-              }
-            });
-            
-            subscription.on('eose', () => {
-              this.isLoading = false;
-              // End of stored events means relays responded - they're connected
-              this.markRelaysConnected();
-            });
-            
-            // Also listen for events via the NDK events iterator pattern (alternative API)
-            (async () => {
-              try {
-                // Some NDK versions use async iterator
-                if (subscription[Symbol.asyncIterator]) {
-                  for await (const event of subscription) {
-                    try {
-                      this.handleMessageEvent(event);
-                    } catch (e) {
-                      console.error('Error handling async message event:', e);
+              });
+              
+              (async () => {
+                try {
+                  if (subscription[Symbol.asyncIterator]) {
+                    for await (const event of subscription) {
+                      try {
+                        this.handleMessageEvent(event);
+                      } catch (e) {
+                        console.error('Error handling async message event:', e);
+                      }
                     }
                   }
+                } catch (e) {
+                  // no async iterator
                 }
-              } catch (e) {
-                // Async iterator not supported, that's fine - we're using .on() handlers
-              }
-            })();
+              })();
+            });
             
             // Subscribe to profiles (kind 0) for usernames of message authors
             const profileSubscription = this.ndk.subscribe(
@@ -1225,11 +1315,9 @@
             return;
           }
           
-          // Check if message has #radioguaka tag
+          // #plextr (pleXtr) or #radioguaka (legacy Radio Guaka)
           const tags = event.tags || [];
-          const hasTag = tags.some(tag => tag[0] === 't' && tag[1] === 'radioguaka');
-          
-          if (!hasTag) return;
+          if (!this.hasRoomTag(tags)) return;
           
           const message = {
             id: event.id,
@@ -1495,10 +1583,73 @@
           return div.innerHTML;
         },
         
+        escapeHtmlAttr(text) {
+          return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        },
+        
+        /** Song / station text before first ` #` — make it a link that searches in parent pleXtr */
+        formatMessageContentHtml(content) {
+          const raw = String(content || '');
+          const idx = raw.indexOf(' #');
+          const head = idx >= 0 ? raw.slice(0, idx).trim() : '';
+          const tail = idx >= 0 ? raw.slice(idx) : '';
+          if (!head) {
+            return this.escapeHtml(raw);
+          }
+          const displayHead = head
+            .replace(/^\s*now playing:\s*/i, '')
+            .replace(/^\s*favorited:\s*/i, '⭐ ')
+            .replace(/^\s*unfavorited:\s*/i, '☆ ');
+          const searchQ = displayHead
+            .replace(/^\s*👍\s+/, '')
+            .replace(/^\s*⭐\s+/, '')
+            .replace(/^\s*☆\s+/, '')
+            .replace(/^\s*🌟\s+/, '')
+            .trim();
+          if (!searchQ) {
+            return this.escapeHtml(raw);
+          }
+          return (
+            '<button type="button" class="message-song-link" data-query="' +
+            this.escapeHtmlAttr(searchQ) +
+            '">' +
+            this.escapeHtml(displayHead) +
+            '</button>' +
+            this.escapeHtml(tail)
+          );
+        },
+        
+        onMessageContentClick(event) {
+          const btn = event.target.closest('.message-song-link');
+          if (!btn) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const q = (btn.getAttribute('data-query') || '').trim();
+          if (!q) return;
+          try {
+            window.parent.postMessage({ type: 'chatSearchQuery', query: q }, '*');
+          } catch (e) {
+            console.warn('postMessage chatSearchQuery failed:', e);
+          }
+        },
+        
         // Check auth when user focuses input
         // Flow: silently try NIP-07; no modal here to avoid surprise popups
         async checkAuthOnFocus() {
           if (this.isAuthenticated) return;
+          if (this.minimalEmbed) {
+            const px = localStorage.getItem('guakaNostrNsec');
+            if (px && px.trim().startsWith('nsec')) {
+              this.manualKey = px.trim();
+              await this.authenticateWithKey();
+            }
+            return;
+          }
           
           // Small delay to let user see they can type
           await new Promise(r => setTimeout(r, 300));
@@ -1717,17 +1868,25 @@
         // Send message
         // Flow: try NIP-07 first if not authenticated, then show modal
         async sendMessage() {
-          // If not authenticated, try NIP-07 first, then show modal
           if (!this.isAuthenticated) {
-            // Try NIP-07 extension first
-            if (this.detectNostrExtension()) {
+            if (this.minimalEmbed) {
+              const px = localStorage.getItem('guakaNostrNsec');
+              if (px && px.trim().startsWith('nsec')) {
+                this.manualKey = px.trim();
+                await this.authenticateWithKey();
+              }
+              if (!this.isAuthenticated) {
+                this.errorMessage = 'Add your nsec in Nostr (header).';
+                setTimeout(() => { this.errorMessage = ''; }, 5000);
+                return;
+              }
+            } else if (this.detectNostrExtension()) {
               console.log('sendMessage: Trying NIP-07...');
               const success = await this.authenticateWithExtension();
               if (!success) {
                 this.showAuthModal = true;
                 return;
               }
-              // Success - continue to send
             } else {
               this.showAuthModal = true;
               return;
@@ -1779,7 +1938,7 @@
             const event = new NDKEvent(this.ndk);
             event.kind = 1;
             event.content = messageContent;
-            event.tags = [['t', 'radioguaka']];
+            event.tags = [['t', 'plextr'], ['t', 'radioguaka']];
             
             // Add expiration tag (NIP-40: 30 days from now)
             event.tags.push(['expiration', expirationTimestamp.toString()]);
@@ -2270,10 +2429,15 @@
               // Fetch user's profile to get NIP-05
               this.fetchCurrentUserProfile();
             } catch (e) {
-              this.errorMessage = 'Invalid nsec format. Please check your key and try again.';
-              setTimeout(() => {
-                this.errorMessage = '';
-              }, 6000);
+              // Minimal embed: nsec comes from pleXtr header — no in-chat error toast
+              if (this.minimalEmbed) {
+                console.warn('Chat could not apply nsec (minimal embed):', e);
+              } else {
+                this.errorMessage = 'Invalid nsec format. Please check your key and try again.';
+                setTimeout(() => {
+                  this.errorMessage = '';
+                }, 6000);
+              }
             }
             
           } catch (error) {
@@ -2588,18 +2752,27 @@
           try {
             if (!this.ndk) return;
             
-            const filter = {
-              kinds: [1],
-              '#t': ['radioguaka'],
-              limit: 100
-            };
-            
-            // Use fetchEvents for a one-time fetch
-            const events = await this.ndk.fetchEvents(filter);
-            
-            if (events && events.size > 0) {
-              for (const event of events) {
-                this.handleMessageEvent(event);
+            const seen = new Set();
+            for (let ti = 0; ti < this.chatRoomTags.length; ti++) {
+              const filter = {
+                kinds: [1],
+                '#t': [this.chatRoomTags[ti]],
+                limit: 100
+              };
+              const events = await this.ndk.fetchEvents(filter);
+              if (!events) continue;
+              const visit = (ev) => {
+                if (ev && ev.id && !seen.has(ev.id)) {
+                  seen.add(ev.id);
+                  this.handleMessageEvent(ev);
+                }
+              };
+              if (events instanceof Set || Array.isArray(events)) {
+                events.forEach(visit);
+              } else if (typeof events.forEach === 'function') {
+                events.forEach(visit);
+              } else if (events.values && typeof events.values === 'function') {
+                for (const ev of events.values()) visit(ev);
               }
             }
             
@@ -2723,6 +2896,14 @@
         // Load keys from storage
         async loadKeysFromStorage() {
           try {
+            if (this.minimalEmbed) {
+              const px = localStorage.getItem('guakaNostrNsec');
+              if (px && typeof px === 'string' && px.trim().startsWith('nsec')) {
+                this._pendingPlextrNsec = px.trim();
+                return;
+              }
+              return;
+            }
             const privateKey = localStorage.getItem('radio_guaka_chat_private_key');
             const pubkey = localStorage.getItem('radio_guaka_chat_pubkey');
             const usingNip07 = localStorage.getItem('radio_guaka_chat_using_nip07') === 'true';

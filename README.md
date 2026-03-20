@@ -35,7 +35,7 @@ Active channels are in the main `channels` object. Broken/non-working channels a
 Radio Guaka includes a Nostr-based chat feature built with [NDK (Nostr Dev Kit)](https://github.com/nostr-dev-kit/ndk).
 
 **Protocol:**
-- Messages use kind 1 (short text notes) with `#radioguaka` hashtag (`['t', 'radioguaka']`)
+- Messages use kind 1 (short text notes) with `#plextr` and legacy `#radioguaka` tags (`['t', 'plextr']`, `['t', 'radioguaka']`) so pleXtr and radio.guaka.org share the same room; favorites also use `['t', 'favorite']`
 - Reactions use kind 7
 - Delete requests use kind 5
 - Messages expire after 30 days via NIP-40 (`['expiration', timestamp]`)

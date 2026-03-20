@@ -431,6 +431,34 @@
       width: 100%;
     }
 
+    .header-channel-info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: clamp(8px, 1.5vw, 12px);
+      width: 100%;
+      min-width: 0;
+    }
+
+    .header-channel-art {
+      width: clamp(44px, 9vw, 56px);
+      height: clamp(44px, 9vw, 56px);
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0, 255, 255, 0.35);
+      box-shadow:
+        0 0 10px rgba(0, 255, 255, 0.25),
+        inset 0 0 0 1px rgba(255, 0, 255, 0.08);
+    }
+
+    .header-channel-text-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      flex: 1;
+    }
+
 
     article {
       padding: clamp(12px, 2.5vh, 24px) 0 clamp(50px, 7vh, 60px) 0;
@@ -861,6 +889,15 @@
       
       .header-channel-info {
         width: 100%;
+      }
+
+      .header-channel-info-row {
+        justify-content: center;
+        align-items: center;
+      }
+
+      .header-channel-text-block {
+        align-items: center;
       }
       
       .control-panel {
@@ -1436,26 +1473,36 @@
           
           <template x-if="currentChannelData">
             <div class="header-channel-info">
-              <h2>
-                <template x-if="currentChannelData.site">
-                  <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
-                     onmouseover="this.style.color='#ffff00'"
-                     onmouseout="this.style.color=''">
-                    <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
-                  </a>
+              <div class="header-channel-info-row">
+                <template x-if="currentChannelArtUrl">
+                  <img class="header-channel-art"
+                       :src="currentChannelArtUrl"
+                       alt=""
+                       loading="lazy" />
                 </template>
-                <template x-if="!currentChannelData.site">
-                  <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
-                </template>
-              </h2>
-              <template x-if="currentSong">
-                <div class="current-song">
-                  <span x-text="currentSong.artist && currentSong.title ? currentSong.artist + ' - ' + currentSong.title : (currentSong.title || '')"></span>
-                  <button class="add-song-btn" 
-                          @click="likeSong()" 
-                          title="Like this song (public)">👍</button>
+                <div class="header-channel-text-block">
+                  <h2>
+                    <template x-if="currentChannelData.site">
+                      <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
+                         onmouseover="this.style.color='#ffff00'"
+                         onmouseout="this.style.color=''">
+                        <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
+                      </a>
+                    </template>
+                    <template x-if="!currentChannelData.site">
+                      <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
+                    </template>
+                  </h2>
+                  <template x-if="currentSong">
+                    <div class="current-song">
+                      <span x-text="currentSong.artist && currentSong.title ? currentSong.artist + ' - ' + currentSong.title : (currentSong.title || '')"></span>
+                      <button class="add-song-btn" 
+                              @click="likeSong()" 
+                              title="Like this song (public)">👍</button>
+                    </div>
+                  </template>
                 </div>
-              </template>
+              </div>
             </div>
           </template>
         </div>
@@ -2440,6 +2487,7 @@
           
           // Set up Media Session API for lock screen/Bluetooth/car stereo controls
           this.setupMediaSession();
+          this.updateMediaSessionMetadata();
           
           // Watch for channel changes to restart polling
           this.$watch('currentChannel', () => {
@@ -2591,13 +2639,23 @@
           const title = this.currentSong?.title || channelName;
           const album = this.currentSong?.album || 'Radio Guaka';
           
+          const channel = this.currentChannel && typeof channels !== 'undefined'
+            ? channels[this.currentChannel]
+            : null;
+          let artwork = channel ? this.channelArtworkForMediaSession(channel) : null;
+          if (!artwork || !artwork.length) {
+            artwork = [{
+              src: this.resolveMediaImageUrl('og-image.png'),
+              sizes: '512x512',
+              type: 'image/png'
+            }];
+          }
+          
           navigator.mediaSession.metadata = new MediaMetadata({
             title: title,
             artist: artist,
             album: album,
-            artwork: [
-              { src: 'og-image.png', sizes: '512x512', type: 'image/png' }
-            ]
+            artwork: artwork
           });
         },
         
@@ -2867,6 +2925,63 @@
           // FIP channels already have site URLs in their channel data
           
           return data;
+        },
+
+        resolveMediaImageUrl(src) {
+          if (!src || typeof src !== 'string') return '';
+          const s = src.trim();
+          if (!s) return '';
+          if (/^(https?:|data:)/i.test(s)) return s;
+          try {
+            return new URL(s, window.location.href).href;
+          } catch (_) {
+            return s;
+          }
+        },
+
+        get currentChannelArtUrl() {
+          if (!this.currentChannel || typeof channels === 'undefined') return '';
+          const ch = channels[this.currentChannel];
+          if (!ch) return '';
+          let raw = '';
+          if (typeof ch.artwork === 'string' && ch.artwork.trim()) raw = ch.artwork.trim();
+          else if (Array.isArray(ch.artwork) && ch.artwork[0] && typeof ch.artwork[0].src === 'string') {
+            raw = ch.artwork[0].src.trim();
+          } else if (ch.img) raw = ch.img;
+          return raw ? this.resolveMediaImageUrl(raw) : '';
+        },
+
+        channelArtworkForMediaSession(channel) {
+          if (!channel) return null;
+          if (Array.isArray(channel.artwork) && channel.artwork.length) {
+            const list = channel.artwork
+              .map((item) => {
+                if (typeof item === 'string') {
+                  const src = this.resolveMediaImageUrl(item);
+                  return src ? { src } : null;
+                }
+                if (item && typeof item.src === 'string') {
+                  const src = this.resolveMediaImageUrl(item.src);
+                  if (!src) return null;
+                  const out = { src };
+                  if (item.sizes) out.sizes = item.sizes;
+                  if (item.type) out.type = item.type;
+                  return out;
+                }
+                return null;
+              })
+              .filter(Boolean);
+            return list.length ? list : null;
+          }
+          if (typeof channel.artwork === 'string' && channel.artwork.trim()) {
+            const src = this.resolveMediaImageUrl(channel.artwork);
+            return src ? [{ src, sizes: '512x512' }] : null;
+          }
+          if (channel.img) {
+            const src = this.resolveMediaImageUrl(channel.img);
+            return src ? [{ src, sizes: '512x512' }] : null;
+          }
+          return null;
         },
         
         get srcUrl() {

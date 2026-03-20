@@ -672,3 +672,49 @@ const sections = [
   // 'amazing': { url: 'http://109.74.195.10:8000', pls: 'http://stream.amazingradio.com:8000/listen.pls', site: 'http://amazingradio.com/' }
 // };
 
+function hostFromUrl(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (_) {
+    return '';
+  }
+}
+
+function deriveChannelImageUrl(id, info) {
+  const tags = Array.isArray(info.tags) ? info.tags : [];
+  if (tags.includes('soma')) {
+    return 'https://somafm.com/img3/' + encodeURIComponent(id) + '-400.jpg';
+  }
+  if (info.site) {
+    const host = hostFromUrl(info.site);
+    if (host) return 'https://logo.clearbit.com/' + encodeURIComponent(host);
+  }
+  if (info.url) {
+    const host = hostFromUrl(info.url);
+    if (host) return 'https://logo.clearbit.com/' + encodeURIComponent(host);
+  }
+  return 'https://api.dicebear.com/9.x/shapes/svg?seed=' + encodeURIComponent(id);
+}
+
+function primaryUrlFromArtwork(artwork) {
+  if (typeof artwork === 'string' && artwork.trim()) return artwork.trim();
+  if (Array.isArray(artwork) && artwork.length) {
+    const first = artwork[0];
+    if (first && typeof first.src === 'string' && first.src.trim()) return first.src.trim();
+  }
+  return null;
+}
+
+// Ensure every channel has a stable image URL for UI usage.
+// Explicit `img` wins; else `artwork` (string or [{ src, sizes?, type? }]); else derived default.
+Object.entries(channels).forEach(([id, info]) => {
+  if (!info || typeof info !== 'object') return;
+  if (info.img) return;
+  const fromArtwork = primaryUrlFromArtwork(info.artwork);
+  if (fromArtwork) {
+    info.img = fromArtwork;
+    return;
+  }
+  info.img = deriveChannelImageUrl(id, info);
+});
+
