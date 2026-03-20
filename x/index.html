@@ -340,6 +340,24 @@
     .breadcrumb button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font: inherit; }
     .breadcrumb button:hover { text-decoration: underline; }
     .tracks { list-style: none; padding: 0; margin: 0; }
+    .album-detail-head {
+      display: grid;
+      grid-template-columns: clamp(120px, 18vw, 200px) 1fr;
+      gap: 1rem;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+    .album-detail-art {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--border);
+      display: block;
+    }
+    .album-detail-meta h2 { margin: 0 0 0.5rem; font-size: 1.15rem; }
+    .album-detail-meta p { color: var(--muted); font-size: 0.85rem; margin: 0; }
     .tracks li {
       display: flex;
       align-items: center;
@@ -709,6 +727,22 @@
       (starred ? 'currentColor' : 'none') +
       '" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
     return star;
+  }
+
+  function fallbackThumbDataUrl() {
+    return (
+      'data:image/svg+xml,' +
+      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%232a2a30"><rect width="100%" height="100%"/></svg>')
+    );
+  }
+
+  function albumDetailArtUrl(album, tracks) {
+    const firstTrack = tracks && tracks[0] ? tracks[0] : null;
+    const thumbPath =
+      (album && (album.thumb || album.parentThumb || album.grandparentThumb)) ||
+      (firstTrack && (firstTrack.parentThumb || firstTrack.thumb || firstTrack.grandparentThumb)) ||
+      '';
+    return thumbUrl(thumbPath) || fallbackThumbDataUrl();
   }
 
   async function plexFetch(path) {
@@ -1384,7 +1418,7 @@
         div.dataset.key = a.ratingKey;
         div.dataset.search = makeSearchBlob(a);
         if (filterActive) div.style.display = 'none';
-        const img = thumbUrl(a.thumb || a.parentThumb) || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%232a2a30"><rect width="100%" height="100%"/></svg>');
+        const img = thumbUrl(a.thumb || a.parentThumb) || fallbackThumbDataUrl();
         const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
         const albumHref = albumHash(a.ratingKey);
         const artistHref = artistHash(a.parentRatingKey);
@@ -1484,6 +1518,7 @@
       if (displayTitle && displayTitle !== album.title) albumFolderNameCache.set(album.ratingKey, displayTitle);
       const albumHref = albumHash(album.ratingKey);
       const artistHref = artistHash(album.parentRatingKey);
+      const albumArt = albumDetailArtUrl(album, currentTracks);
       const starredTracks = getStarredTracks();
       const list = currentTracks
         .map((t, i) => {
@@ -1507,12 +1542,13 @@
         .join('');
       $('viewTracks').innerHTML =
         '<div class="breadcrumb"><button type="button" id="backAlb2">← Albums</button></div>' +
-        '<h2 style="margin:0 0 0.5rem;font-size:1.15rem">' +
-        makeMetaLinkHtml(displayTitle, albumHref, 'album') +
-        '</h2>' +
-        '<p style="color:var(--muted);font-size:0.85rem;margin:0 0 1rem">' +
-        makeMetaLinkHtml(String(album.parentTitle || ''), artistHref, 'artist') +
-        '</p>' +
+        '<div class="album-detail-head">' +
+        '<img class="album-detail-art" src="' + albumArt + '" alt="' + escapeHtml(displayTitle || 'Album cover') + '" loading="lazy" />' +
+        '<div class="album-detail-meta">' +
+        '<h2>' + makeMetaLinkHtml(displayTitle, albumHref, 'album') + '</h2>' +
+        '<p>' + makeMetaLinkHtml(String(album.parentTitle || ''), artistHref, 'artist') + '</p>' +
+        '</div>' +
+        '</div>' +
         '<ul class="tracks">' +
         list +
         '</ul>';
@@ -1612,7 +1648,7 @@
         div.className = 'album';
         div.dataset.key = a.ratingKey;
         div.dataset.search = makeSearchBlob(a);
-        const img = thumbUrl(a.thumb || a.parentThumb) || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="%232a2a30"><rect width="100%" height="100%"/></svg>');
+        const img = thumbUrl(a.thumb || a.parentThumb) || fallbackThumbDataUrl();
         const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
         const albumHref = albumHash(a.ratingKey);
         const artistHref = artistHash(a.parentRatingKey);
