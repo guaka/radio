@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -28,6 +29,13 @@
       height: 100%;
       overflow: hidden;
     }
+    html {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(0, 255, 255, 0.08) 0%, transparent 46%),
+        radial-gradient(circle at 85% 75%, rgba(255, 0, 255, 0.08) 0%, transparent 48%),
+        linear-gradient(135deg, #0a0a0a 0%, #121225 45%, #0a0a0a 100%);
+      background-color: #0a0a0a;
+    }
     body {
       margin: 0;
       min-height: 100dvh;
@@ -44,8 +52,8 @@
       display: grid;
       grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
       align-items: center;
-      gap: 0.75rem 1rem;
-      padding: 1rem 1.25rem;
+      gap: 0.5rem 0.85rem;
+      padding: 0.68rem 0.95rem;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
     }
@@ -142,7 +150,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.35rem;
     }
     .header-right #btnSettings {
       margin-left: auto;
@@ -251,6 +259,15 @@
     .btn:hover { border-color: var(--accent-dim); color: var(--accent); }
     .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
     .btn.primary:hover { filter: brightness(1.08); }
+    .btn.danger {
+      border-color: #a33a3a;
+      color: #ff8c8c;
+    }
+    .btn.danger:hover {
+      border-color: #d65c5c;
+      color: #ffd2d2;
+      background: rgba(185, 52, 52, 0.14);
+    }
     .icon-btn {
       width: 2.2rem;
       height: 2.2rem;
@@ -390,7 +407,7 @@
       color: #f5f3ef;
     }
     main {
-      padding: 0.6rem 1rem 1rem;
+      padding: 0.35rem 0.85rem 0.85rem;
       width: 100%;
       max-width: none;
       margin: 0;
@@ -490,8 +507,9 @@
     .inline-note {
       font-size: 0.78rem;
       color: var(--muted);
-      margin-top: 0.15rem;
+      margin-top: 0;
       min-height: 1em;
+      line-height: 1.2;
     }
     .mobile-token-hint {
       font-size: 0.78rem;
@@ -746,7 +764,7 @@
     .main-top-actions {
       display: flex;
       justify-content: flex-end;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.15rem;
     }
     .view-toggle .btn.active {
       border-color: var(--accent);
@@ -1562,7 +1580,7 @@
         display: flex;
         flex-wrap: nowrap;
         gap: 0.55rem;
-        padding: 0.7rem 0.72rem;
+        padding: 0.5rem 0.62rem;
       }
       h1.plextr-brand {
         flex: 0 0 auto;
@@ -1611,7 +1629,7 @@
         display: block;
       }
       main {
-        padding: 0.45rem 0.6rem 0.9rem;
+        padding: 0.3rem 0.52rem 0.8rem;
       }
       .sidebar-nav {
         display: grid;
@@ -1837,7 +1855,8 @@
       </div>
       <div class="inline-actions">
         <button type="button" class="btn primary" id="btnSaveNostr">Save nsec</button>
-        <button type="button" class="btn" id="btnClearNostr">Remove nsec</button>
+        <button type="button" class="btn" id="btnGenerateNostr">Generate new nsec</button>
+        <button type="button" class="btn danger" id="btnClearNostr">Remove nsec</button>
       </div>
       <div class="inline-note" id="nostrIdentity"></div>
       </section>
@@ -2004,6 +2023,7 @@
   /** Machine-readable favorite tags (see PLEXTR-FAVORITES-NOSTR.md) */
   const PLEXTR_FAVORITE_SPEC_VER = '1';
   const NOSTR_FAVORITES_LIMIT = 2000;
+  const NOSTR_RECENT_LIMIT = 400;
   const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
   const WIKIPEDIA_REST_SEARCH_URL = 'https://en.wikipedia.org/w/rest.php/v1/search/page';
   const wikiLookupCache = new Map();
@@ -2139,6 +2159,8 @@
 
   function updateNostrSaveButtonVisibility() {
     const btn = $('btnSaveNostr');
+    const genBtn = $('btnGenerateNostr');
+    const clearBtn = $('btnClearNostr');
     const input = $('inNsec');
     if (!btn || !input) return;
     const typed = String(input.value || '').trim();
@@ -2149,7 +2171,11 @@
       !!nostrState.ready &&
       !!nostrState.pubkey &&
       !!nostrState.npub;
+    const hasAnyNsecSet = !!typed || !!saved;
+    const hasSavedNsec = !!saved;
     btn.style.display = alreadySavedAndConnected ? 'none' : '';
+    if (genBtn) genBtn.style.display = hasAnyNsecSet ? 'none' : '';
+    if (clearBtn) clearBtn.style.display = hasSavedNsec ? '' : 'none';
   }
 
   function updateNostrIdentityUi() {
@@ -2271,6 +2297,7 @@
       setNostrStatus('Nostr connected: ' + npub.slice(0, 18) + '…', 'ok');
       await loadNostrHistory();
       await applyNostrFavoritesToLocalStorage();
+      await applyNostrRecentToLocalStorage();
       syncNostrNsecToChatIframe();
       return true;
     } catch (err) {
@@ -2295,7 +2322,7 @@
       // Include #radioguaka so Radio Guaka + legacy subscribers see the same notes
       const baseTags =
         tag === 'nowplaying'
-          ? [['t', NOSTR_TAG], ['t', 'radioguaka']]
+          ? [['t', NOSTR_TAG], ['t', 'radioguaka'], ['t', 'nowplaying']]
           : [['t', NOSTR_TAG], ['t', 'radioguaka'], ['t', tag]];
       const tags = extra.length ? baseTags.concat(extra) : baseTags;
       const eventTemplate = {
@@ -2352,6 +2379,36 @@
     if (!artist && !title) return '';
     const human = artist && title ? artist + ' - ' + title : title || artist;
     return prefix + human + ' #plextr #favorite #album';
+  }
+
+  function nowPlayingTagTrack(track) {
+    if (!track || track.ratingKey == null) return [];
+    const artist = String(track.grandparentTitle || (currentAlbum && currentAlbum.parentTitle) || '').trim();
+    const title = String(track.title || '').trim();
+    const tags = [
+      ['client', 'plextr'],
+      ['plextr_ver', PLEXTR_FAVORITE_SPEC_VER],
+      ['plextr_item', 'track'],
+      ['plextr_rating_key', String(track.ratingKey)]
+    ];
+    if (artist) tags.push(['plextr_artist', artist]);
+    if (title) tags.push(['plextr_title', title]);
+    if (track.parentRatingKey != null) tags.push(['plextr_parent_rating_key', String(track.parentRatingKey)]);
+    if (track.grandparentRatingKey != null) tags.push(['plextr_grandparent_rating_key', String(track.grandparentRatingKey)]);
+    return tags;
+  }
+
+  function nowPlayingTagStation(station) {
+    if (!station || station.id == null) return [];
+    const tags = [
+      ['client', 'plextr'],
+      ['plextr_ver', PLEXTR_FAVORITE_SPEC_VER],
+      ['plextr_item', 'station'],
+      ['plextr_station_id', String(station.id)]
+    ];
+    const name = String(station.name || '').trim();
+    if (name) tags.push(['plextr_title', name]);
+    return tags;
   }
 
   function favoriteTagTrack(track, isStarred) {
@@ -2411,7 +2468,8 @@
   function notifyNowPlaying(track, station) {
     const text = buildNowPlayingText(track, station);
     if (!text) return;
-    publishNostrNote(text, 'nowplaying');
+    const extra = station && station.id != null ? nowPlayingTagStation(station) : nowPlayingTagTrack(track);
+    publishNostrNote(text, 'nowplaying', extra);
   }
 
   /** Wait ~10s into playback before posting now-playing (skip rapid skip-through). */
@@ -2615,6 +2673,47 @@
     return null;
   }
 
+  function parsePlextrNowPlayingTrackEvent(ev) {
+    if (!ev || ev.kind !== 1) return null;
+    const tags = ev.tags || [];
+    const hasTag = (name, val) => tags.some((t) => t && t[0] === name && t[1] === val);
+    if (!hasTag('t', 'plextr') && !hasTag('t', 'radioguaka')) return null;
+    if (hasTag('t', 'favorite')) return null;
+    if (hasTag('t', 'radio')) return null;
+    const item = nostrGetFirstTag(ev, 'plextr_item');
+    const rk = nostrGetFirstTag(ev, 'plextr_rating_key');
+    if (item && item !== 'track') return null;
+    if (!rk && item === 'track') return null;
+    let title = nostrGetFirstTag(ev, 'plextr_title') || '';
+    let artist = nostrGetFirstTag(ev, 'plextr_artist') || '';
+    if (!title) {
+      // Legacy note fallback: "Artist - Title #plextr"
+      const raw = String(ev.content || '');
+      const withoutTags = raw.replace(/#[\w-]+/g, '').trim();
+      const sep = withoutTags.indexOf(' - ');
+      if (sep > 0) {
+        artist = artist || withoutTags.slice(0, sep).trim();
+        title = withoutTags.slice(sep + 3).trim();
+      } else {
+        title = withoutTags.trim();
+      }
+    }
+    if (!rk && !title && !artist) return null;
+    return {
+      createdAt: Number(ev.created_at || 0),
+      ratingKey: rk || '',
+      snapshot: {
+        ratingKey: rk || '',
+        title: title || '',
+        grandparentTitle: artist || '',
+        parentTitle: '',
+        parentRatingKey: nostrGetFirstTag(ev, 'plextr_parent_rating_key') || undefined,
+        grandparentRatingKey: nostrGetFirstTag(ev, 'plextr_grandparent_rating_key') || undefined,
+        albumRatingKey: nostrGetFirstTag(ev, 'plextr_parent_rating_key') || ''
+      }
+    };
+  }
+
   function refreshAllStarButtonsFromStorage() {
     updateNowPlayingFavButton(nowPlayingTrackKey || '');
     const grid = $('albumGrid');
@@ -2728,6 +2827,65 @@
     } catch (err) {
       console.warn('applyNostrFavoritesToLocalStorage', err);
       setNostrStatus('Could not sync favorites from Nostr: ' + (err && err.message ? err.message : String(err)), 'error');
+    }
+  }
+
+  function recentTrackMergeId(entry) {
+    if (!entry || typeof entry !== 'object') return '';
+    const rk = String(entry.ratingKey || '').trim();
+    if (rk) return 'track:' + rk;
+    const title = String(entry.title || entry.trackTitle || '').trim().toLowerCase();
+    const artist = String(entry.grandparentTitle || entry.artist || entry.albumParentTitle || '').trim().toLowerCase();
+    if (!title && !artist) return '';
+    return 'fallback:' + title + '|' + artist;
+  }
+
+  async function applyNostrRecentToLocalStorage() {
+    if (!nostrState.ready || !nostrState.pool || !nostrState.pubkey) return;
+    try {
+      const pool = nostrState.pool;
+      const relayUrls = [...NOSTR_RELAYS];
+      const tagVariants = ['nowplaying', NOSTR_TAG, 'radioguaka'];
+      const byId = new Map();
+      for (let i = 0; i < tagVariants.length; i++) {
+        const filter = {
+          kinds: [1],
+          authors: [nostrState.pubkey],
+          '#t': [tagVariants[i]],
+          limit: NOSTR_RECENT_LIMIT
+        };
+        const batch = await safeNostrQuery(pool, relayUrls, filter);
+        (batch || []).forEach((ev) => {
+          if (ev && ev.id) byId.set(ev.id, ev);
+        });
+      }
+      const nostrRecent = Array.from(byId.values())
+        .map(parsePlextrNowPlayingTrackEvent)
+        .filter(Boolean)
+        .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+        .map((item) => item.snapshot);
+
+      if (!nostrRecent.length) return;
+
+      const merged = [];
+      const seen = new Set();
+      nostrRecent.forEach((entry) => {
+        const id = recentTrackMergeId(entry);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        merged.push(entry);
+      });
+      getRecentTracks().forEach((entry) => {
+        const id = recentTrackMergeId(entry);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        merged.push(entry);
+      });
+      saveRecentTracks(merged);
+      if (navView === 'recent') renderLibraryView();
+    } catch (err) {
+      console.warn('applyNostrRecentToLocalStorage', err);
+      setNostrStatus('Could not sync recently played from Nostr: ' + (err && err.message ? err.message : String(err)), 'error');
     }
   }
 
@@ -3472,19 +3630,37 @@
   }
 
   async function probeSameOriginBackend() {
+    const healthUrl = '/api/health';
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 2500) : null;
     try {
-      const res = await fetch('/api/health', { headers: { Accept: 'application/json' } });
-      if (!res.ok) return false;
+      const res = await fetch(healthUrl, {
+        headers: { Accept: 'application/json' },
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      if (!res.ok) {
+        setSettingsStatus('Backend health check unavailable (' + res.status + '). Running standalone mode.', '');
+        return false;
+      }
       const data = await res.json();
-      if (!data || !data.ok) return false;
+      if (!data || !data.ok) {
+        setSettingsStatus('Backend responded but is not ready. Running standalone mode.', '');
+        return false;
+      }
       const status = [];
       status.push('Same-origin backend detected');
       if (data.ownerConfigured) status.push('friend policy ready');
       if (data.plexConfigured) status.push('plex upstream configured');
       setSettingsStatus(status.join(' - '), 'ok');
       return true;
-    } catch (_) {
+    } catch (err) {
+      if (err && (err.name === 'AbortError' || /Failed to fetch|NetworkError|Load failed/i.test(String(err.message || err)))) {
+        setSettingsStatus('No backend at /api/health. Running standalone mode.', '');
+        return false;
+      }
       return false;
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -3581,6 +3757,7 @@
         if (check && check.authToken) {
           $('inToken').value = check.authToken;
           localStorage.setItem(LS.token, check.authToken);
+          updatePlexSettingsButtonsVisibility();
           statusEl.textContent = 'Token received from Plex.';
           setServerDiscoveryStatus('Token received. Detecting server/IP...');
           try {
@@ -3627,6 +3804,7 @@
           } catch (_) {}
           $('inToken').value = check.authToken;
           localStorage.setItem(LS.token, check.authToken);
+          updatePlexSettingsButtonsVisibility();
           statusEl.textContent = 'Token received from Plex.';
           setServerDiscoveryStatus('Token received. Detecting server/IP...');
           try {
@@ -3821,6 +3999,7 @@
     $('inServer').value = c.server;
     $('inToken').value = c.token;
     updatePlexLoginButtonVisibility();
+    updatePlexSettingsButtonsVisibility();
     setServerDiscoveryStatus('');
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
@@ -3861,6 +4040,16 @@
     if (detectWrap) detectWrap.style.display = shouldShow ? '' : 'none';
   }
 
+  function updatePlexSettingsButtonsVisibility() {
+    const disconnectBtn = $('btnDisconnectPlex');
+    const deleteBtn = $('btnDeletePlexSettings');
+    const c = cfg();
+    const hasStoredPlexSettings = !!(c.server || c.token || c.section);
+    const display = hasStoredPlexSettings ? '' : 'none';
+    if (disconnectBtn) disconnectBtn.style.display = display;
+    if (deleteBtn) deleteBtn.style.display = display;
+  }
+
   function disconnectPlexSession() {
     localStorage.removeItem(LS.server);
     localStorage.removeItem(LS.token);
@@ -3876,6 +4065,7 @@
     setServerDiscoveryStatus('');
     plexConnectionWorking = false;
     updatePlexLoginButtonVisibility();
+    updatePlexSettingsButtonsVisibility();
     plexSectionListCache = [];
     plexSectionNameByKey = {};
     const nav = $('plexLibraryLinks');
@@ -3919,6 +4109,7 @@
           $('inToken').value = c.deviceToken;
           localStorage.setItem(LS.token, c.deviceToken);
         }
+        updatePlexSettingsButtonsVisibility();
         setServerDiscoveryStatus(
           'Using ' + (c.address || c.uri) + (c.local ? ' (local).' : '.'),
           'ok'
@@ -7133,6 +7324,7 @@
     }
     localStorage.setItem(LS.server, server);
     localStorage.setItem(LS.token, token);
+    updatePlexSettingsButtonsVisibility();
     if (!$('inSection').value) {
       try {
         await loadSections();
@@ -7298,12 +7490,55 @@
   });
   bindClick('btnSaveNostr', async () => {
     const ok = await initNostrFromNsec($('inNsec').value.trim());
-    if (ok) setSettingsStatus('Nostr key saved.', 'ok');
+    if (ok) {
+      setSettingsStatus('Nostr key saved.', 'ok');
+      closeSettingsModal();
+    }
+  });
+  bindClick('btnGenerateNostr', async () => {
+    const existing = String(localStorage.getItem(LS.nostrNsec) || '').trim();
+    const typed = String(($('inNsec') && $('inNsec').value) || '').trim();
+    if (existing || typed) {
+      setNostrStatus('Remove existing nsec before generating a new one.', 'error');
+      updateNostrSaveButtonVisibility();
+      return;
+    }
+    try {
+      const tools = await getNostrTools();
+      let secretKey = null;
+      if (typeof tools.generateSecretKey === 'function') {
+        secretKey = tools.generateSecretKey();
+      } else if (typeof tools.generatePrivateKey === 'function') {
+        secretKey = tools.generatePrivateKey();
+      } else {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        secretKey = bytes;
+      }
+      if (!tools.nip19 || typeof tools.nip19.nsecEncode !== 'function') {
+        throw new Error('nostr-tools nsec encoder unavailable');
+      }
+      const nsec = tools.nip19.nsecEncode(secretKey);
+      $('inNsec').value = nsec;
+      updateNostrSaveButtonVisibility();
+      const ok = await initNostrFromNsec(nsec);
+      if (ok) setSettingsStatus('Generated and saved new Nostr key.', 'ok');
+    } catch (err) {
+      setNostrStatus('Could not generate Nostr key: ' + (err && err.message ? err.message : String(err)), 'error');
+    }
   });
   bindEvent('inNsec', 'input', () => {
     updateNostrSaveButtonVisibility();
   });
+  bindEvent('inNsec', 'keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const btn = $('btnSaveNostr');
+    if (btn && btn.style.display !== 'none' && !btn.disabled) btn.click();
+  });
   bindClick('btnClearNostr', () => {
+    const confirmed = window.confirm('Remove saved nsec from this browser?');
+    if (!confirmed) return;
     localStorage.removeItem(LS.nostrNsec);
     localStorage.removeItem(LS.nostrNpub);
     localStorage.removeItem(LS.nostrActivity);
