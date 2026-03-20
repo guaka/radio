@@ -298,7 +298,7 @@
     }
     .search-wrap input {
       width: 100%;
-      padding: 0.52rem 0.65rem 0.52rem 2.05rem;
+      padding: 0.52rem 2rem 0.52rem 2.05rem;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--bg);
@@ -306,6 +306,37 @@
       font-size: 0.88rem;
       outline: none;
       transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-clear-btn {
+      position: absolute;
+      right: 0.42rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1.25rem;
+      height: 1.25rem;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+    }
+    .search-wrap.has-value .search-clear-btn {
+      opacity: 0.72;
+      pointer-events: auto;
+    }
+    .search-clear-btn:hover {
+      background: rgba(255, 255, 255, 0.09);
+      color: var(--text);
+    }
+    .search-clear-btn:focus-visible {
+      outline: 2px solid var(--accent-dim);
+      outline-offset: 1px;
+      opacity: 0.9;
     }
     .search-wrap input:focus {
       border-color: var(--accent-dim);
@@ -359,7 +390,7 @@
       color: #f5f3ef;
     }
     main {
-      padding: 1rem 1.25rem;
+      padding: 0.6rem 1rem 1rem;
       width: 100%;
       max-width: none;
       margin: 0;
@@ -423,6 +454,23 @@
     }
     .settings-form label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.25rem; margin-top: 0.75rem; }
     .settings-form label:first-of-type { margin-top: 0; }
+    .settings-section {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.01);
+      margin-bottom: 0.75rem;
+    }
+    .settings-section:last-child {
+      margin-bottom: 0;
+    }
+    .settings-section-title {
+      margin: 0 0 0.5rem;
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #cde9f2;
+    }
     .settings-form input, .settings-form select {
       width: 100%;
       padding: 0.5rem 0.65rem;
@@ -442,7 +490,7 @@
     .inline-note {
       font-size: 0.78rem;
       color: var(--muted);
-      margin-top: 0.4rem;
+      margin-top: 0.15rem;
       min-height: 1em;
     }
     .mobile-token-hint {
@@ -698,7 +746,7 @@
     .main-top-actions {
       display: flex;
       justify-content: flex-end;
-      margin-bottom: 0.55rem;
+      margin-bottom: 0.25rem;
     }
     .view-toggle .btn.active {
       border-color: var(--accent);
@@ -977,6 +1025,8 @@
       align-items: center;
       gap: 0.35rem;
       min-width: 0;
+      overflow: visible;
+      text-overflow: initial;
     }
     .np-meta-line > a:first-child {
       min-width: 0;
@@ -1000,21 +1050,27 @@
       flex-shrink: 0;
       align-items: center;
       justify-content: center;
-      width: 1rem;
-      height: 1rem;
+      width: 1.1rem;
+      height: 1.1rem;
       border-radius: 50%;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 0.63rem;
-      font-weight: 700;
-      line-height: 1;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.62);
+      opacity: 0.72;
+      line-height: 0;
       text-decoration: none;
-      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+    }
+    .wiki-link img {
+      width: 0.72rem;
+      height: 0.72rem;
+      display: block;
+      border-radius: 2px;
     }
     .wiki-link:hover {
-      border-color: var(--accent-dim);
+      border-color: rgba(0, 255, 255, 0.35);
       color: var(--accent);
-      background: rgba(0, 255, 255, 0.08);
+      opacity: 0.95;
+      background: rgba(0, 255, 255, 0.06);
       text-decoration: none;
     }
     .player-controls {
@@ -1215,14 +1271,41 @@
       color: #8bc9d9;
       margin-top: 0.6rem;
     }
+    .nsec-input-wrap {
+      position: relative;
+    }
     #inNsec {
       border-color: rgba(0, 216, 255, 0.28);
       background: rgba(3, 18, 24, 0.6);
+      padding-right: 2.55rem;
     }
     #inNsec:focus {
       border-color: rgba(0, 216, 255, 0.6);
       box-shadow: 0 0 0 2px rgba(0, 216, 255, 0.14);
       outline: none;
+    }
+    .nsec-visibility-btn {
+      position: absolute;
+      right: 0.38rem;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 1px solid var(--border);
+      background: rgba(12, 12, 16, 0.9);
+      color: var(--muted);
+      border-radius: 6px;
+      width: 1.9rem;
+      height: 1.9rem;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    .nsec-visibility-btn:hover {
+      border-color: rgba(0, 216, 255, 0.48);
+      color: #bff7ff;
     }
     #nostrIdentity {
       color: #9ad4e1;
@@ -1528,7 +1611,7 @@
         display: block;
       }
       main {
-        padding: 0.72rem 0.75rem 0.9rem;
+        padding: 0.45rem 0.6rem 0.9rem;
       }
       .sidebar-nav {
         display: grid;
@@ -1694,6 +1777,7 @@
       <label class="search-wrap" for="inSearch" title="Search metadata, folders and files">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
         <input id="inSearch" type="search" placeholder="Search all Plex libraries, radio, this grid…" autocomplete="off" />
+        <button type="button" class="search-clear-btn" id="btnClearSearch" aria-label="Clear search" title="Clear search">x</button>
       </label>
       <button type="button" class="btn icon-btn btn-plex-settings" id="btnSettings" aria-label="Plex connection settings" title="Plex connection settings">
         <svg class="plex-gear" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.9a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.08V2.9a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.08.4h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"></path></svg>
@@ -1718,6 +1802,7 @@
       </nav>
     </aside>
     <main>
+      <div id="searchFeedback" class="inline-note" aria-live="polite"></div>
       <div class="main-top-actions">
         <div class="view-toggle" id="albumViewToggle" style="display:none" aria-label="Album view mode">
           <button type="button" class="btn icon-btn" id="viewModeToggleBtn" aria-label="Switch to list view" title="Switch to list view">
@@ -1732,7 +1817,6 @@
       </div>
       <div id="error" class="msg error" style="display:none"></div>
       <div class="inline-note" id="settingsStatus" aria-live="polite"></div>
-      <div id="searchFeedback" class="inline-note" aria-live="polite"></div>
       <div id="unifiedSearchPanel" class="unified-search-panel" hidden></div>
       <div id="nostrStatus" class="inline-note" aria-live="polite"></div>
       <div class="modal" id="settingsModal">
@@ -1744,33 +1828,40 @@
         </button>
       </div>
       <div class="settings-form">
+      <section class="settings-section" aria-label="Nostr settings">
+      <p class="settings-section-title">Nostr</p>
       <label for="inNsec">Nostr nsec</label>
-      <input id="inNsec" type="password" placeholder="nsec1..." autocomplete="off" />
+      <div class="nsec-input-wrap">
+        <input id="inNsec" type="password" placeholder="nsec1..." autocomplete="off" />
+        <button type="button" class="nsec-visibility-btn" id="btnToggleNsecMask" aria-label="Show nsec" title="Show nsec">Aa</button>
+      </div>
       <div class="inline-actions">
-        <button type="button" class="btn" id="btnToggleNsecMask">Show</button>
         <button type="button" class="btn primary" id="btnSaveNostr">Save nsec</button>
         <button type="button" class="btn" id="btnClearNostr">Remove nsec</button>
       </div>
       <div class="inline-note" id="nostrIdentity"></div>
-      <p style="margin:0.6rem 0 1rem;font-size:0.8rem;color:var(--muted)">Notes are kind:1 with <strong>#plextr</strong> (and <strong>#radioguaka</strong>) — now-playing uses those tags only; favorites add <strong>#favorite</strong> plus machine tags (<code>plextr_item</code>, <code>plextr_rating_key</code>, etc.) so another browser can restore stars from your relays. Relays: <strong>relay.nomadwiki.org</strong>, <strong>relay.trustroots.org</strong>.</p>
+      </section>
+      <section class="settings-section" aria-label="Plex settings">
+      <p class="settings-section-title">Plex</p>
       <label for="inServer">Server URL (Plex or CORS proxy)</label>
       <input id="inServer" type="url" placeholder="http://192.168.1.10:32400" autocomplete="off" />
-      <div class="inline-actions">
+      <div class="inline-actions" id="detectServerActions">
         <button type="button" class="btn" id="btnDetectServer">Detect server from token</button>
       </div>
       <div class="inline-note" id="serverDiscoveryStatus"></div>
       <div class="server-candidates" id="serverCandidates" style="display:none"></div>
       <label for="inToken">X-Plex-Token</label>
       <input id="inToken" type="text" placeholder="Your token" autocomplete="off" />
-      <p class="mobile-token-hint">On iPhone: if “Sign in with Plex” doesn’t open a window, use <a href="https://plex.tv/link" target="_blank" rel="noopener">plex.tv/link</a> in Safari, then paste the code or token here.</p>
       <div class="inline-actions">
         <button type="button" class="btn" id="btnPlexLogin">Sign in with Plex</button>
+        <button type="button" class="btn" id="btnDisconnectPlex">Disconnect Plex</button>
+        <button type="button" class="btn" id="btnDeletePlexSettings">Delete Plex settings</button>
       </div>
       <div class="inline-note" id="plexLoginStatus"></div>
-      <p style="margin:1rem 0 0;font-size:0.8rem;color:var(--muted)">Token is stored only in this browser (localStorage).</p>
-      <div class="inline-actions" style="margin-top:1rem">
-        <button type="button" class="btn primary" id="btnSave">Save settings</button>
+      <div class="inline-actions" style="margin-top:0.75rem">
+        <button type="button" class="btn primary" id="btnSave">Save Plex settings</button>
       </div>
+      </section>
       </div>
       </div>
       </div>
@@ -1789,9 +1880,9 @@
     <img id="npArt" class="np-art" src="" alt="Now playing artwork" />
     <div class="player-main">
       <div class="info">
-        <div class="title np-meta-line"><a id="npTitle" href="#" target="_blank" rel="noopener">—</a><a id="npTitleWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Song on Wikipedia" aria-label="Song on Wikipedia"><span aria-hidden="true">W</span></a></div>
-        <div class="sub np-meta-line"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a><a id="npAlbumWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Album on Wikipedia" aria-label="Album on Wikipedia"><span aria-hidden="true">W</span></a></div>
-        <div class="sub np-meta-line"><a id="npSub" href="#" target="_blank" rel="noopener"></a><a id="npSubWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Artist on Wikipedia" aria-label="Artist on Wikipedia"><span aria-hidden="true">W</span></a></div>
+        <div class="title np-meta-line"><a id="npTitle" href="#" target="_blank" rel="noopener">—</a><a id="npTitleWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Song on Wikipedia" aria-label="Song on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
+        <div class="sub np-meta-line"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a><a id="npAlbumWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Album on Wikipedia" aria-label="Album on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
+        <div class="sub np-meta-line"><a id="npSub" href="#" target="_blank" rel="noopener"></a><a id="npSubWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Artist on Wikipedia" aria-label="Artist on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
         <div class="sub" id="npNext">Up next: —</div>
         <div class="seek-row">
           <span id="npTime">0:00</span>
@@ -1914,6 +2005,7 @@
   const PLEXTR_FAVORITE_SPEC_VER = '1';
   const NOSTR_FAVORITES_LIMIT = 2000;
   const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
+  const WIKIPEDIA_REST_SEARCH_URL = 'https://en.wikipedia.org/w/rest.php/v1/search/page';
   const wikiLookupCache = new Map();
   const wikiLookupInflight = new Map();
   let nowPlayingWikiRequestId = 0;
@@ -2045,9 +2137,25 @@
     return 'Connected as ' + (nostrState.npub || nostrState.pubkey.slice(0, 16) + '...');
   }
 
+  function updateNostrSaveButtonVisibility() {
+    const btn = $('btnSaveNostr');
+    const input = $('inNsec');
+    if (!btn || !input) return;
+    const typed = String(input.value || '').trim();
+    const saved = String(localStorage.getItem(LS.nostrNsec) || '').trim();
+    const alreadySavedAndConnected =
+      !!typed &&
+      typed === saved &&
+      !!nostrState.ready &&
+      !!nostrState.pubkey &&
+      !!nostrState.npub;
+    btn.style.display = alreadySavedAndConnected ? 'none' : '';
+  }
+
   function updateNostrIdentityUi() {
     const identityEl = $('nostrIdentity');
     if (identityEl) identityEl.textContent = buildNostrIdentityText();
+    updateNostrSaveButtonVisibility();
   }
 
   function postToChat(message) {
@@ -2782,6 +2890,27 @@
     return idbWrapRequest(store.getAll());
   }
 
+  function invalidateAllSearchRecordsCache() {
+    allSearchRecordsCache = null;
+    allSearchRecordsCacheLoadedAt = 0;
+  }
+
+  async function readAllSearchRecordsCached(opts) {
+    const force = !!(opts && opts.force);
+    const now = Date.now();
+    if (
+      !force &&
+      Array.isArray(allSearchRecordsCache) &&
+      now - allSearchRecordsCacheLoadedAt < SEARCH_RECORD_CACHE_TTL_MS
+    ) {
+      return allSearchRecordsCache;
+    }
+    const records = await readAllSearchRecords();
+    allSearchRecordsCache = Array.isArray(records) ? records : [];
+    allSearchRecordsCacheLoadedAt = Date.now();
+    return allSearchRecordsCache;
+  }
+
   async function putSearchRecords(records) {
     if (!records || !records.length) return;
     const db = await openSearchDb();
@@ -2798,6 +2927,17 @@
     }).catch((err) => {
       console.warn(err);
     });
+    if (Array.isArray(allSearchRecordsCache)) {
+      const byId = new Map(allSearchRecordsCache.map((r) => [String(r.id || ''), r]));
+      records.forEach((record) => {
+        if (!record) return;
+        const id = String(record.id || '');
+        if (!id) return;
+        byId.set(id, record);
+      });
+      allSearchRecordsCache = Array.from(byId.values());
+      allSearchRecordsCacheLoadedAt = Date.now();
+    }
   }
 
   async function getSearchRecord(sectionKey, albumKey) {
@@ -3218,6 +3358,21 @@
       if (!title) return '';
       return 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title.replace(/\s+/g, '_'));
     } catch (_) {
+      // Fall through to REST search fallback below.
+    }
+    try {
+      const params = new URLSearchParams({
+        q: q,
+        limit: '1'
+      });
+      const res = await fetch(WIKIPEDIA_REST_SEARCH_URL + '?' + params.toString());
+      if (!res.ok) return '';
+      const data = await res.json();
+      const first = data && Array.isArray(data.pages) ? data.pages[0] : null;
+      const key = first && (first.key || first.title) ? String(first.key || first.title).trim() : '';
+      if (!key) return '';
+      return 'https://en.wikipedia.org/wiki/' + encodeURIComponent(key.replace(/\s+/g, '_'));
+    } catch (_) {
       return '';
     }
   }
@@ -3314,6 +3469,50 @@
     });
     if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
     return res.json();
+  }
+
+  async function probeSameOriginBackend() {
+    try {
+      const res = await fetch('/api/health', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data || !data.ok) return false;
+      const status = [];
+      status.push('Same-origin backend detected');
+      if (data.ownerConfigured) status.push('friend policy ready');
+      if (data.plexConfigured) status.push('plex upstream configured');
+      setSettingsStatus(status.join(' - '), 'ok');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function plexFetchWithTimeout(path, timeoutMs) {
+    const ms = Number(timeoutMs);
+    if (!(ms > 0) || typeof AbortController !== 'function') {
+      return plexFetch(path);
+    }
+    const { server, token } = cfg();
+    if (!server || !token) throw new Error('Configure server URL and token in Settings.');
+    const url = server + path + (path.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(token);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json', 'X-Plex-Token': token },
+        signal: ctrl.signal
+      });
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      return res.json();
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Plex request timed out');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   function getPlexClientId() {
@@ -3553,9 +3752,13 @@
   const albumFolderNameFetchCache = new Map();
   const trackLookup = new Map();
   const albumLookup = new Map();
+  const SEARCH_RECORD_CACHE_TTL_MS = 12000;
+  let allSearchRecordsCache = null;
+  let allSearchRecordsCacheLoadedAt = 0;
   let settingsStatusFadeTimer = 0;
   let settingsStatusClearTimer = 0;
   let errorClearTimer = 0;
+  let plexConnectionWorking = false;
   let activeSearchIndexSection = '';
   /** Plex sections from last loadSections — used for multi-library hub search. */
   let plexSectionListCache = [];
@@ -3617,6 +3820,7 @@
     const c = cfg();
     $('inServer').value = c.server;
     $('inToken').value = c.token;
+    updatePlexLoginButtonVisibility();
     setServerDiscoveryStatus('');
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
@@ -3642,6 +3846,44 @@
     el.classList.remove('ok', 'error');
     if (kind === 'ok') el.classList.add('ok');
     if (kind === 'error') el.classList.add('error');
+  }
+
+  function updatePlexLoginButtonVisibility() {
+    const btn = $('btnPlexLogin');
+    if (!btn) return;
+    const detectWrap = $('detectServerActions');
+    const c = cfg();
+    const hasWorkingTokenConnection = !!(c.server && c.token && plexConnectionWorking);
+    const shouldShow = !hasWorkingTokenConnection;
+    const wrap = btn.closest('.inline-actions');
+    if (wrap) wrap.style.display = shouldShow ? '' : 'none';
+    else btn.style.display = shouldShow ? '' : 'none';
+    if (detectWrap) detectWrap.style.display = shouldShow ? '' : 'none';
+  }
+
+  function disconnectPlexSession() {
+    localStorage.removeItem(LS.server);
+    localStorage.removeItem(LS.token);
+    localStorage.removeItem(LS.section);
+    const serverInput = $('inServer');
+    if (serverInput) serverInput.value = '';
+    const tokenInput = $('inToken');
+    if (tokenInput) tokenInput.value = '';
+    const sectionInput = $('inSection');
+    if (sectionInput) sectionInput.value = '';
+    const loginStatus = $('plexLoginStatus');
+    if (loginStatus) loginStatus.textContent = '';
+    setServerDiscoveryStatus('');
+    plexConnectionWorking = false;
+    updatePlexLoginButtonVisibility();
+    plexSectionListCache = [];
+    plexSectionNameByKey = {};
+    const nav = $('plexLibraryLinks');
+    if (nav) nav.innerHTML = '<p class="sidebar-plex-note">Not connected</p>';
+    refreshMobileLibraryPicker();
+    if (!isRadioRouteHash(location.hash)) location.hash = '#radio';
+    applyHashRoute();
+    setSettingsStatus('Disconnected from Plex. Token removed.', 'ok');
   }
 
   function renderServerCandidates(candidates) {
@@ -3845,6 +4087,7 @@
     activeSearchIndexSection = '';
     albumSearchIndexCache.clear();
     albumTrackSearchCache.clear();
+    invalidateAllSearchRecordsCache();
     libraryTrackTotalCache = { sectionKey: '', total: 0 };
     songShuffleRecentKeys = [];
     if (!section) {
@@ -3860,18 +4103,18 @@
         !tracksHidden || currentArtistKey != null || /^#(album|artist)\//.test(h);
       if (inDetail || h !== '#albums') backToAlbums({ updateLocation: true, fullLibrary: true, skipLoad: true });
     }
-    setSettingsStatus('Loading library...', 'ok');
     await loadAlbums(false);
   }
 
   async function loadSections() {
     const hidden = $('inSection');
     const nav = $('plexLibraryLinks');
-    setSettingsStatus('Connecting to Plex and loading libraries...');
     nav.innerHTML = '<p class="sidebar-plex-note"><span class="spinner"></span> Loading…</p>';
     refreshMobileLibraryPicker('loading');
     try {
       const data = await plexFetch('/library/sections');
+      plexConnectionWorking = true;
+      updatePlexLoginButtonVisibility();
       const dirs = data.MediaContainer.Directory || [];
       const music = dirs.filter(looksLikeMusicLibrary);
       const list = music.length ? music : dirs;
@@ -3894,6 +4137,7 @@
         const suffix = music.length ? '' : ' (' + String(d.type || 'unknown') + ')';
         btn.textContent = String(d.title || '') + suffix;
         btn.addEventListener('click', async () => {
+          clearSearchInput();
           await handlePlexSectionPick(String(d.key));
         });
         const row = document.createElement('div');
@@ -3917,7 +4161,7 @@
         plexSectionNameByKey[ent.key] = ent.title;
       }
       if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
-      else if (music.length) setSettingsStatus('Connected. Found ' + music.length + ' music librar' + (music.length === 1 ? 'y' : 'ies') + '.', 'ok');
+      else if (music.length) setSettingsStatus('');
       else setSettingsStatus('Connected, but no libraries were returned.', 'error');
       const saved = cfg().sectionKey;
       if (saved && list.some((item) => String(item.key) === String(saved))) hidden.value = String(saved);
@@ -3925,6 +4169,8 @@
       refreshMobileLibraryPicker();
       updatePlexLibraryLinkActive();
     } catch (e) {
+      plexConnectionWorking = false;
+      updatePlexLoginButtonVisibility();
       hidden.value = '';
       plexSectionListCache = [];
       plexSectionNameByKey = {};
@@ -4156,19 +4402,18 @@
     const encoded = encodeURIComponent(String(rawQuery || '').trim());
     const albumsByKey = new Map();
     const tracksByKey = new Map();
-    const sections = plexSectionListCache.length ? plexSectionListCache : [];
-    for (let i = 0; i < sections.length; i++) {
+    const section = activeSectionKey();
+    const paths = [];
+    if (section) {
+      paths.push('/hubs/search?query=' + encoded + '&limit=40&sectionId=' + encodeURIComponent(section));
+    }
+    paths.push('/hubs/search?query=' + encoded + '&limit=72');
+    for (let i = 0; i < paths.length; i++) {
       try {
-        const data = await plexFetch(
-          '/hubs/search?query=' + encoded + '&limit=40&sectionId=' + encodeURIComponent(sections[i].key)
-        );
+        const data = await plexFetchWithTimeout(paths[i], 3500);
         ingestHubSearchData(data, albumsByKey, tracksByKey);
       } catch (_) {}
     }
-    try {
-      const data = await plexFetch('/hubs/search?query=' + encoded + '&limit=72');
-      ingestHubSearchData(data, albumsByKey, tracksByKey);
-    } catch (_) {}
     return {
       albums: Array.from(albumsByKey.values()),
       tracks: Array.from(tracksByKey.values())
@@ -4757,10 +5002,13 @@
 
     let idbHits = [];
     try {
-      const allRec = await readAllSearchRecords();
+      const allRec = await readAllSearchRecordsCached();
       if (filterV !== filterVersion) return;
       idbHits = idbRecordsMatchingQuery(allRec, rawQuery);
     } catch (_) {}
+
+    if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
+    panel.innerHTML = buildUnifiedSearchHtml(radioHits, idbHits, [], rawQuery);
 
     let hubAlbums = [];
     let hubTracks = [];
@@ -4776,6 +5024,8 @@
     }
 
     if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
+
+    if (!hubAlbums.length && !hubTracks.length) return;
 
     const byKey = new Map();
     for (let hi = 0; hi < idbHits.length; hi++) {
@@ -4817,9 +5067,11 @@
 
   function updateFilterState() {
     const activeVersion = ++filterVersion;
-    searchQuery = $('inSearch').value.trim().toLowerCase();
+    const searchInput = $('inSearch');
+    searchQuery = searchInput.value.trim().toLowerCase();
     const query = searchQuery;
-    const rawSearchInput = $('inSearch').value.trim();
+    const rawSearchInput = searchInput.value.trim();
+    syncSearchUi();
     if (!rawSearchInput) {
       if (unifiedSearchTimer) {
         clearTimeout(unifiedSearchTimer);
@@ -4984,6 +5236,26 @@
         } catch (_) {}
       }, 950);
     }
+  }
+
+  function syncSearchUi() {
+    const inp = $('inSearch');
+    if (!inp) return;
+    const wrap = inp.closest('.search-wrap');
+    if (!wrap) return;
+    wrap.classList.toggle('has-value', !!String(inp.value || '').trim());
+  }
+
+  function clearSearchInput(opts) {
+    const inp = $('inSearch');
+    if (!inp) return;
+    if (inp.value) inp.value = '';
+    if (filterDebounceTimer) {
+      clearTimeout(filterDebounceTimer);
+      filterDebounceTimer = 0;
+    }
+    updateFilterState();
+    if (opts && opts.focus) inp.focus();
   }
 
   async function ensureAlbumTrackSearch(albumKey) {
@@ -6905,6 +7177,12 @@
       showError(e.message || String(e));
     }
   });
+  bindClick('btnDisconnectPlex', () => {
+    disconnectPlexSession();
+  });
+  bindClick('btnDeletePlexSettings', () => {
+    disconnectPlexSession();
+  });
 
   // Resume Plex login when returning from same-tab auth (e.g. Safari iPhone)
   try {
@@ -6934,11 +7212,16 @@
     }
   });
   bindEvent('inSearch', 'input', () => {
+    syncSearchUi();
     if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
     filterDebounceTimer = setTimeout(updateFilterState, 200);
   });
+  bindClick('btnClearSearch', () => {
+    clearSearchInput({ focus: true });
+  });
   document.querySelectorAll('.sidebar-nav-btn[data-nav]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      clearSearchInput();
       const next = btn.dataset.nav;
       const nextHash = '#' + next;
       if (location.hash !== nextHash) location.hash = nextHash;
@@ -6948,6 +7231,7 @@
   bindEvent('mobileLibrarySelect', 'change', async (e) => {
     const key = String((e.target && e.target.value) || '');
     if (!key) return;
+    clearSearchInput();
     await handlePlexSectionPick(key);
   });
   window.addEventListener('scroll', () => {
@@ -7005,11 +7289,19 @@
     if (!nsecInput) return;
     const isMasked = nsecInput.type === 'password';
     nsecInput.type = isMasked ? 'text' : 'password';
-    $('btnToggleNsecMask').textContent = isMasked ? 'Hide' : 'Show';
+    const btn = $('btnToggleNsecMask');
+    if (btn) {
+      btn.textContent = isMasked ? '**' : 'Aa';
+      btn.title = isMasked ? 'Hide nsec' : 'Show nsec';
+      btn.setAttribute('aria-label', isMasked ? 'Hide nsec' : 'Show nsec');
+    }
   });
   bindClick('btnSaveNostr', async () => {
     const ok = await initNostrFromNsec($('inNsec').value.trim());
     if (ok) setSettingsStatus('Nostr key saved.', 'ok');
+  });
+  bindEvent('inNsec', 'input', () => {
+    updateNostrSaveButtonVisibility();
   });
   bindClick('btnClearNostr', () => {
     localStorage.removeItem(LS.nostrNsec);
@@ -7036,6 +7328,7 @@
     const c = cfg();
     $('inServer').value = c.server;
     $('inToken').value = c.token;
+    probeSameOriginBackend().catch(() => {});
     if (c.server && c.token) {
       loadSections().then(() => {
         const hash = (location.hash || '').trim();
