@@ -7,6 +7,49 @@
   <title>CHAT</title>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script type="module">
+    function buildNostrErrorBlob(value, depth = 0) {
+      if (depth > 2 || value == null) return '';
+      if (typeof value === 'string') return value;
+      const out = [];
+      if (typeof value.message === 'string') out.push(value.message);
+      if (typeof value.stack === 'string') out.push(value.stack);
+      if (typeof value.filename === 'string') out.push(value.filename);
+      if (value.error && value.error !== value) out.push(buildNostrErrorBlob(value.error, depth + 1));
+      if (Array.isArray(value.errors)) {
+        value.errors.forEach(function (item) {
+          out.push(buildNostrErrorBlob(item, depth + 1));
+        });
+      }
+      if (value.cause && value.cause !== value) out.push(buildNostrErrorBlob(value.cause, depth + 1));
+      return out.filter(Boolean).join('\n');
+    }
+
+    function isBenignNostrRelayError(value) {
+      const blob = buildNostrErrorBlob(value, 0);
+      return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:/i.test(blob);
+    }
+
+    (function installNostrErrorGuard() {
+      if (window.__rgChatNostrRejectionGuard) return;
+      window.__rgChatNostrRejectionGuard = true;
+      window.addEventListener('unhandledrejection', function (ev) {
+        if (isBenignNostrRelayError(ev.reason)) {
+          ev.preventDefault();
+          const msg = buildNostrErrorBlob(ev.reason, 0) || 'unknown rejection';
+          console.warn('[chat] Nostr relay (non-fatal):', msg.slice(0, 220));
+        }
+      });
+      window.addEventListener('error', function (ev) {
+        const payload = [ev && ev.message, ev && ev.filename, ev && ev.error].filter(Boolean).join('\n');
+        if (isBenignNostrRelayError(payload) || isBenignNostrRelayError(ev && ev.error)) {
+          ev.preventDefault();
+          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+          const msg = buildNostrErrorBlob(ev && ev.error, 0) || String((ev && ev.message) || '');
+          console.warn('[chat] Nostr relay (non-fatal):', msg.slice(0, 220));
+        }
+      }, true);
+    })();
+
     async function loadNDK() {
       try {
         // Import NDK from esm.sh - use latest version for bug fixes
@@ -619,55 +662,33 @@
            @click.self="showAuthModal = false" 
            @keydown.escape="showAuthModal = false" 
            x-ref="authModal"
-           x-effect="if (showAuthModal) { $nextTick(() => { $refs.authModal?.focus(); if (!useNip7Checkbox && !currentUserPrivateKey && $refs.nsecInput) { $refs.nsecInput.focus(); } }); }"
+          x-effect="if (showAuthModal) { $nextTick(() => { $refs.authModal?.focus(); if (!currentUserPrivateKey && $refs.nsecInput) { $refs.nsecInput.focus(); } }); }"
            tabindex="-1">
         <div class="auth-modal-content">
           <button class="auth-modal-close" @click="showAuthModal = false" aria-label="Close">×</button>
           <h3>Nostr keys</h3>
-          
-          <!-- Trigger detection check when modal opens -->
-          <div x-effect="if (showAuthModal) { startExtensionPolling(); } else { stopExtensionPolling(); }"></div>
-          
-          <!-- NIP-07 checkbox (only if extension is available) -->
-          <template x-if="hasExtension()">
-            <div style="margin-bottom: 16px; padding: 12px; border: 1px solid rgba(0, 255, 255, 0.3); border-radius: 4px; background: rgba(0, 255, 255, 0.05);">
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #00ffff;">
-                <input 
-                  type="checkbox" 
-                  x-model="useNip7Checkbox"
-                  @change="if (useNip7Checkbox) { authenticateWithExtension(); } else { usingNip07 = false; currentUserPrivateKey = null; currentUserNsec = null; currentUserPubkey = null; currentUserNpub = null; isAuthenticated = false; localStorage.removeItem('radio_guaka_chat_using_nip07'); }"
-                  style="width: 18px; height: 18px; cursor: pointer;">
-                <span style="font-size: 13px;">Use NIP-07 extension</span>
-              </label>
-            </div>
-          </template>
-          
+
           <!-- Unified key display -->
           <div class="auth-current">
-            <template x-if="!useNip7Checkbox">
-              <div style="margin-bottom: 12px;">
-                <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">nsec:</div>
-                <div class="auth-input-row">
-                  <template x-if="usingNip07">
-                    <input type="text" readonly value="(stored in extension - not available)" style="color: rgba(255, 255, 255, 0.5); font-style: italic;">
-                  </template>
-                  <template x-if="!usingNip07 && currentUserPrivateKey">
-                    <input :type="showPrivateKey ? 'text' : 'password'" readonly :value="currentUserNsec || currentUserPrivateKey">
-                  </template>
-                  <template x-if="!usingNip07 && !currentUserPrivateKey">
-                    <input 
-                      type="text" 
-                      x-model="manualKey" 
-                      placeholder="nsec1..." 
-                      @keydown.enter="authenticateWithKey()"
-                      x-ref="nsecInput">
-                  </template>
-                  <template x-if="!usingNip07 && currentUserPrivateKey">
-                    <button @click="showPrivateKey = !showPrivateKey" x-text="showPrivateKey ? 'hide' : 'show'"></button>
-                  </template>
-                </div>
+            <div style="margin-bottom: 12px;">
+              <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">nsec:</div>
+              <div class="auth-input-row">
+                <template x-if="currentUserPrivateKey">
+                  <input :type="showPrivateKey ? 'text' : 'password'" readonly :value="currentUserNsec || currentUserPrivateKey">
+                </template>
+                <template x-if="!currentUserPrivateKey">
+                  <input 
+                    type="text" 
+                    x-model="manualKey" 
+                    placeholder="nsec1..." 
+                    @keydown.enter="authenticateWithKey()"
+                    x-ref="nsecInput">
+                </template>
+                <template x-if="currentUserPrivateKey">
+                  <button @click="showPrivateKey = !showPrivateKey" x-text="showPrivateKey ? 'hide' : 'show'"></button>
+                </template>
               </div>
-            </template>
+            </div>
             
             <div>
               <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">npub:</div>
@@ -710,18 +731,13 @@
      * AUTHENTICATION FLOW:
      * 1. Chat loads immediately in read-only mode (anyone can view messages)
      * 2. When user tries to post (focuses input or presses Enter):
-     *    a. First, automatically try NIP-07 browser extension (nos2x, Alby, etc.)
-     *    b. If NIP-07 succeeds: user is authenticated, can post
-     *    c. If NIP-07 fails/unavailable: show modal with options:
-     *       - Generate new key (creates anonymous keypair)
-     *       - Import key (paste nsec/npub)
-     *       - Retry extension (if extension detected)
+     *    - If no local key is authenticated yet, show modal to generate/import key
+     *    - Import key (paste nsec) or generate anonymous keypair
      * 3. Keys are saved to localStorage for future sessions
      * 
      * This flow prioritizes:
      * - Immediate access to read chat
-     * - Seamless auth for users with browser extensions
-     * - Simple fallback for users without extensions
+     * - Simple local-key auth for posting
      */
     function redactNsecForLog(value) {
       if (value == null || value === '') return '(none)';
@@ -742,7 +758,6 @@
         currentUserPrivateKey: null,
         currentUserNsec: null,
         currentUserNip05: null, // NIP-05 identifier (e.g. user@domain.com)
-        usingNip07: false, // Track if we're using NIP-07 extension (no nsec available)
         currentChannel: '',
         relays: [],
         relayStatus: {},
@@ -753,28 +768,14 @@
         showAuthModal: false,
         showManualAuth: false,
         showPrivateKey: false,
-        useNip7Checkbox: false, // Checkbox state for NIP-07
         manualKey: '',
         errorMessage: '',
         isInIframe: window.parent !== window,
-        extensionPollInterval: null, // Interval ID for polling extension
-        extensionDetected: false, // Cached detection result
-        parentNostrProxy: null, // Proxy to parent window's nostr (if in iframe)
-        detectedNostrProvider: null, // The nostr provider we found (for use in setupSigner)
         /** pleXtr embed: no chat header / no in-chat Nostr UI; parent supplies nsec */
         minimalEmbed: false,
         _pendingPlextrNsec: null,
         /** Subscribe / display notes with any of these #t values (Radio Guaka legacy + pleXtr) */
         chatRoomTags: Object.freeze(['plextr', 'radioguaka']),
-        
-        // Method to check if extension is available (for template reactivity)
-        hasExtension() {
-          return this.extensionDetected || 
-                 !!this.parentNostrProxy || 
-                 (this.isInIframe && window.parent && window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') ||
-                 (window.nostr && typeof window.nostr.getPublicKey === 'function') ||
-                 (window.webln && window.webln.nostr && typeof window.webln.nostr.getPublicKey === 'function');
-        },
         
         // Ensure messages is always an array
         ensureMessagesArray() {
@@ -956,8 +957,7 @@
              * AUTH FLOW:
              * 1. Chat is shown immediately in read-only mode
              * 2. When user tries to post (focus input or send):
-             *    - First try NIP-07 extension automatically
-             *    - If no NIP-07 or user denies: show modal to generate/import key
+             *    - If no local nsec key is authenticated, show modal to generate/import key
              * 3. Keys are saved to localStorage for future sessions
              */
             
@@ -1647,7 +1647,7 @@
         },
         
         // Check auth when user focuses input
-        // Flow: silently try NIP-07; no modal here to avoid surprise popups
+        // Flow: in minimal embed, try key from parent storage; otherwise wait for send/open modal
         async checkAuthOnFocus() {
           if (this.isAuthenticated) return;
           if (this.minimalEmbed) {
@@ -1658,22 +1658,6 @@
             }
             return;
           }
-          
-          // Small delay to let user see they can type
-          await new Promise(r => setTimeout(r, 300));
-          if (this.isAuthenticated) return;
-          
-          // Try NIP-07 extension first (silently)
-          if (this.detectNostrExtension()) {
-            console.log('Trying NIP-07 extension on focus...');
-            const success = await this.authenticateWithExtension();
-            if (success) {
-              console.log('NIP-07 auth successful');
-              return;
-            }
-            console.log('NIP-07 auth failed or denied');
-          }
-          // If still unauthenticated, do nothing here. Modal will appear on send or via header icon.
         },
         
         // Handle keyboard input
@@ -1874,7 +1858,7 @@
         },
         
         // Send message
-        // Flow: try NIP-07 first if not authenticated, then show modal
+        // Flow: require local key auth; show modal if missing
         async sendMessage() {
           if (!this.isAuthenticated) {
             if (this.minimalEmbed) {
@@ -1888,13 +1872,6 @@
                 setTimeout(() => { this.errorMessage = ''; }, 5000);
                 return;
               }
-            } else if (this.detectNostrExtension()) {
-              console.log('sendMessage: Trying NIP-07...');
-              const success = await this.authenticateWithExtension();
-              if (!success) {
-                this.showAuthModal = true;
-                return;
-              }
             } else {
               this.showAuthModal = true;
               return;
@@ -1903,36 +1880,15 @@
           
           if (!this.messageInput.trim() || !this.ndk || !this.ndk.signer) {
             if (!this.ndk || !this.ndk.signer) {
-              // If using NIP-07, try to set up signer again
-              if (this.usingNip07 || this.useNip7Checkbox) {
-                await this.setupSigner();
-                if (this.ndk && this.ndk.signer) {
-                  // Signer set up, continue
-                } else {
-                  this.errorMessage = 'Extension signer not available. Please reconnect.';
-                  setTimeout(() => { this.errorMessage = ''; }, 3000);
-                  return;
-                }
-              } else {
-                this.errorMessage = 'Not connected. Please wait or refresh.';
-                setTimeout(() => { this.errorMessage = ''; }, 3000);
-                return;
-              }
-            } else {
+              this.errorMessage = 'Not connected. Please wait or refresh.';
+              setTimeout(() => { this.errorMessage = ''; }, 3000);
               return;
             }
+            return;
           }
           
           try {
             this.isSending = true;
-            
-            // Ensure signer is set up (especially for NIP-07)
-            if (this.usingNip07 || this.useNip7Checkbox) {
-              await this.setupSigner();
-              if (!this.ndk.signer) {
-                throw new Error('Extension signer not available');
-              }
-            }
             
             const messageContent = this.messageInput.trim();
             const NDKEvent = window.NDKModule?.NDKEvent;
@@ -1955,7 +1911,7 @@
               event.tags.push(['channel', this.currentChannel]);
             }
             
-            // Sign the event - if using NIP-07, this will use the extension's signEvent() method
+            // Sign event with local key signer
             await event.sign();
             
             // Get event ID after signing (required for optimistic update)
@@ -2136,242 +2092,6 @@
           }
         },
         
-        // Detect Nostr extensions (nos2x, Alby, etc.)
-        detectNostrExtension() {
-          // If in iframe, try to access parent window's extension
-          if (this.isInIframe) {
-            try {
-              if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
-                // Create a proxy to parent's nostr
-                this.parentNostrProxy = window.parent.nostr;
-                this.extensionDetected = true;
-                // Force Alpine.js to re-render
-                this.$nextTick(() => {});
-                return true;
-              }
-              if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
-                this.parentNostrProxy = window.parent.webln.nostr;
-                this.extensionDetected = true;
-                // Force Alpine.js to re-render
-                this.$nextTick(() => {});
-                return true;
-              }
-            } catch (e) {
-              // Cross-origin - can't access parent directly
-            }
-          }
-          
-          // Check for standard window.nostr interface (nos2x, etc.)
-          if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
-            this.extensionDetected = true;
-            // Force Alpine.js to re-render
-            this.$nextTick(() => {});
-            return true;
-          }
-          
-          // Check for Alby's nostr provider
-          if (window.webln && window.webln.nostr && typeof window.webln.nostr.getPublicKey === 'function') {
-            this.extensionDetected = true;
-            // Force Alpine.js to re-render
-            this.$nextTick(() => {});
-            return true;
-          }
-          
-          this.extensionDetected = false;
-          return false;
-        },
-        
-        // Start polling for extension (for extensions that inject async)
-        startExtensionPolling() {
-          // Clear any existing interval
-          if (this.extensionPollInterval) {
-            clearInterval(this.extensionPollInterval);
-          }
-          
-          // Try to trigger extension injection by accessing window.nostr
-          // Some extensions only inject after first access attempt
-          try {
-            if (!window.nostr) {
-              const test = window.nostr;
-            }
-          } catch (e) {
-            // Ignore
-          }
-          
-          // If in iframe, also try parent window
-          if (this.isInIframe) {
-            try {
-              if (!window.parent.nostr) {
-                const test = window.parent.nostr;
-              }
-            } catch (e) {
-              // Ignore
-            }
-          }
-          
-          // Check immediately
-          this.detectNostrExtension();
-          
-          // Poll every 500ms for up to 10 seconds
-          let attempts = 0;
-          const maxAttempts = 20; // 20 * 500ms = 10 seconds
-          
-          this.extensionPollInterval = setInterval(() => {
-            attempts++;
-            
-            const detected = this.detectNostrExtension();
-            if (detected) {
-              clearInterval(this.extensionPollInterval);
-              this.extensionPollInterval = null;
-              // Force Alpine.js to re-render by updating a reactive property
-              this.extensionDetected = true;
-              this.$nextTick(() => {});
-            } else if (attempts >= maxAttempts) {
-              clearInterval(this.extensionPollInterval);
-              this.extensionPollInterval = null;
-            }
-          }, 500);
-        },
-        
-        // Stop polling for extension
-        stopExtensionPolling() {
-          if (this.extensionPollInterval) {
-            clearInterval(this.extensionPollInterval);
-            this.extensionPollInterval = null;
-          }
-        },
-        
-        // Authenticate with extension (NIP-07)
-        // IMPORTANT: With NIP-07, the website NEVER needs access to the private key.
-        // The extension securely stores the private key and only provides:
-        // - getPublicKey() - returns the public key
-        // - signEvent(event) - signs events using the extension's private key
-        // The private key never leaves the extension's secure storage.
-        async authenticateWithExtension() {
-          try {
-            // If we have a parent proxy (from iframe detection), use it
-            let nostrProvider = this.parentNostrProxy;
-            
-            // Try standard window.nostr first
-            if (!nostrProvider) {
-              nostrProvider = window.nostr;
-            }
-            
-            // Fallback to Alby's nostr provider
-            if (!nostrProvider && window.webln && window.webln.nostr) {
-              nostrProvider = window.webln.nostr;
-            }
-            
-            // If in iframe and no provider yet, try parent window
-            if (!nostrProvider && this.isInIframe) {
-              try {
-                if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
-                  nostrProvider = window.parent.nostr;
-                  this.parentNostrProxy = nostrProvider;
-                } else if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
-                  nostrProvider = window.parent.webln.nostr;
-                  this.parentNostrProxy = nostrProvider;
-                }
-              } catch (e) {
-                this.errorMessage = 'Cannot access extension in parent window: ' + e.message;
-                setTimeout(() => { this.errorMessage = ''; }, 5000);
-                this.useNip7Checkbox = false;
-                return false;
-              }
-            }
-            
-            if (!nostrProvider) {
-              this.useNip7Checkbox = false; // Uncheck if extension not available
-              this.errorMessage = 'No NIP-07 extension found';
-              setTimeout(() => { this.errorMessage = ''; }, 3000);
-              return false;
-            }
-            
-            // Check if getPublicKey method exists
-            if (typeof nostrProvider.getPublicKey !== 'function') {
-              this.useNip7Checkbox = false; // Uncheck if extension not working
-              this.errorMessage = 'Extension found but getPublicKey is not a function';
-              setTimeout(() => { this.errorMessage = ''; }, 3000);
-              return false;
-            }
-            
-            // Get public key from extension
-            let pubkey;
-            try {
-              pubkey = await nostrProvider.getPublicKey();
-            } catch (e) {
-              this.errorMessage = 'Error getting public key: ' + e.message;
-              setTimeout(() => { this.errorMessage = ''; }, 5000);
-              this.useNip7Checkbox = false;
-              return false;
-            }
-            
-            if (!pubkey) {
-              this.useNip7Checkbox = false; // Uncheck if auth failed
-              this.errorMessage = 'No public key returned from extension';
-              setTimeout(() => { this.errorMessage = ''; }, 3000);
-              return false;
-            }
-            
-            this.setUserPubkey(pubkey);
-            this.isAuthenticated = true;
-            this.usingNip07 = true; // Mark that we're using NIP-07 (no nsec available)
-            this.currentUserPrivateKey = null; // Clear any stored private key
-            this.currentUserNsec = null; // No nsec with NIP-07
-            this.useNip7Checkbox = true; // Keep checkbox checked
-            this.showAuthModal = false;
-            
-            // Wait for NDK to be ready before setting up signer
-            if (!this.ndk) {
-              // Wait for NDK to initialize
-              await new Promise((resolve) => {
-                if (this.ndk) {
-                  resolve();
-                } else {
-                  const checkNDK = setInterval(() => {
-                    if (this.ndk) {
-                      clearInterval(checkNDK);
-                      resolve();
-                    }
-                  }, 100);
-                  // Timeout after 5 seconds
-                  setTimeout(() => {
-                    clearInterval(checkNDK);
-                    resolve(); // Continue anyway
-                  }, 5000);
-                }
-              });
-            }
-            
-            // Set up signer with extension
-            // The extension's signer will use nostrProvider.signEvent() internally
-            // The private key remains in the extension and is never exposed to the website
-            // Store the provider we found for use in setupSigner
-            this.detectedNostrProvider = nostrProvider;
-            await this.setupSigner();
-            
-            // Fetch user's profile to get NIP-05 and other info
-            this.fetchCurrentUserProfile();
-            
-            // Save pubkey to localStorage (but don't save private key - extension handles that)
-            // With NIP-07, we only need the public key - the extension manages the private key securely
-            localStorage.setItem('radio_guaka_chat_pubkey', pubkey);
-            // Clear any saved private key since we're using extension
-            // This ensures we don't accidentally use a stored key when extension is available
-            localStorage.removeItem('radio_guaka_chat_private_key');
-            // Mark that we're using NIP-07
-            localStorage.setItem('radio_guaka_chat_using_nip07', 'true');
-            
-            return true;
-            
-          } catch (error) {
-            this.useNip7Checkbox = false; // Uncheck on error
-            this.errorMessage = 'Authentication error: ' + (error.message || error.toString());
-            setTimeout(() => { this.errorMessage = ''; }, 5000);
-            return false; // Return false instead of throwing
-          }
-        },
-        
         // Authenticate with key (nsec only)
         async authenticateWithKey() {
           try {
@@ -2408,11 +2128,7 @@
               this.isAuthenticated = true;
               this.showAuthModal = false;
               this.showManualAuth = false;
-              
-              this.usingNip07 = false; // Not using NIP-07 when importing key
-              this.useNip7Checkbox = false; // Uncheck NIP-07 when importing key
               localStorage.setItem('radio_guaka_chat_private_key', key);
-              localStorage.removeItem('radio_guaka_chat_using_nip07');
               if (this.currentUserPubkey && this.currentUserPubkey !== 'loading...') {
                 localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
               }
@@ -2465,8 +2181,6 @@
         async generateNewKey() {
           try {
             this.errorMessage = ''; // Clear any previous errors
-            this.usingNip07 = false; // Not using NIP-07 when generating new key
-            this.useNip7Checkbox = false; // Uncheck NIP-07 when generating new key
             
             // Use NDK to generate a keypair
             if (window.NDKModule && window.NDKModule.generatePrivateKey) {
@@ -2513,7 +2227,6 @@
             
             // Save to localStorage
             localStorage.setItem('radio_guaka_chat_private_key', this.currentUserPrivateKey);
-            localStorage.removeItem('radio_guaka_chat_using_nip07');
             if (this.currentUserPubkey && this.currentUserPubkey !== 'generating...') {
               localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
             }
@@ -2551,8 +2264,6 @@
           this.currentUserPubkey = null;
           this.currentUserNpub = null;
           this.currentUserNip05 = null;
-          this.usingNip07 = false;
-          this.useNip7Checkbox = false;
           this.isAuthenticated = false;
           this.manualKey = '';
           this.showPrivateKey = false;
@@ -2560,7 +2271,6 @@
           // Clear from localStorage
           localStorage.removeItem('radio_guaka_chat_private_key');
           localStorage.removeItem('radio_guaka_chat_pubkey');
-          localStorage.removeItem('radio_guaka_chat_using_nip07');
 
           // Clear signer
           if (this.ndk) {
@@ -2568,136 +2278,11 @@
           }
         },
         
-        // Create NIP-07 signer adapter (implements NDK signer interface)
-        createNip07Signer(nostrProvider, pubkey, ndkInstance) {
-          const NDKUser = window.NDKModule?.NDKUser;
-          if (!NDKUser) {
-            throw new Error('NDKUser not available');
-          }
-          
-          // Create a signer adapter that implements NDK's signer interface
-          // IMPORTANT: We do NOT expose getRelays() to prevent NDK from using extension relays
-          const signer = {
-            _pubkey: pubkey,
-            _nostrProvider: nostrProvider,
-            
-            // NDK expects signer.user() to return a Promise<NDKUser>
-            async user() {
-              const user = new NDKUser({ pubkey: pubkey });
-              if (ndkInstance) {
-                user.ndk = ndkInstance;
-              }
-              return user;
-            },
-            
-            // NDK calls sign() on the signer, passing the NDKEvent
-            // NDK expects sign() to update the event's sig and return the signature string
-            async sign(event) {
-              // Convert NDKEvent to plain object for extension
-              const plainEvent = {
-                kind: event.kind,
-                created_at: event.created_at || Math.floor(Date.now() / 1000),
-                tags: event.tags || [],
-                content: event.content || '',
-                pubkey: pubkey
-              };
-
-              // Use extension's signEvent method
-              const signedEvent = await nostrProvider.signEvent(plainEvent);
-
-              // Update the NDKEvent with signed data
-              event.id = signedEvent.id;
-              event.sig = signedEvent.sig;
-              event.pubkey = signedEvent.pubkey;
-              
-              // NDK expects sign() to return the signature string
-              return signedEvent.sig;
-            },
-            
-            // NOTE: We intentionally do NOT expose getRelays() here
-            // This prevents NDK from using extension/user relays
-            // Return empty array if NDK tries to call it
-            getRelays: async () => {
-              // Return empty array to prevent NDK from using extension relays
-              return [];
-            }
-          };
-          
-          return signer;
-        },
-        
         // Setup signer
         async setupSigner() {
           try {
             if (!this.ndk) return;
-            
-            // If using NIP-07, prioritize extension signer
-            if (this.usingNip07 || this.useNip7Checkbox) {
-              // Try to use extension signer
-              // Use the provider we detected (could be from parent window if in iframe)
-              let nostrProvider = this.detectedNostrProvider || this.parentNostrProxy;
-              
-              if (!nostrProvider) {
-                nostrProvider = window.nostr;
-              }
-              if (!nostrProvider && window.webln && window.webln.nostr) {
-                nostrProvider = window.webln.nostr;
-              }
-              // If in iframe, also try parent
-              if (!nostrProvider && this.isInIframe) {
-                try {
-                  if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
-                    nostrProvider = window.parent.nostr;
-                    this.parentNostrProxy = nostrProvider;
-                  } else if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
-                    nostrProvider = window.parent.webln.nostr;
-                    this.parentNostrProxy = nostrProvider;
-                  }
-                } catch (e) {
-                  // Cross-origin, can't access
-                }
-              }
-              
-              if (nostrProvider && this.currentUserPubkey) {
-                // Create NIP-07 signer adapter that implements NDK's signer interface
-                const signer = this.createNip07Signer(nostrProvider, this.currentUserPubkey, this.ndk);
-                this.ndk.signer = signer;
-                this.detectedNostrProvider = nostrProvider; // Store for future use
-                return; // Done - extension signer is set
-              }
-            }
-            
-            // Try to use extension signer (even if not explicitly using NIP-07)
-            // Use the provider we detected (could be from parent window if in iframe)
-            let nostrProvider = this.detectedNostrProvider || this.parentNostrProxy;
-            
-            if (!nostrProvider) {
-              nostrProvider = window.nostr;
-            }
-            if (!nostrProvider && window.webln && window.webln.nostr) {
-              nostrProvider = window.webln.nostr;
-            }
-            // If in iframe, also try parent
-            if (!nostrProvider && this.isInIframe) {
-              try {
-                if (window.parent.nostr && typeof window.parent.nostr.getPublicKey === 'function') {
-                  nostrProvider = window.parent.nostr;
-                  this.parentNostrProxy = nostrProvider;
-                } else if (window.parent.webln && window.parent.webln.nostr && typeof window.parent.webln.nostr.getPublicKey === 'function') {
-                  nostrProvider = window.parent.webln.nostr;
-                  this.parentNostrProxy = nostrProvider;
-                }
-              } catch (e) {
-                // Cross-origin, can't access
-              }
-            }
-            
-            if (nostrProvider && this.currentUserPubkey) {
-              // Create NIP-07 signer adapter
-              const signer = this.createNip07Signer(nostrProvider, this.currentUserPubkey, this.ndk);
-              this.ndk.signer = signer;
-              this.detectedNostrProvider = nostrProvider; // Store for future use
-            } else if (this.currentUserPrivateKey) {
+            if (this.currentUserPrivateKey) {
               // Use private key signer
               try {
                 const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
@@ -2903,23 +2488,8 @@
             }
             const privateKey = localStorage.getItem('radio_guaka_chat_private_key');
             const pubkey = localStorage.getItem('radio_guaka_chat_pubkey');
-            const usingNip07 = localStorage.getItem('radio_guaka_chat_using_nip07') === 'true';
             
-            if (usingNip07 && pubkey) {
-              // We were using NIP-07 - restore that state
-              this.usingNip07 = true;
-              this.useNip7Checkbox = true; // Restore checkbox state
-              this.currentUserPrivateKey = null;
-              this.currentUserNsec = null;
-              this.setUserPubkey(pubkey);
-              this.isAuthenticated = true;
-              // Try to reconnect with extension
-              if (this.detectNostrExtension()) {
-                await this.authenticateWithExtension();
-              }
-            } else if (privateKey) {
-              this.useNip7Checkbox = false; // Not using NIP-07
-              this.usingNip07 = false;
+            if (privateKey) {
               this.setUserPrivateKey(privateKey);
               this.isAuthenticated = true;
               
@@ -2947,12 +2517,8 @@
                 this.fetchCurrentUserProfile();
               }
             } else if (pubkey) {
-              this.usingNip07 = false;
-              this.useNip7Checkbox = false;
               this.setUserPubkey(pubkey);
               this.isAuthenticated = false; // Read-only
-            } else {
-              this.useNip7Checkbox = false; // Default to unchecked
             }
           } catch (e) {
             console.error('Error loading keys:', e);

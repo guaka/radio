@@ -950,6 +950,18 @@
     }
     .player-bar .title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .player-bar .sub { font-size: 0.75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .np-meta-line {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+    .np-meta-line > a:first-child {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .player-bar .title a,
     .player-bar .sub a {
       color: inherit;
@@ -960,6 +972,28 @@
       color: var(--accent);
       text-decoration: underline;
       text-underline-offset: 2px;
+    }
+    .wiki-link {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.63rem;
+      font-weight: 700;
+      line-height: 1;
+      text-decoration: none;
+      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+    }
+    .wiki-link:hover {
+      border-color: var(--accent-dim);
+      color: var(--accent);
+      background: rgba(0, 255, 255, 0.08);
+      text-decoration: none;
     }
     .player-controls {
       display: flex;
@@ -1442,27 +1476,66 @@
       outline: none;
     }
     @media (max-width: 720px) {
+      header {
+        gap: 0.55rem;
+        padding: 0.7rem 0.72rem;
+      }
+      .plextr-brand-link {
+        padding: 0.15rem 0.35rem 0.15rem 0.2rem;
+        margin: -0.15rem -0.35rem -0.15rem -0.2rem;
+      }
+      .plextr-brand-title {
+        font-size: 1.03rem;
+        letter-spacing: 0.12em;
+      }
+      .header-right {
+        width: 100%;
+        margin-left: 0;
+        gap: 0.4rem;
+      }
       .app-shell { grid-template-columns: 1fr; }
       .sidebar {
+        padding: 0.7rem 0.6rem;
         border-right: none;
         border-bottom: 1px solid var(--border);
+      }
+      main {
+        padding: 0.72rem 0.75rem 0.9rem;
       }
       .sidebar-nav {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.32rem;
       }
       .sidebar-plex .sidebar-nav {
         display: flex;
         flex-direction: column;
       }
       .search-wrap { max-width: none; min-width: 100%; order: 1; }
+      .search-wrap input {
+        font-size: 0.96rem;
+        padding-top: 0.6rem;
+        padding-bottom: 0.6rem;
+      }
       .header-right .view-toggle,
       .header-right #btnReload,
       .header-right #btnSettings,
       .header-right #btnNostr { order: 3; }
+      .header-right .view-toggle {
+        gap: 0.35rem;
+      }
+      .header-right #btnSettings,
+      .header-right #btnNostr {
+        height: 2.35rem;
+      }
+      .btn-plex-settings .plex-word {
+        display: none;
+      }
       .player-bar {
         flex-wrap: wrap;
         align-items: flex-start;
+        gap: 0.55rem;
+        padding: 0.56rem 0.62rem 0.6rem;
       }
       .player-main {
         flex: 1 1 0;
@@ -1470,7 +1543,7 @@
         flex-direction: column;
         align-items: stretch;
         align-self: center;
-        gap: 0.45rem;
+        gap: 0.4rem;
       }
       .player-bar .info {
         flex: 0 1 auto;
@@ -1478,12 +1551,29 @@
         max-width: none;
       }
       .player-controls {
+        width: 100%;
         flex-shrink: 0;
-        justify-content: flex-end;
+        justify-content: space-between;
         flex-wrap: wrap;
-        row-gap: 0.35rem;
+        gap: 0.3rem;
       }
-      .np-art { width: 52px; height: 52px; }
+      .player-controls .btn.icon-btn,
+      .player-controls .shuffle-mode-btn,
+      .player-controls .next-album-btn {
+        height: 2.3rem;
+      }
+      .player-controls .shuffle-mode-btn,
+      .player-controls .next-album-btn {
+        padding-left: 0.42rem;
+        padding-right: 0.42rem;
+      }
+      .np-art { width: 48px; height: 48px; }
+      .seek-row {
+        margin-top: 0.24rem;
+      }
+      .plextr-footer {
+        display: none;
+      }
       .chat-container {
         display: none;
         position: fixed;
@@ -1662,9 +1752,9 @@
     <img id="npArt" class="np-art" src="" alt="Now playing artwork" />
     <div class="player-main">
       <div class="info">
-        <div class="title"><a id="npTitle" href="#" target="_blank" rel="noopener">—</a></div>
-        <div class="sub"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a></div>
-        <div class="sub"><a id="npSub" href="#" target="_blank" rel="noopener"></a></div>
+        <div class="title np-meta-line"><a id="npTitle" href="#" target="_blank" rel="noopener">—</a><a id="npTitleWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Song on Wikipedia" aria-label="Song on Wikipedia"><span aria-hidden="true">W</span></a></div>
+        <div class="sub np-meta-line"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a><a id="npAlbumWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Album on Wikipedia" aria-label="Album on Wikipedia"><span aria-hidden="true">W</span></a></div>
+        <div class="sub np-meta-line"><a id="npSub" href="#" target="_blank" rel="noopener"></a><a id="npSubWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Artist on Wikipedia" aria-label="Artist on Wikipedia"><span aria-hidden="true">W</span></a></div>
         <div class="sub" id="npNext">Up next: —</div>
         <div class="seek-row">
           <span id="npTime">0:00</span>
@@ -1776,6 +1866,10 @@
   /** Machine-readable favorite tags (see PLEXTR-FAVORITES-NOSTR.md) */
   const PLEXTR_FAVORITE_SPEC_VER = '1';
   const NOSTR_FAVORITES_LIMIT = 2000;
+  const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
+  const wikiLookupCache = new Map();
+  const wikiLookupInflight = new Map();
+  let nowPlayingWikiRequestId = 0;
   let nostrToolsPromise = null;
   let nostrState = {
     ready: false,
@@ -1788,23 +1882,48 @@
     lastPostAt: 0
   };
 
+  function buildNostrErrorBlob(value, depth) {
+    if (depth > 2 || value == null) return '';
+    if (typeof value === 'string') return value;
+    const out = [];
+    if (typeof value.message === 'string') out.push(value.message);
+    if (typeof value.stack === 'string') out.push(value.stack);
+    if (typeof value.filename === 'string') out.push(value.filename);
+    if (value.error && value.error !== value) out.push(buildNostrErrorBlob(value.error, depth + 1));
+    if (Array.isArray(value.errors)) {
+      value.errors.forEach(function (item) {
+        out.push(buildNostrErrorBlob(item, depth + 1));
+      });
+    }
+    if (value.cause && value.cause !== value) out.push(buildNostrErrorBlob(value.cause, depth + 1));
+    return out.filter(Boolean).join('\n');
+  }
+
+  function isBenignNostrRelayError(value) {
+    const blob = buildNostrErrorBlob(value, 0);
+    return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:/i.test(blob);
+  }
+
   /** nostr-tools runs relay I/O in internal queues; rejections often bypass try/catch. */
   (function installNostrUnhandledRejectionGuard() {
     if (window.__plextrNostrRejectionGuard) return;
     window.__plextrNostrRejectionGuard = true;
     window.addEventListener('unhandledrejection', function (ev) {
-      const r = ev.reason;
-      const msg = String((r && r.message) || r || '');
-      const stack = String((r && r.stack) || '');
-      const blob = msg + '\n' + stack;
-      const fromNostrBundle = /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools/i.test(blob);
-      const relayBackendNoise =
-        /nr-relay|relay-to-rabbit|dial tcp:|server misbehaving|lookup .+ on [\d.]+:53/i.test(msg);
-      if (fromNostrBundle || relayBackendNoise) {
+      if (isBenignNostrRelayError(ev.reason)) {
         ev.preventDefault();
+        const msg = buildNostrErrorBlob(ev.reason, 0) || 'unknown rejection';
         console.warn('[pleXtr] Nostr relay (non-fatal):', msg.slice(0, 220));
       }
     });
+    window.addEventListener('error', function (ev) {
+      const payload = [ev && ev.message, ev && ev.filename, ev && ev.error].filter(Boolean).join('\n');
+      if (isBenignNostrRelayError(payload) || isBenignNostrRelayError(ev && ev.error)) {
+        ev.preventDefault();
+        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+        const msg = buildNostrErrorBlob(ev && ev.error, 0) || String((ev && ev.message) || '');
+        console.warn('[pleXtr] Nostr relay (non-fatal):', msg.slice(0, 220));
+      }
+    }, true);
   })();
 
   async function safeNostrQuery(pool, relayUrls, filter) {
@@ -1816,7 +1935,9 @@
         return (await pool.list(relayUrls, [filter])) || [];
       }
     } catch (err) {
-      console.warn('[pleXtr] Nostr query:', err && err.message ? err.message : err);
+      if (!isBenignNostrRelayError(err)) {
+        console.warn('[pleXtr] Nostr query:', err && err.message ? err.message : err);
+      }
     }
     return [];
   }
@@ -1827,11 +1948,15 @@
       const out = pool.publish(relayUrls, signedEvent);
       if (out && typeof out.then === 'function') {
         out.catch(function (err) {
-          console.warn('[pleXtr] Nostr publish:', err && err.message ? err.message : err);
+          if (!isBenignNostrRelayError(err)) {
+            console.warn('[pleXtr] Nostr publish:', err && err.message ? err.message : err);
+          }
         });
       }
     } catch (err) {
-      console.warn('[pleXtr] Nostr publish:', err && err.message ? err.message : err);
+      if (!isBenignNostrRelayError(err)) {
+        console.warn('[pleXtr] Nostr publish:', err && err.message ? err.message : err);
+      }
     }
   }
   let isChatVisibleMobile = false;
@@ -2976,6 +3101,124 @@
       escapeHtml(label) +
       '</a>'
     );
+  }
+
+  function setNowPlayingWikiLink(id, url) {
+    const el = $(id);
+    if (!el) return;
+    if (url) {
+      el.href = url;
+      el.style.display = 'inline-flex';
+    } else {
+      el.href = '#';
+      el.style.display = 'none';
+    }
+  }
+
+  function clearNowPlayingWikiLinks() {
+    setNowPlayingWikiLink('npTitleWiki', '');
+    setNowPlayingWikiLink('npAlbumWiki', '');
+    setNowPlayingWikiLink('npSubWiki', '');
+  }
+
+  function wikipediaSearchQueries(label, kind, context) {
+    const cleanLabel = String(label || '').trim();
+    if (!cleanLabel) return [];
+    const artist = String(context && context.artist || '').trim();
+    const raw = [];
+    if (kind === 'song') {
+      if (artist) raw.push(cleanLabel + ' ' + artist + ' song');
+      raw.push(cleanLabel + ' song');
+      raw.push(cleanLabel);
+    } else if (kind === 'album') {
+      if (artist) raw.push(cleanLabel + ' ' + artist + ' album');
+      raw.push(cleanLabel + ' album');
+      raw.push(cleanLabel);
+    } else if (kind === 'artist') {
+      raw.push(cleanLabel + ' musician');
+      raw.push(cleanLabel);
+    } else {
+      raw.push(cleanLabel);
+    }
+    const out = [];
+    const seen = new Set();
+    raw.forEach(function (q) {
+      const key = q.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(q);
+    });
+    return out;
+  }
+
+  async function wikipediaTopHitUrl(query) {
+    const q = String(query || '').trim();
+    if (!q) return '';
+    try {
+      const params = new URLSearchParams({
+        action: 'query',
+        list: 'search',
+        srlimit: '1',
+        srsearch: q,
+        format: 'json',
+        origin: '*'
+      });
+      const res = await fetch(WIKIPEDIA_API_URL + '?' + params.toString());
+      if (!res.ok) return '';
+      const data = await res.json();
+      const hit = data && data.query && Array.isArray(data.query.search) ? data.query.search[0] : null;
+      const title = hit && hit.title ? String(hit.title).trim() : '';
+      if (!title) return '';
+      return 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title.replace(/\s+/g, '_'));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  async function wikipediaUrlFor(label, kind, context) {
+    const cleanLabel = String(label || '').trim();
+    if (!cleanLabel) return '';
+    const artist = String(context && context.artist || '').trim().toLowerCase();
+    const cacheKey = (kind || 'meta') + '|' + cleanLabel.toLowerCase() + '|' + artist;
+    if (wikiLookupCache.has(cacheKey)) return wikiLookupCache.get(cacheKey);
+    if (wikiLookupInflight.has(cacheKey)) return wikiLookupInflight.get(cacheKey);
+    const lookup = (async function () {
+      const queries = wikipediaSearchQueries(cleanLabel, kind, context);
+      for (let i = 0; i < queries.length; i += 1) {
+        const url = await wikipediaTopHitUrl(queries[i]);
+        if (url) {
+          wikiLookupCache.set(cacheKey, url);
+          return url;
+        }
+      }
+      wikiLookupCache.set(cacheKey, '');
+      return '';
+    })();
+    wikiLookupInflight.set(cacheKey, lookup);
+    try {
+      return await lookup;
+    } finally {
+      wikiLookupInflight.delete(cacheKey);
+    }
+  }
+
+  async function refreshNowPlayingWikipediaLinks(meta) {
+    const requestId = ++nowPlayingWikiRequestId;
+    clearNowPlayingWikiLinks();
+    const song = String(meta && meta.song || '').trim();
+    const album = String(meta && meta.album || '').trim();
+    const artist = String(meta && meta.artist || '').trim();
+    if (!song && !album && !artist) return;
+    const ctx = { artist: artist };
+    const urls = await Promise.all([
+      wikipediaUrlFor(song, 'song', ctx),
+      wikipediaUrlFor(album, 'album', ctx),
+      wikipediaUrlFor(artist, 'artist', ctx)
+    ]);
+    if (requestId !== nowPlayingWikiRequestId) return;
+    setNowPlayingWikiLink('npTitleWiki', urls[0]);
+    setNowPlayingWikiLink('npAlbumWiki', urls[1]);
+    setNowPlayingWikiLink('npSubWiki', urls[2]);
   }
 
   function starIconHtml(starred) {
@@ -5132,6 +5375,7 @@
     $('npSub').textContent = station.tags.length ? station.tags.join(' · ') : 'Live stream';
     $('npSub').href = '#';
     $('npSub').style.pointerEvents = 'none';
+    clearNowPlayingWikiLinks();
     $('npNext').textContent = 'Live radio stream';
     const npArt = $('npArt');
     const fallback = station.fallbackImg || fallbackThumbDataUrl();
@@ -5959,6 +6203,11 @@
     npSub.textContent = artistTitle;
     npSub.href = artistHref || '#';
     npSub.style.pointerEvents = artistHref ? '' : 'none';
+    refreshNowPlayingWikipediaLinks({
+      song: trackTitle || pathBasename(getTrackFilePath(t)) || '',
+      album: albumTitle || '',
+      artist: artistTitle || ''
+    });
     npArt.src = nowPlayingArtUrl(t, currentAlbum, currentTracks);
     const next = currentTracks[i + 1];
     if (playbackMode === PLAYBACK_MODE_SONG_SHUFFLE && currentTracks.length > 1) {
