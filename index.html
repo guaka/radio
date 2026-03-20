@@ -41,8 +41,8 @@
     }
     header {
       flex-shrink: 0;
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
       align-items: center;
       gap: 0.75rem 1rem;
       padding: 1rem 1.25rem;
@@ -54,6 +54,7 @@
       font-size: inherit;
       font-weight: inherit;
       letter-spacing: inherit;
+      min-width: 0;
     }
     .plextr-brand-link {
       display: inline-flex;
@@ -136,12 +137,15 @@
         drop-shadow(0 0 52px rgba(0, 255, 255, 0.3));
     }
     .header-right {
-      margin-left: 0.75rem;
-      flex: 1;
+      margin-left: 0;
+      min-width: 0;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.5rem;
+    }
+    .header-right #btnSettings {
+      margin-left: auto;
     }
     .sidebar-plex {
       margin-bottom: 0.5rem;
@@ -214,6 +218,24 @@
       line-height: 1.35;
       padding: 0.35rem 0.6rem 0.45rem;
     }
+    .mobile-library-picker {
+      display: none;
+      margin: 0 0 0.4rem;
+    }
+    .mobile-library-picker select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.5rem 0.55rem;
+      font-size: 0.84rem;
+      outline: none;
+    }
+    .mobile-library-picker select:focus {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
+    }
     .sidebar-plex-note.error {
       color: #e8a0a0;
     }
@@ -247,22 +269,14 @@
       stroke-linejoin: round;
     }
     .btn-plex-settings {
-      width: auto;
+      width: 2.2rem;
       min-width: 2.2rem;
-      padding: 0 0.35rem;
-      gap: 0.2rem;
+      padding: 0;
     }
     .btn-plex-settings .plex-gear {
       width: 0.95rem;
       height: 0.95rem;
       flex-shrink: 0;
-    }
-    .btn-plex-settings .plex-word {
-      font-size: 0.58rem;
-      font-weight: 800;
-      letter-spacing: 0.03em;
-      line-height: 1;
-      color: currentColor;
     }
     .search-wrap {
       position: relative;
@@ -321,7 +335,10 @@
       display: flex;
       flex-direction: column;
       gap: 0.2rem;
-      margin-bottom: 1.2rem;
+      margin-bottom: 0.8rem;
+    }
+    .sidebar .sidebar-nav:last-child {
+      margin-bottom: 0;
     }
     .sidebar-nav-btn {
       border: 1px solid transparent;
@@ -677,6 +694,11 @@
       display: flex;
       align-items: center;
       gap: 0.2rem;
+    }
+    .main-top-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.55rem;
     }
     .view-toggle .btn.active {
       border-color: var(--accent);
@@ -1189,40 +1211,15 @@
       background: var(--bg);
       color: var(--text);
     }
-    #btnNostr {
-      border-color: rgba(0, 216, 255, 0.35);
-      background: linear-gradient(150deg, rgba(0, 216, 255, 0.08), rgba(143, 92, 255, 0.14));
-      color: #c8f4ff;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-    }
-    #btnNostr:hover {
-      color: #e4fbff;
-      border-color: rgba(0, 216, 255, 0.65);
-      box-shadow: 0 0 0 2px rgba(0, 216, 255, 0.12);
-    }
     #nostrStatus {
       color: #8bc9d9;
       margin-top: 0.6rem;
     }
-    #nostrModal .modal-card {
-      border-color: rgba(0, 216, 255, 0.3);
-      background:
-        radial-gradient(circle at 85% 0%, rgba(143, 92, 255, 0.2), transparent 46%),
-        radial-gradient(circle at 0% 100%, rgba(0, 216, 255, 0.15), transparent 52%),
-        var(--surface);
-    }
-    #nostrModal .modal-title {
-      color: #c8f4ff;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      font-size: 0.95rem;
-    }
-    #nostrModal .settings-form input {
+    #inNsec {
       border-color: rgba(0, 216, 255, 0.28);
       background: rgba(3, 18, 24, 0.6);
     }
-    #nostrModal .settings-form input:focus {
+    #inNsec:focus {
       border-color: rgba(0, 216, 255, 0.6);
       box-shadow: 0 0 0 2px rgba(0, 216, 255, 0.14);
       outline: none;
@@ -1288,6 +1285,7 @@
       letter-spacing: 0.04em;
     }
     .search-wrap input,
+    .mobile-library-picker select,
     .settings-form input,
     .settings-form select,
     .btn,
@@ -1469,6 +1467,7 @@
       color: rgba(0, 255, 255, 0.55);
     }
     .search-wrap input:focus,
+    .mobile-library-picker select:focus,
     .settings-form input:focus,
     .settings-form select:focus {
       border-color: rgba(0, 255, 255, 0.58);
@@ -1477,27 +1476,56 @@
     }
     @media (max-width: 720px) {
       header {
+        display: flex;
+        flex-wrap: nowrap;
         gap: 0.55rem;
         padding: 0.7rem 0.72rem;
       }
+      h1.plextr-brand {
+        flex: 0 0 auto;
+      }
       .plextr-brand-link {
-        padding: 0.15rem 0.35rem 0.15rem 0.2rem;
-        margin: -0.15rem -0.35rem -0.15rem -0.2rem;
+        gap: 0.38rem;
+        padding: 0.1rem 0.22rem 0.1rem 0.12rem;
+        margin: -0.1rem -0.22rem -0.1rem -0.12rem;
+      }
+      .plextr-brand-icon-wrap {
+        width: 1.56rem;
+        height: 1.56rem;
+      }
+      .plextr-brand-icon {
+        width: 1.35rem;
+        height: 1.35rem;
       }
       .plextr-brand-title {
-        font-size: 1.03rem;
-        letter-spacing: 0.12em;
+        font-size: 0.92rem;
+        letter-spacing: 0.08em;
       }
       .header-right {
-        width: 100%;
+        width: auto;
+        min-width: 0;
         margin-left: 0;
+        flex: 1 1 auto;
+        flex-wrap: nowrap;
+        align-items: center;
         gap: 0.4rem;
       }
       .app-shell { grid-template-columns: 1fr; }
       .sidebar {
-        padding: 0.7rem 0.6rem;
+        padding: 0.34rem 0.48rem 0.18rem;
         border-right: none;
         border-bottom: 1px solid var(--border);
+      }
+      .sidebar-title {
+        margin-bottom: 0.38rem;
+        font-size: 0.62rem;
+        letter-spacing: 0.06em;
+      }
+      .sidebar-plex {
+        margin-bottom: 0.2rem;
+      }
+      .mobile-library-picker {
+        display: block;
       }
       main {
         padding: 0.72rem 0.75rem 0.9rem;
@@ -1505,31 +1533,55 @@
       .sidebar-nav {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.32rem;
+        gap: 0.14rem;
+        margin-bottom: 0.26rem;
       }
       .sidebar-plex .sidebar-nav {
         display: flex;
         flex-direction: column;
+        margin-bottom: 0.42rem;
       }
-      .search-wrap { max-width: none; min-width: 100%; order: 1; }
+      #plexLibraryLinks {
+        display: none;
+      }
+      .sidebar-plex-row {
+        gap: 0.24rem;
+        border-radius: 7px;
+        padding: 0.02rem 0.2rem 0.02rem 0.06rem;
+      }
+      .sidebar-nav-btn {
+        font-size: 0.78rem;
+        padding: 0.3rem 0.4rem;
+      }
+      .sidebar-plex-mark {
+        font-size: 0.5rem;
+        letter-spacing: 0.11em;
+      }
+      .search-wrap {
+        max-width: none;
+        min-width: 0;
+        flex: 1 1 auto;
+        order: 0;
+      }
       .search-wrap input {
         font-size: 0.96rem;
         padding-top: 0.6rem;
         padding-bottom: 0.6rem;
       }
-      .header-right .view-toggle,
-      .header-right #btnReload,
-      .header-right #btnSettings,
-      .header-right #btnNostr { order: 3; }
+      .header-right .view-toggle {
+        display: none !important;
+      }
+      .main-top-actions {
+        display: none;
+      }
+      .header-right #btnSettings {
+        order: 0;
+      }
       .header-right .view-toggle {
         gap: 0.35rem;
       }
-      .header-right #btnSettings,
-      .header-right #btnNostr {
+      .header-right #btnSettings {
         height: 2.35rem;
-      }
-      .btn-plex-settings .plex-word {
-        display: none;
       }
       .player-bar {
         flex-wrap: wrap;
@@ -1643,29 +1695,18 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
         <input id="inSearch" type="search" placeholder="Search all Plex libraries, radio, this grid…" autocomplete="off" />
       </label>
-      <div class="view-toggle" id="albumViewToggle" style="display:none" aria-label="Album view mode">
-        <button type="button" class="btn icon-btn" id="viewListBtn" aria-label="List view" title="List view">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
-        </button>
-        <button type="button" class="btn icon-btn" id="viewGridBtn" aria-label="Album grid view" title="Album grid view">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        </button>
-      </div>
-      <button type="button" class="btn icon-btn" id="btnReload" style="display:none" aria-label="Reload library" title="Reload library">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3v6h-6"></path><path d="M20 9a8 8 0 1 0 2.3 5.7"></path></svg>
-      </button>
       <button type="button" class="btn icon-btn btn-plex-settings" id="btnSettings" aria-label="Plex connection settings" title="Plex connection settings">
         <svg class="plex-gear" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.9a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.08V2.9a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.08.4h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"></path></svg>
-        <span class="plex-word" aria-hidden="true">Plex</span>
       </button>
-      <button type="button" class="btn" id="btnNostr" aria-label="Nostr settings" title="Nostr settings">Nostr</button>
     </div>
   </header>
   <div class="app-shell">
     <aside class="sidebar" aria-label="Library navigation">
-      <p class="sidebar-title">Library</p>
       <div class="sidebar-plex" id="sidebarLibrary">
         <input type="hidden" id="inSection" value="" />
+        <div class="mobile-library-picker">
+          <select id="mobileLibrarySelect" aria-label="Choose Plex library"></select>
+        </div>
         <nav class="sidebar-nav" id="plexLibraryLinks" aria-label="Plex libraries">
           <p class="sidebar-plex-note">— connect first —</p>
         </nav>
@@ -1677,6 +1718,13 @@
       </nav>
     </aside>
     <main>
+      <div class="main-top-actions">
+        <div class="view-toggle" id="albumViewToggle" style="display:none" aria-label="Album view mode">
+          <button type="button" class="btn icon-btn" id="viewModeToggleBtn" aria-label="Switch to list view" title="Switch to list view">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+        </div>
+      </div>
       <div id="corsHint" class="msg" style="display:none">
         <strong>Can’t use Plex from this page’s origin (CORS / Firefox OpaqueResponseBlocking).</strong><br />
         API calls may work while <code>/library/parts/…</code> audio is blocked when this app and Plex are on different origins. Fix: serve pleXtr through a <strong>reverse proxy on the same host and port</strong> as you use in Server URL (proxy <code>/</code> or <code>/plex</code> → <code>http://127.0.0.1:32400</code>), or open pleXtr only from a URL that matches Plex’s origin. Optional: proxy can add <code>Access-Control-Allow-Origin</code> and <code>Cross-Origin-Resource-Policy: cross-origin</code> for streams.<br />
@@ -1696,6 +1744,15 @@
         </button>
       </div>
       <div class="settings-form">
+      <label for="inNsec">Nostr nsec</label>
+      <input id="inNsec" type="password" placeholder="nsec1..." autocomplete="off" />
+      <div class="inline-actions">
+        <button type="button" class="btn" id="btnToggleNsecMask">Show</button>
+        <button type="button" class="btn primary" id="btnSaveNostr">Save nsec</button>
+        <button type="button" class="btn" id="btnClearNostr">Remove nsec</button>
+      </div>
+      <div class="inline-note" id="nostrIdentity"></div>
+      <p style="margin:0.6rem 0 1rem;font-size:0.8rem;color:var(--muted)">Notes are kind:1 with <strong>#plextr</strong> (and <strong>#radioguaka</strong>) — now-playing uses those tags only; favorites add <strong>#favorite</strong> plus machine tags (<code>plextr_item</code>, <code>plextr_rating_key</code>, etc.) so another browser can restore stars from your relays. Relays: <strong>relay.nomadwiki.org</strong>, <strong>relay.trustroots.org</strong>.</p>
       <label for="inServer">Server URL (Plex or CORS proxy)</label>
       <input id="inServer" type="url" placeholder="http://192.168.1.10:32400" autocomplete="off" />
       <div class="inline-actions">
@@ -1708,32 +1765,12 @@
       <p class="mobile-token-hint">On iPhone: if “Sign in with Plex” doesn’t open a window, use <a href="https://plex.tv/link" target="_blank" rel="noopener">plex.tv/link</a> in Safari, then paste the code or token here.</p>
       <div class="inline-actions">
         <button type="button" class="btn" id="btnPlexLogin">Sign in with Plex</button>
-        <button type="button" class="btn" id="btnLoadLibraries">Load libraries</button>
       </div>
       <div class="inline-note" id="plexLoginStatus"></div>
       <p style="margin:1rem 0 0;font-size:0.8rem;color:var(--muted)">Token is stored only in this browser (localStorage).</p>
-      <button type="button" class="btn primary" id="btnSave" style="margin-top:1rem">Save settings</button>
+      <div class="inline-actions" style="margin-top:1rem">
+        <button type="button" class="btn primary" id="btnSave">Save settings</button>
       </div>
-      </div>
-      </div>
-      <div class="modal" id="nostrModal">
-      <div class="modal-card">
-      <div class="modal-head">
-        <p class="modal-title">Nostr</p>
-        <button type="button" class="btn icon-btn modal-close" id="btnCloseNostr" aria-label="Close" title="Close">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
-        </button>
-      </div>
-      <div class="settings-form">
-      <label for="inNsec">nsec</label>
-      <input id="inNsec" type="password" placeholder="nsec1..." autocomplete="off" />
-      <div class="inline-actions">
-        <button type="button" class="btn" id="btnToggleNsecMask">Show</button>
-        <button type="button" class="btn primary" id="btnSaveNostr">Save nsec</button>
-        <button type="button" class="btn" id="btnClearNostr">Remove nsec</button>
-      </div>
-      <div class="inline-note" id="nostrIdentity"></div>
-      <p style="margin:1rem 0 0;font-size:0.8rem;color:var(--muted)">Notes are kind:1 with <strong>#plextr</strong> (and <strong>#radioguaka</strong>) — now-playing uses those tags only; favorites add <strong>#favorite</strong> plus machine tags (<code>plextr_item</code>, <code>plextr_rating_key</code>, etc.) so another browser can restore stars from your relays. See <strong>PLEXTR-FAVORITES-NOSTR.md</strong> in the repo. Relays: <strong>relay.nomadwiki.org</strong>, <strong>relay.trustroots.org</strong>.</p>
       </div>
       </div>
       </div>
@@ -1842,6 +1879,16 @@
     nostrActivity: 'guakaNostrActivityCache'
   };
   const $ = (id) => document.getElementById(id);
+  function bindClick(id, handler) {
+    const el = $(id);
+    if (el) el.onclick = handler;
+    return el;
+  }
+  function bindEvent(id, type, handler, options) {
+    const el = $(id);
+    if (el) el.addEventListener(type, handler, options);
+    return el;
+  }
   const PLEX_PRODUCT = 'Local Plex Music Player';
   const PLEX_CLIENT_ID = 'plex-player-' + Math.random().toString(36).slice(2, 10);
   const CROSSFADE_DURATION_MS = 1200;
@@ -3581,18 +3628,11 @@
 
   function closeSettingsModal() {
     $('settingsModal').classList.remove('open');
-    if (!$('nostrModal').classList.contains('open')) document.body.style.overflow = '';
-  }
-
-  function closeNostrModal() {
-    $('nostrModal').classList.remove('open');
-    if (!$('settingsModal').classList.contains('open')) document.body.style.overflow = '';
+    document.body.style.overflow = '';
   }
 
   function syncModalBodyScrollLock() {
-    const any =
-      $('settingsModal').classList.contains('open') ||
-      $('nostrModal').classList.contains('open');
+    const any = $('settingsModal').classList.contains('open');
     document.body.style.overflow = any ? 'hidden' : '';
   }
 
@@ -3745,6 +3785,58 @@
     nav.querySelectorAll('.sidebar-nav-btn[data-section-key]').forEach((btn) => {
       btn.classList.remove('active');
     });
+    refreshMobileLibraryPicker();
+  }
+
+  function refreshMobileLibraryPicker(state) {
+    const picker = $('mobileLibrarySelect');
+    if (!picker) return;
+    const mode = String(state || '');
+    const cur = String(($('inSection') && $('inSection').value) || '');
+    const list = Array.isArray(plexSectionListCache) ? plexSectionListCache : [];
+    picker.innerHTML = '';
+    if (mode === 'loading') {
+      picker.disabled = true;
+      picker.innerHTML = '<option value="">Loading libraries…</option>';
+      return;
+    }
+    if (mode === 'error') {
+      picker.disabled = true;
+      picker.innerHTML = '<option value="">Could not load libraries</option>';
+      return;
+    }
+    if (!list.length) {
+      picker.disabled = true;
+      picker.innerHTML = '<option value="">No libraries found</option>';
+      return;
+    }
+    for (let i = 0; i < list.length; i++) {
+      const ent = list[i];
+      const opt = document.createElement('option');
+      opt.value = String(ent.key || '');
+      opt.textContent = String(ent.title || ent.key || '');
+      picker.appendChild(opt);
+    }
+    picker.disabled = false;
+    const hasCur = !!(cur && list.some((ent) => String(ent.key) === cur));
+    picker.value = hasCur ? cur : String(list[0].key || '');
+  }
+
+  async function handlePlexSectionPick(sectionKey) {
+    const hidden = $('inSection');
+    const key = String(sectionKey || '');
+    if (!hidden || !key) return;
+    const prev = hidden.value;
+    hidden.value = key;
+    updatePlexLibraryLinkActive();
+    const onAlbumsGrid =
+      prev === key &&
+      navView === 'albums' &&
+      (!$('viewTracks') || $('viewTracks').style.display === 'none') &&
+      currentArtistKey == null &&
+      (location.hash || '').trim() === '#albums';
+    if (onAlbumsGrid) return;
+    await applyPlexSectionUserChange();
   }
 
   async function applyPlexSectionUserChange() {
@@ -3777,6 +3869,7 @@
     const nav = $('plexLibraryLinks');
     setSettingsStatus('Connecting to Plex and loading libraries...');
     nav.innerHTML = '<p class="sidebar-plex-note"><span class="spinner"></span> Loading…</p>';
+    refreshMobileLibraryPicker('loading');
     try {
       const data = await plexFetch('/library/sections');
       const dirs = data.MediaContainer.Directory || [];
@@ -3788,6 +3881,7 @@
         plexSectionListCache = [];
         plexSectionNameByKey = {};
         nav.innerHTML = '<p class="sidebar-plex-note">No libraries found</p>';
+        refreshMobileLibraryPicker();
         if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
         else setSettingsStatus('Connected, but no libraries were returned.', 'error');
         return;
@@ -3800,18 +3894,7 @@
         const suffix = music.length ? '' : ' (' + String(d.type || 'unknown') + ')';
         btn.textContent = String(d.title || '') + suffix;
         btn.addEventListener('click', async () => {
-          const key = String(d.key);
-          const prev = hidden.value;
-          hidden.value = key;
-          updatePlexLibraryLinkActive();
-          const onAlbumsGrid =
-            prev === key &&
-            navView === 'albums' &&
-            (!$('viewTracks') || $('viewTracks').style.display === 'none') &&
-            currentArtistKey == null &&
-            (location.hash || '').trim() === '#albums';
-          if (onAlbumsGrid) return;
-          await applyPlexSectionUserChange();
+          await handlePlexSectionPick(String(d.key));
         });
         const row = document.createElement('div');
         row.className = 'sidebar-plex-row';
@@ -3839,12 +3922,14 @@
       const saved = cfg().sectionKey;
       if (saved && list.some((item) => String(item.key) === String(saved))) hidden.value = String(saved);
       else if (list[0]) hidden.value = String(list[0].key);
+      refreshMobileLibraryPicker();
       updatePlexLibraryLinkActive();
     } catch (e) {
       hidden.value = '';
       plexSectionListCache = [];
       plexSectionNameByKey = {};
       if (nav) nav.innerHTML = '<p class="sidebar-plex-note error">Could not load libraries.</p>';
+      refreshMobileLibraryPicker('error');
       throw e;
     }
   }
@@ -4380,13 +4465,18 @@
 
   function applyAlbumViewMode() {
     const grid = $('albumGrid');
-    if (!grid) return;
     const isList = getAlbumViewMode() === 'list';
-    grid.classList.toggle('list-view', isList);
-    const listBtn = $('viewListBtn');
-    const gridBtn = $('viewGridBtn');
-    if (listBtn) listBtn.classList.toggle('active', isList);
-    if (gridBtn) gridBtn.classList.toggle('active', !isList);
+    if (grid) grid.classList.toggle('list-view', isList);
+    const btn = $('viewModeToggleBtn');
+    if (!btn) return;
+    const switchTo = isList ? 'grid' : 'list';
+    const label = switchTo === 'list' ? 'Switch to list view' : 'Switch to grid view';
+    btn.classList.toggle('active', isList);
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.innerHTML = isList
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M3 12h18"></path><path d="M3 18h18"></path></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>';
   }
 
   function scheduleAlbumAutoLoad(delayMs) {
@@ -4991,7 +5081,6 @@
       $('viewTracks').style.display = 'none';
       $('viewAlbums').style.display = 'none';
       $('viewRadio').style.display = 'block';
-      $('btnReload').style.display = 'none';
       $('albumViewToggle').style.display = 'none';
       renderRadioView();
       updateFilterState();
@@ -5003,7 +5092,6 @@
       $('viewAlbums').style.display = 'none';
       $('viewTracks').style.display = 'none';
       $('viewRadio').style.display = 'none';
-      $('btnReload').style.display = 'none';
       $('albumViewToggle').style.display = 'none';
       renderLibraryView();
       return;
@@ -5012,7 +5100,6 @@
     $('viewTracks').style.display = 'none';
     $('viewAlbums').style.display = 'block';
     $('viewRadio').style.display = 'none';
-    $('btnReload').style.display = '';
     $('albumViewToggle').style.display = '';
     updateFilterState();
   }
@@ -5717,7 +5804,6 @@
     location.hash = albumHash(album.ratingKey);
     $('viewAlbums').style.display = 'none';
     $('viewTracks').style.display = 'block';
-    $('btnReload').style.display = 'none';
     $('albumViewToggle').style.display = 'none';
     $('viewTracks').innerHTML =
       '<div class="breadcrumb"><button type="button" id="backAlb">← Albums</button></div>' +
@@ -5883,7 +5969,6 @@
     $('viewTracks').style.display = 'none';
     $('viewAlbums').style.display = 'block';
     $('viewRadio').style.display = 'none';
-    $('btnReload').style.display = '';
     $('albumViewToggle').style.display = '';
     currentAlbum = null;
     currentTracks = [];
@@ -5915,7 +6000,6 @@
     $('viewLibrary').style.display = 'none';
     $('viewTracks').style.display = 'none';
     $('viewAlbums').style.display = 'block';
-    $('btnReload').style.display = 'none';
     $('viewAlbums').innerHTML = '<p class="msg"><span class="spinner"></span> Loading artist…</p>';
     showError('');
     try {
@@ -6510,7 +6594,7 @@
     return false;
   }
 
-  $('btnPrev').onclick = () => {
+  bindClick('btnPrev', () => {
     if (isRadioMode && radioStations.length) {
       if (radioShuffleOn()) {
         playRadioIndex(randomRadioStationIndex(currentRadioIdx));
@@ -6528,9 +6612,9 @@
       audio.currentTime = 0;
       audio.play().catch(() => {});
     }
-  };
+  });
 
-  $('btnFavNow').onclick = () => {
+  bindClick('btnFavNow', () => {
     if (isRadioMode && currentRadioIdx >= 0 && radioStations[currentRadioIdx]) {
       const id = radioStations[currentRadioIdx].id;
       const nowStarred = toggleStationStar(id);
@@ -6545,9 +6629,9 @@
     syncVisibleTrackStarButtons(nowPlayingTrackKey, nowStarred);
     updateNowPlayingFavButton(nowPlayingTrackKey);
     notifyFavorite(track, null, nowStarred);
-  };
+  });
 
-  $('btnNext').onclick = () => {
+  bindClick('btnNext', () => {
     if (isRadioMode && radioStations.length) {
       if (radioShuffleOn()) {
         playRadioIndex(randomRadioStationIndex(currentRadioIdx));
@@ -6563,15 +6647,15 @@
       $('audio').pause();
       persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
     }
-  };
+  });
 
-  $('btnNextAlbum').onclick = () => {
+  bindClick('btnNextAlbum', () => {
     skipToNextRandomAlbum().catch((err) => {
       console.error(err);
       showError(err.message || String(err));
     });
-  };
-  $('btnPlayPause').onclick = async () => {
+  });
+  bindClick('btnPlayPause', async () => {
     const audio = $('audio');
     if (!audio.currentSrc) {
       if (playingIdx >= 0 && currentTracks[playingIdx]) {
@@ -6589,7 +6673,7 @@
     }
     if (audio.paused || audio.ended) audio.play().catch(() => {});
     else audio.pause();
-  };
+  });
 
   $('audio').addEventListener('timeupdate', maybePersistPlaybackState);
   $('audio').addEventListener('timeupdate', () => {
@@ -6691,7 +6775,7 @@
     });
   }
 
-  $('btnSettings').onclick = () => {
+  bindClick('btnSettings', () => {
     openSettingsModal();
     const c = cfg();
     if (c.server && c.token) {
@@ -6702,18 +6786,16 @@
         setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
       });
     }
-  };
-  $('btnCloseSettings').onclick = closeSettingsModal;
-  $('settingsModal').onclick = (e) => {
-    if (e.target.id === 'settingsModal') closeSettingsModal();
-  };
+  });
+  bindClick('btnCloseSettings', closeSettingsModal);
+  const settingsModalEl = $('settingsModal');
+  if (settingsModalEl) {
+    settingsModalEl.onclick = (e) => {
+      if (e.target.id === 'settingsModal') closeSettingsModal();
+    };
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if ($('nostrModal').classList.contains('open')) {
-        closeNostrModal();
-        e.preventDefault();
-        return;
-      }
       if ($('settingsModal').classList.contains('open')) {
         closeSettingsModal();
         e.preventDefault();
@@ -6726,7 +6808,7 @@
       $('inSearch').select();
       return;
     }
-    if ($('settingsModal').classList.contains('open') || $('nostrModal').classList.contains('open')) return;
+    if ($('settingsModal').classList.contains('open')) return;
 
     const activeElement = document.activeElement;
     const isInputField = activeElement && (
@@ -6770,7 +6852,7 @@
     }
   });
 
-  $('btnSave').onclick = async () => {
+  bindClick('btnSave', async () => {
     const server = $('inServer').value.trim().replace(/\/$/, '');
     const token = $('inToken').value.trim();
     if (!server || !token) {
@@ -6788,17 +6870,16 @@
     }
     setSettingsStatus('Settings saved. Choose a Plex library in the sidebar.', 'ok');
     closeSettingsModal();
-    $('btnReload').style.display = '';
     if ($('inSection').value) {
       localStorage.setItem(LS.section, $('inSection').value);
       await loadAlbums(false);
     }
-  };
+  });
 
-  $('btnReload').onclick = () => loadAlbums(false);
-  $('viewListBtn').onclick = () => setAlbumViewMode('list');
-  $('viewGridBtn').onclick = () => setAlbumViewMode('grid');
-  $('logoHome').onclick = (e) => {
+  bindClick('viewModeToggleBtn', () => {
+    setAlbumViewMode(getAlbumViewMode() === 'list' ? 'grid' : 'list');
+  });
+  bindClick('logoHome', (e) => {
     e.preventDefault();
     const connected = !!(cfg().server && cfg().token);
     if (!connected) {
@@ -6807,8 +6888,8 @@
     }
     if (location.hash !== '#albums') location.hash = '#albums';
     else backToAlbums({ fullLibrary: true });
-  };
-  $('btnPlexLogin').onclick = async () => {
+  });
+  bindClick('btnPlexLogin', async () => {
     showError('');
     try {
       await plexSignInGetToken();
@@ -6823,7 +6904,7 @@
       $('plexLoginStatus').textContent = '';
       showError(e.message || String(e));
     }
-  };
+  });
 
   // Resume Plex login when returning from same-tab auth (e.g. Safari iPhone)
   try {
@@ -6843,36 +6924,7 @@
     }
   } catch (_) {}
 
-  $('btnLoadLibraries').onclick = async () => {
-    showError('');
-    let server = $('inServer').value.trim().replace(/\/$/, '');
-    const token = $('inToken').value.trim();
-    localStorage.setItem(LS.server, server);
-    localStorage.setItem(LS.token, token);
-    if (!token) {
-      setSettingsStatus('Enter token first.', 'error');
-      return;
-    }
-    if (!server) {
-      try {
-        await detectServersFromToken();
-        server = $('inServer').value.trim().replace(/\/$/, '');
-      } catch (e) {
-        setSettingsStatus('Server URL is empty and auto-detect failed.', 'error');
-        return;
-      }
-    }
-    try {
-      await loadSections();
-    } catch (e) {
-      $('inSection').value = '';
-      const plNav = $('plexLibraryLinks');
-      if (plNav) plNav.innerHTML = '<p class="sidebar-plex-note error">Could not load libraries.</p>';
-      setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
-      if (String(e.message).includes('Failed to fetch') || e.name === 'TypeError') showCors(true);
-    }
-  };
-  $('btnDetectServer').onclick = async () => {
+  bindClick('btnDetectServer', async () => {
     showError('');
     try {
       await detectServersFromToken();
@@ -6880,8 +6932,8 @@
       renderServerCandidates([]);
       setServerDiscoveryStatus(e.message || String(e), 'error');
     }
-  };
-  $('inSearch').addEventListener('input', () => {
+  });
+  bindEvent('inSearch', 'input', () => {
     if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
     filterDebounceTimer = setTimeout(updateFilterState, 200);
   });
@@ -6892,6 +6944,11 @@
       if (location.hash !== nextHash) location.hash = nextHash;
       else setNavView(next, { updateLocation: false });
     });
+  });
+  bindEvent('mobileLibrarySelect', 'change', async (e) => {
+    const key = String((e.target && e.target.value) || '');
+    if (!key) return;
+    await handlePlexSectionPick(key);
   });
   window.addEventListener('scroll', () => {
     if (albumsViewVisible()) scheduleAlbumAutoLoad(30);
@@ -6939,30 +6996,22 @@
       }
     } catch (_) {}
   });
-  $('btnShuffleMode').addEventListener('click', cyclePlaybackMode);
-  $('btnChatToggle').addEventListener('click', () => {
+  bindEvent('btnShuffleMode', 'click', cyclePlaybackMode);
+  bindEvent('btnChatToggle', 'click', () => {
     setChatVisibility(!isChatVisibleMobile);
   });
-  $('btnNostr').onclick = () => {
-    $('nostrModal').classList.add('open');
-    syncModalBodyScrollLock();
-  };
-  $('btnCloseNostr').onclick = () => closeNostrModal();
-  $('nostrModal').onclick = (e) => {
-    if (e.target && e.target.id === 'nostrModal') closeNostrModal();
-  };
-  $('btnToggleNsecMask').onclick = () => {
+  bindClick('btnToggleNsecMask', () => {
     const nsecInput = $('inNsec');
     if (!nsecInput) return;
     const isMasked = nsecInput.type === 'password';
     nsecInput.type = isMasked ? 'text' : 'password';
     $('btnToggleNsecMask').textContent = isMasked ? 'Hide' : 'Show';
-  };
-  $('btnSaveNostr').onclick = async () => {
+  });
+  bindClick('btnSaveNostr', async () => {
     const ok = await initNostrFromNsec($('inNsec').value.trim());
-    if (ok) closeNostrModal();
-  };
-  $('btnClearNostr').onclick = () => {
+    if (ok) setSettingsStatus('Nostr key saved.', 'ok');
+  });
+  bindClick('btnClearNostr', () => {
     localStorage.removeItem(LS.nostrNsec);
     localStorage.removeItem(LS.nostrNpub);
     localStorage.removeItem(LS.nostrActivity);
@@ -6971,7 +7020,7 @@
     updateNostrIdentityUi();
     setNostrStatus('Nostr key removed.', '');
     syncNostrNsecToChatIframe();
-  };
+  });
 
   (function init() {
     buildRadioData();
@@ -6988,7 +7037,6 @@
     $('inServer').value = c.server;
     $('inToken').value = c.token;
     if (c.server && c.token) {
-      $('btnReload').style.display = '';
       loadSections().then(() => {
         const hash = (location.hash || '').trim();
         const isViewRoute =
