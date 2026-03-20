@@ -1878,6 +1878,9 @@
                 await this.authenticateWithKey();
               }
               if (!this.isAuthenticated) {
+                try {
+                  window.parent.postMessage({ type: 'openSettingsModal', tab: 'nostr' }, '*');
+                } catch (_) {}
                 this.errorMessage = 'Add your nsec in Nostr (header).';
                 setTimeout(() => { this.errorMessage = ''; }, 5000);
                 return;

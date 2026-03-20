@@ -4116,7 +4116,8 @@
     }
   }
 
-  function openSettingsModal() {
+  function openSettingsModal(opts) {
+    const options = opts && typeof opts === 'object' ? opts : {};
     $('settingsModal').classList.add('open');
     syncModalBodyScrollLock();
     const c = cfg();
@@ -4128,7 +4129,7 @@
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
     setTimeout(function () {
-      var inp = $('inToken');
+      var inp = options.focusNostr ? $('inNsec') : $('inToken');
       if (inp) inp.focus();
     }, 150);
   }
@@ -7863,6 +7864,8 @@
       if (event.data.type === 'chatReady') {
         sendChatContext();
         syncNostrNsecToChatIframe();
+      } else if (event.data.type === 'openSettingsModal') {
+        openSettingsModal({ focusNostr: event.data.tab === 'nostr' });
       } else if (event.data.type === 'chatSearchQuery') {
         const q = normalizeChatSearchQuery(String(event.data.query || '').trim());
         if (!q) return;
