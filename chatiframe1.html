@@ -723,6 +723,13 @@
      * - Seamless auth for users with browser extensions
      * - Simple fallback for users without extensions
      */
+    function redactNsecForLog(value) {
+      if (value == null || value === '') return '(none)';
+      const s = String(value).trim();
+      if (!s.startsWith('nsec')) return '(non-nsec, ' + s.length + ' chars)';
+      return '(nsec, ' + s.length + ' chars)';
+    }
+
     function chatApp() {
       return {
         // State
@@ -2104,7 +2111,7 @@
           // If already nsec format, use it directly
           if (privateKey && privateKey.startsWith('nsec')) {
             this.currentUserNsec = privateKey;
-            console.log('Using nsec directly:', this.currentUserNsec);
+            console.log('Using nsec directly', redactNsecForLog(this.currentUserNsec));
           } else if (privateKey && !privateKey.includes('...')) {
             // Convert hex to nsec using NDKPrivateKeySigner
             try {
@@ -2115,7 +2122,7 @@
                 signer.user().then(user => {
                   if (user && user.nsec) {
                     this.currentUserNsec = user.nsec;
-                    console.log('Computed nsec:', this.currentUserNsec);
+                    console.log('Computed nsec', redactNsecForLog(this.currentUserNsec));
                   }
                 }).catch(e => {
                   console.log('Could not get nsec from signer:', e);
@@ -2386,17 +2393,15 @@
               return;
             }
             
-            // Private key - use NDK to decode
+            // Private key — NDK 3+ uses NDKPrivateKeySigner for nsec (NDKUser.fromNsec was removed)
             try {
-              const NDKUser = window.NDKModule?.NDKUser;
-              if (NDKUser) {
-                const user = NDKUser.fromNsec(key);
+              const NDKPrivateKeySigner = window.NDKModule?.NDKPrivateKeySigner;
+              if (NDKPrivateKeySigner) {
+                const signer = new NDKPrivateKeySigner(key);
                 this.setUserPrivateKey(key);
-                this.setUserPubkey(user.pubkey);
+                this.setUserPubkey(signer.pubkey);
               } else {
-                // Fallback: store as-is
                 this.setUserPrivateKey(key);
-                // Try to get pubkey from signer after setup
                 this.currentUserPubkey = 'loading...';
               }
               
@@ -2699,16 +2704,7 @@
                 if (NDKPrivateKeySigner) {
                   this.ndk.signer = new NDKPrivateKeySigner(this.currentUserPrivateKey);
                 } else {
-                  // Fallback: try to use private key directly
-                  // NDK should handle nsec format
-                  const NDKUser = window.NDKModule.NDKUser;
-                  if (NDKUser) {
-                    // Create user from private key
-                    const user = NDKUser.fromNsec(this.currentUserPrivateKey);
-                    if (user) {
-                      user.ndk = this.ndk;
-                    }
-                  }
+                  console.warn('NDKPrivateKeySigner missing; cannot attach nsec signer to NDK');
                 }
               } catch (e) {
                 console.error('Error setting up private key signer:', e);

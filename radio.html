@@ -2322,6 +2322,8 @@
     function radioApp() {
       return {
         currentChannel: '',
+        /** Bumped when channels.js finishes merging SomaFM artwork (Alpine refresh). */
+        somaArtEpoch: 0,
         isPlaying: false,
         currentTime: 0,
         duration: 0,
@@ -2357,6 +2359,10 @@
         init() {
           // Make appState available globally for app.js
           window.appState = this;
+
+          window.addEventListener('radioguaka-somafm-artwork', () => {
+            this.somaArtEpoch++;
+          });
           
           // Set chat visibility based on screen size
           if (window.innerWidth >= 769) {
@@ -2941,6 +2947,7 @@
         },
 
         get currentChannelArtUrl() {
+          void this.somaArtEpoch;
           if (!this.currentChannel || typeof channels === 'undefined') return '';
           const ch = channels[this.currentChannel];
           if (!ch) return '';

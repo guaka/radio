@@ -683,7 +683,9 @@ function hostFromUrl(url) {
 function deriveChannelImageUrl(id, info) {
   const tags = Array.isArray(info.tags) ? info.tags : [];
   if (tags.includes('soma')) {
-    return 'https://somafm.com/img3/' + encodeURIComponent(id) + '-400.jpg';
+    // somafm.com/img3/{id}-400.jpg often 404s as HTML and triggers ORB in Chromium.
+    // Real URLs come from https://api.somafm.com/channels.json (see index.html).
+    return null;
   }
   if (info.site) {
     const host = hostFromUrl(info.site);
@@ -715,6 +717,39 @@ Object.entries(channels).forEach(([id, info]) => {
     info.img = fromArtwork;
     return;
   }
-  info.img = deriveChannelImageUrl(id, info);
+  const derived = deriveChannelImageUrl(id, info);
+  if (derived) info.img = derived;
 });
 
+(function hydrateSomaFmArtwork() {
+  if (typeof fetch === 'undefined') return;
+  fetch('https://api.somafm.com/channels.json')
+    .then((res) => {
+      if (!res.ok) throw new Error('soma channels');
+      return res.json();
+    })
+    .then((data) => {
+      const list = data && Array.isArray(data.channels) ? data.channels : [];
+      const byId = Object.create(null);
+      list.forEach((ch) => {
+        if (!ch || !ch.id) return;
+        const u = ch.largeimage || ch.image;
+        if (u && String(u).trim()) byId[ch.id] = String(u).trim();
+      });
+      let any = false;
+      Object.entries(channels).forEach(([id, info]) => {
+        if (!info || typeof info !== 'object') return;
+        const tags = Array.isArray(info.tags) ? info.tags : [];
+        if (!tags.includes('soma')) return;
+        const u = byId[id];
+        if (u) {
+          info.img = u;
+          any = true;
+        }
+      });
+      if (any && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('radioguaka-somafm-artwork'));
+      }
+    })
+    .catch(() => {});
+})();

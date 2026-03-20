@@ -143,26 +143,79 @@
       align-items: center;
       gap: 0.5rem;
     }
-    .header-library {
+    .sidebar-plex {
+      margin-bottom: 0.5rem;
+    }
+    .sidebar-plex-row {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
-      min-width: 14rem;
-    }
-    .header-library label {
-      font-size: 0.75rem;
-      color: var(--muted);
-      white-space: nowrap;
-    }
-    .header-library select {
+      gap: 0.4rem;
       width: 100%;
-      min-width: 11rem;
-      padding: 0.45rem 0.55rem;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--bg);
+      min-width: 0;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 0.1rem 0.4rem 0.1rem 0.1rem;
+      box-sizing: border-box;
+      cursor: pointer;
+    }
+    .sidebar-plex-row .sidebar-nav-btn {
+      flex: 1 1 0;
+      min-width: 0;
+      border-color: transparent;
+      background: transparent;
+    }
+    .sidebar-plex-row:hover:not(.active) {
+      border-color: var(--accent-dim);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .sidebar-plex-row:hover:not(.active) .sidebar-nav-btn {
+      color: #f5f3ef;
+    }
+    .sidebar-plex-row:hover:not(.active) .sidebar-plex-mark {
+      opacity: 0.48;
       color: var(--text);
-      font-size: 0.85rem;
+    }
+    .sidebar-plex-row .sidebar-nav-btn:hover {
+      border-color: transparent;
+      background: transparent;
+    }
+    .sidebar-plex-row.active {
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .sidebar-plex-row.active .sidebar-nav-btn {
+      color: #f5f3ef;
+      border-color: transparent;
+      background: transparent;
+    }
+    .sidebar-plex-row.active .sidebar-plex-mark {
+      opacity: 0.55;
+      color: var(--text);
+    }
+    .sidebar-plex-mark {
+      flex-shrink: 0;
+      font-size: 0.58rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      opacity: 0.28;
+      text-transform: uppercase;
+      user-select: none;
+      line-height: 1.15;
+      align-self: center;
+    }
+    .sidebar-plex .sidebar-nav {
+      margin-bottom: 0.5rem;
+    }
+    .sidebar-plex-note {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.35;
+      padding: 0.35rem 0.6rem 0.45rem;
+    }
+    .sidebar-plex-note.error {
+      color: #e8a0a0;
     }
     .btn {
       padding: 0.45rem 0.85rem;
@@ -412,6 +465,70 @@
     }
     .inline-note.error { color: #e8a0a0; }
     .inline-note.ok { color: #9dd8b5; }
+    .unified-search-panel {
+      margin: 0 0 1rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      max-height: min(52vh, 24rem);
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    .unified-search-panel[hidden] {
+      display: none !important;
+    }
+    .unified-search-block h4 {
+      margin: 0.55rem 0 0.35rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .unified-search-block:first-child h4 {
+      margin-top: 0;
+    }
+    .unified-hit-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.35rem;
+    }
+    .unified-hit-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.12rem;
+      width: 100%;
+      text-align: left;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.84rem;
+      cursor: pointer;
+    }
+    .unified-hit-btn:hover {
+      border-color: var(--accent-dim);
+      color: var(--accent);
+    }
+    .unified-hit-title {
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .unified-hit-sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+    .unified-search-empty,
+    .unified-search-loading {
+      margin: 0;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
     .server-candidates {
       margin-top: 0.55rem;
       display: flex;
@@ -446,12 +563,56 @@
       transition: border-color 0.15s;
     }
     .album:hover { border-color: var(--accent-dim); }
-    .album img {
+    .album .album-art {
+      position: relative;
+      width: 100%;
+    }
+    .album .album-art img {
       width: 100%;
       aspect-ratio: 1;
       object-fit: cover;
       display: block;
       background: var(--border);
+    }
+    .album-play-btn {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 3rem;
+      height: 3rem;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(10, 10, 14, 0.85);
+      color: var(--accent);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      z-index: 1;
+      box-shadow: 0 0 14px rgba(0, 255, 255, 0.12);
+      transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+      opacity: 0.9;
+    }
+    .album-play-btn svg {
+      width: 1.35rem;
+      height: 1.35rem;
+      margin-left: 3px;
+    }
+    .album-play-btn:hover {
+      background: rgba(26, 26, 46, 0.95);
+      color: #fff;
+      border-color: var(--accent-dim);
+    }
+    @media (hover: hover) {
+      .album-play-btn {
+        opacity: 0;
+      }
+      .album:hover .album-play-btn,
+      .album-play-btn:focus-visible {
+        opacity: 1;
+      }
     }
     .album .meta { padding: 0.5rem 0.65rem 0.65rem; }
     .album .title { font-size: 0.85rem; font-weight: 600; line-height: 1.25; }
@@ -485,11 +646,24 @@
       border-radius: 8px;
       margin-bottom: 0.25rem;
     }
-    .albums.list-view .album img {
+    .albums.list-view .album .album-art {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+    }
+    .albums.list-view .album .album-art img {
       width: 48px;
       height: 48px;
       aspect-ratio: 1;
-      flex-shrink: 0;
+    }
+    .albums.list-view .album-play-btn {
+      width: 2rem;
+      height: 2rem;
+    }
+    .albums.list-view .album-play-btn svg {
+      width: 0.9rem;
+      height: 0.9rem;
+      margin-left: 2px;
     }
     .albums.list-view .album .meta {
       flex: 1;
@@ -1079,7 +1253,6 @@
     .sidebar-title {
       letter-spacing: 0.04em;
     }
-    .header-library select,
     .search-wrap input,
     .settings-form input,
     .settings-form select,
@@ -1120,6 +1293,43 @@
     .sidebar-title {
       color: rgba(0, 255, 255, 0.75);
       text-shadow: 0 0 8px rgba(0, 255, 255, 0.25);
+    }
+    .sidebar-plex-mark {
+      color: rgba(0, 255, 255, 0.22);
+      opacity: 0.55;
+    }
+    .sidebar-plex-row:hover:not(.active) {
+      border-color: rgba(0, 255, 255, 0.42);
+      background: linear-gradient(90deg, rgba(0, 255, 255, 0.08), rgba(255, 0, 255, 0.06));
+      box-shadow:
+        inset 0 0 0 1px rgba(0, 255, 255, 0.14),
+        0 0 16px rgba(0, 255, 255, 0.1);
+    }
+    .sidebar-plex-row:hover:not(.active) .sidebar-nav-btn {
+      color: #f2f8ff;
+    }
+    .sidebar-plex-row:hover:not(.active) .sidebar-plex-mark {
+      color: rgba(0, 255, 255, 0.72);
+      opacity: 0.9;
+      text-shadow: 0 0 8px rgba(0, 255, 255, 0.22);
+    }
+    .sidebar-plex-row .sidebar-nav-btn:hover {
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+    }
+    .sidebar-plex-row.active {
+      border-color: rgba(0, 255, 255, 0.45);
+      background: linear-gradient(90deg, rgba(0, 255, 255, 0.14), rgba(255, 0, 255, 0.09));
+      box-shadow: inset 0 0 0 1px rgba(0, 255, 255, 0.06);
+    }
+    .sidebar-plex-row.active .sidebar-nav-btn {
+      color: #f4fdff;
+    }
+    .sidebar-plex-row.active .sidebar-plex-mark {
+      color: rgba(0, 255, 255, 0.78);
+      opacity: 0.92;
+      text-shadow: 0 0 8px rgba(0, 255, 255, 0.28);
     }
     .sidebar-nav-btn.active {
       border-color: rgba(0, 255, 255, 0.45);
@@ -1206,6 +1416,24 @@
     #npTitle, #npAlbum, #npSub, #npNext {
       text-shadow: 0 0 7px rgba(0, 255, 255, 0.23);
     }
+    .unified-search-panel {
+      border-color: rgba(0, 255, 255, 0.22);
+      background: rgba(14, 15, 28, 0.92);
+      box-shadow: inset 0 0 0 1px rgba(0, 255, 255, 0.06);
+    }
+    .unified-hit-btn {
+      border-color: rgba(0, 255, 255, 0.2);
+      background: rgba(10, 12, 24, 0.75);
+      color: #d7f8ff;
+    }
+    .unified-hit-btn:hover {
+      border-color: rgba(255, 0, 255, 0.45);
+      color: #ffeaf8;
+      box-shadow: 0 0 14px rgba(0, 255, 255, 0.12);
+    }
+    .unified-search-block h4 {
+      color: rgba(0, 255, 255, 0.55);
+    }
     .search-wrap input:focus,
     .settings-form input:focus,
     .settings-form select:focus {
@@ -1223,8 +1451,11 @@
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
+      .sidebar-plex .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+      }
       .search-wrap { max-width: none; min-width: 100%; order: 1; }
-      .header-library { min-width: 100%; order: 2; }
       .header-right .view-toggle,
       .header-right #btnReload,
       .header-right #btnSettings,
@@ -1320,12 +1551,8 @@
     <div class="header-right">
       <label class="search-wrap" for="inSearch" title="Search metadata, folders and files">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
-        <input id="inSearch" type="search" placeholder="Search metadata, folders, files..." autocomplete="off" />
+        <input id="inSearch" type="search" placeholder="Search all Plex libraries, radio, this grid…" autocomplete="off" />
       </label>
-      <div class="header-library">
-        <label for="inSection">Library</label>
-        <select id="inSection"><option value="">— connect first —</option></select>
-      </div>
       <div class="view-toggle" id="albumViewToggle" style="display:none" aria-label="Album view mode">
         <button type="button" class="btn icon-btn" id="viewListBtn" aria-label="List view" title="List view">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
@@ -1347,8 +1574,13 @@
   <div class="app-shell">
     <aside class="sidebar" aria-label="Library navigation">
       <p class="sidebar-title">Library</p>
+      <div class="sidebar-plex" id="sidebarLibrary">
+        <input type="hidden" id="inSection" value="" />
+        <nav class="sidebar-nav" id="plexLibraryLinks" aria-label="Plex libraries">
+          <p class="sidebar-plex-note">— connect first —</p>
+        </nav>
+      </div>
       <nav class="sidebar-nav">
-        <button type="button" class="sidebar-nav-btn active" data-nav="albums">Albums</button>
         <button type="button" class="sidebar-nav-btn" data-nav="radio">Radio</button>
         <button type="button" class="sidebar-nav-btn" data-nav="favorites">Favorites</button>
         <button type="button" class="sidebar-nav-btn" data-nav="recent">Recently Played</button>
@@ -1356,13 +1588,14 @@
     </aside>
     <main>
       <div id="corsHint" class="msg" style="display:none">
-        <strong>Can’t reach Plex from this page (often CORS).</strong><br />
-        Serve this file through a reverse proxy on the same host as you use for API calls, with CORS enabled, e.g. proxy <code>/plex</code> → <code>http://127.0.0.1:32400</code> and set Server URL to that proxy base.<br />
+        <strong>Can’t use Plex from this page’s origin (CORS / Firefox OpaqueResponseBlocking).</strong><br />
+        API calls may work while <code>/library/parts/…</code> audio is blocked when this app and Plex are on different origins. Fix: serve pleXtr through a <strong>reverse proxy on the same host and port</strong> as you use in Server URL (proxy <code>/</code> or <code>/plex</code> → <code>http://127.0.0.1:32400</code>), or open pleXtr only from a URL that matches Plex’s origin. Optional: proxy can add <code>Access-Control-Allow-Origin</code> and <code>Cross-Origin-Resource-Policy: cross-origin</code> for streams.<br />
         <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">How to get X-Plex-Token</a>
       </div>
       <div id="error" class="msg error" style="display:none"></div>
       <div class="inline-note" id="settingsStatus" aria-live="polite"></div>
       <div id="searchFeedback" class="inline-note" aria-live="polite"></div>
+      <div id="unifiedSearchPanel" class="unified-search-panel" hidden></div>
       <div id="nostrStatus" class="inline-note" aria-live="polite"></div>
       <div class="modal" id="settingsModal">
       <div class="modal-card">
@@ -1523,10 +1756,13 @@
   const PLEX_CLIENT_ID = 'plex-player-' + Math.random().toString(36).slice(2, 10);
   const CROSSFADE_DURATION_MS = 1200;
   const CROSSFADE_STEP_MS = 50;
+  /** Plex part streams: avoid false “ORB blocked” toast while the browser is still loading / retrying. */
+  const PLEX_STREAM_ORB_ERROR_MIN_MS = 3000;
   const SEARCH_INDEX_SCHEMA_VERSION = 1;
   const SEARCH_DB_NAME = 'plexSearchCache';
-  const SEARCH_DB_VERSION = 1;
+  const SEARCH_DB_VERSION = 2;
   const SEARCH_STORE = 'albumSearch';
+  const ALBUM_LIST_STORE = 'albumListPages';
   const PLAYBACK_MODE_OFF = 'off';
   const PLAYBACK_MODE_ALBUM_SHUFFLE = 'albumShuffle';
   const PLAYBACK_MODE_SONG_SHUFFLE = 'songShuffle';
@@ -1551,6 +1787,53 @@
     lastPostKey: '',
     lastPostAt: 0
   };
+
+  /** nostr-tools runs relay I/O in internal queues; rejections often bypass try/catch. */
+  (function installNostrUnhandledRejectionGuard() {
+    if (window.__plextrNostrRejectionGuard) return;
+    window.__plextrNostrRejectionGuard = true;
+    window.addEventListener('unhandledrejection', function (ev) {
+      const r = ev.reason;
+      const msg = String((r && r.message) || r || '');
+      const stack = String((r && r.stack) || '');
+      const blob = msg + '\n' + stack;
+      const fromNostrBundle = /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools/i.test(blob);
+      const relayBackendNoise =
+        /nr-relay|relay-to-rabbit|dial tcp:|server misbehaving|lookup .+ on [\d.]+:53/i.test(msg);
+      if (fromNostrBundle || relayBackendNoise) {
+        ev.preventDefault();
+        console.warn('[pleXtr] Nostr relay (non-fatal):', msg.slice(0, 220));
+      }
+    });
+  })();
+
+  async function safeNostrQuery(pool, relayUrls, filter) {
+    try {
+      if (typeof pool.querySync === 'function') {
+        return (await pool.querySync(relayUrls, filter)) || [];
+      }
+      if (typeof pool.list === 'function') {
+        return (await pool.list(relayUrls, [filter])) || [];
+      }
+    } catch (err) {
+      console.warn('[pleXtr] Nostr query:', err && err.message ? err.message : err);
+    }
+    return [];
+  }
+
+  function safeNostrPoolPublish(pool, relayUrls, signedEvent) {
+    if (!pool || typeof pool.publish !== 'function') return;
+    try {
+      const out = pool.publish(relayUrls, signedEvent);
+      if (out && typeof out.then === 'function') {
+        out.catch(function (err) {
+          console.warn('[pleXtr] Nostr publish:', err && err.message ? err.message : err);
+        });
+      }
+    } catch (err) {
+      console.warn('[pleXtr] Nostr publish:', err && err.message ? err.message : err);
+    }
+  }
   let isChatVisibleMobile = false;
 
   function cfg() {
@@ -1660,12 +1943,7 @@
           since: since,
           limit: NOSTR_MAX_ACTIVITY
         };
-        const batch =
-          typeof pool.querySync === 'function'
-            ? await pool.querySync(relayUrls, filter)
-            : typeof pool.list === 'function'
-              ? await pool.list(relayUrls, [filter])
-              : [];
+        const batch = await safeNostrQuery(pool, relayUrls, filter);
         (batch || []).forEach((ev) => {
           if (ev && ev.id) byId.set(ev.id, ev);
         });
@@ -1747,7 +2025,7 @@
         tags: tags
       };
       const signed = tools.finalizeEvent(eventTemplate, nostrState.secretKey);
-      nostrState.pool.publish(NOSTR_RELAYS, signed);
+      safeNostrPoolPublish(nostrState.pool, NOSTR_RELAYS, signed);
       setNostrStatus('Posted note to Nostr.', 'ok');
       await loadNostrHistory();
     } catch (err) {
@@ -2116,12 +2394,7 @@
         '#t': ['favorite'],
         limit: NOSTR_FAVORITES_LIMIT
       };
-      const batch =
-        typeof pool.querySync === 'function'
-          ? await pool.querySync(relayUrls, filter)
-          : typeof pool.list === 'function'
-            ? await pool.list(relayUrls, [filter])
-            : [];
+      const batch = await safeNostrQuery(pool, relayUrls, filter);
       const list = (batch || []).filter((ev) => {
         const t = ev.tags || [];
         const pill = (name, val) => t.some((x) => x && x[0] === name && x[1] === val);
@@ -2281,6 +2554,9 @@
         if (store && !store.indexNames.contains('updatedAt')) {
           store.createIndex('updatedAt', 'updatedAt', { unique: false });
         }
+        if (!db.objectStoreNames.contains(ALBUM_LIST_STORE)) {
+          db.createObjectStore(ALBUM_LIST_STORE, { keyPath: 'id' });
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error || new Error('Could not open IndexedDB.'));
@@ -2326,6 +2602,14 @@
     return idbWrapRequest(index.getAll(range));
   }
 
+  async function readAllSearchRecords() {
+    const db = await openSearchDb();
+    if (!db) return [];
+    const tx = db.transaction(SEARCH_STORE, 'readonly');
+    const store = tx.objectStore(SEARCH_STORE);
+    return idbWrapRequest(store.getAll());
+  }
+
   async function putSearchRecords(records) {
     if (!records || !records.length) return;
     const db = await openSearchDb();
@@ -2352,6 +2636,141 @@
     const id = searchRecordId(sectionKey, albumKey);
     const record = await idbWrapRequest(store.get(id)).catch(() => null);
     return record || null;
+  }
+
+  function plexAlbumCacheNs() {
+    const { server, token } = cfg();
+    const s = String(server || '') + '\0' + String(token || '');
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) | 0;
+    return String(h);
+  }
+
+  function albumListCacheId(ns, sectionKey, listMode, start) {
+    return String(ns) + '::' + String(sectionKey) + '::' + String(listMode) + '::' + String(start);
+  }
+
+  const ALBUM_LIB_META_KIND = 'libAlbumTotal';
+
+  function albumLibraryMetaRowId(ns, sectionKey) {
+    return String(ns) + '::' + String(sectionKey) + '::' + ALBUM_LIB_META_KIND;
+  }
+
+  async function readAlbumLibraryMeta(ns, sectionKey) {
+    try {
+      const db = await openSearchDb();
+      if (!db || !sectionKey || !db.objectStoreNames.contains(ALBUM_LIST_STORE)) return null;
+      const id = albumLibraryMetaRowId(ns, sectionKey);
+      const tx = db.transaction(ALBUM_LIST_STORE, 'readonly');
+      const rec = await idbWrapRequest(tx.objectStore(ALBUM_LIST_STORE).get(id)).catch(() => null);
+      if (!rec || rec.ns !== ns || rec.kind !== ALBUM_LIB_META_KIND) return null;
+      return rec;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function readAlbumLibraryMetaWithTimeout(ns, sectionKey, ms) {
+    const cap = typeof ms === 'number' ? ms : 500;
+    return Promise.race([
+      readAlbumLibraryMeta(ns, sectionKey),
+      new Promise((resolve) => setTimeout(() => resolve(null), cap))
+    ]);
+  }
+
+  async function putAlbumLibraryMeta(ns, sectionKey, totalAlbums, listMode) {
+    try {
+      const n = Number(totalAlbums);
+      if (!Number.isFinite(n) || n <= 0) return;
+      const db = await openSearchDb();
+      if (!db || !db.objectStoreNames.contains(ALBUM_LIST_STORE)) return;
+      const id = albumLibraryMetaRowId(ns, sectionKey);
+      const tx = db.transaction(ALBUM_LIST_STORE, 'readwrite');
+      const store = tx.objectStore(ALBUM_LIST_STORE);
+      store.put({
+        id,
+        ns,
+        sectionKey: String(sectionKey),
+        kind: ALBUM_LIB_META_KIND,
+        totalAlbums: n,
+        listMode: String(listMode || 'albums'),
+        updatedAt: Date.now()
+      });
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('lib meta write failed'));
+        tx.onabort = () => reject(tx.error || new Error('lib meta write aborted'));
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
+  async function readAlbumListPage(ns, sectionKey, listMode, start) {
+    try {
+      const db = await openSearchDb();
+      if (!db || !sectionKey) return null;
+      if (!db.objectStoreNames.contains(ALBUM_LIST_STORE)) return null;
+      const id = albumListCacheId(ns, sectionKey, listMode, start);
+      const tx = db.transaction(ALBUM_LIST_STORE, 'readonly');
+      const store = tx.objectStore(ALBUM_LIST_STORE);
+      const rec = await idbWrapRequest(store.get(id)).catch(() => null);
+      if (!rec || rec.ns !== ns || !Array.isArray(rec.items)) return null;
+      return rec;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /** Avoid blocking album load if IndexedDB never settles (stale connection, browser quirks). */
+  function readAlbumListPageWithTimeout(ns, sectionKey, listMode, start, ms) {
+    const cap = typeof ms === 'number' ? ms : 800;
+    return Promise.race([
+      readAlbumListPage(ns, sectionKey, listMode, start),
+      new Promise((resolve) => setTimeout(() => resolve(null), cap))
+    ]);
+  }
+
+  async function putAlbumListPage(ns, sectionKey, listMode, start, totalSize, items) {
+    if (!ns || !sectionKey || !listMode || !Array.isArray(items)) return;
+    try {
+      const db = await openSearchDb();
+      if (!db || !db.objectStoreNames.contains(ALBUM_LIST_STORE)) return;
+      const id = albumListCacheId(ns, sectionKey, listMode, start);
+      const tx = db.transaction(ALBUM_LIST_STORE, 'readwrite');
+      const store = tx.objectStore(ALBUM_LIST_STORE);
+      store.put({
+        id,
+        ns,
+        sectionKey: String(sectionKey),
+        listMode: String(listMode),
+        start: Number(start) || 0,
+        totalSize: Number(totalSize) || 0,
+        items,
+        cachedAt: Date.now()
+      });
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB album cache write failed.'));
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB album cache write aborted.'));
+      }).catch((err) => {
+        console.warn(err);
+      });
+    } catch (_) {}
+  }
+
+  async function deleteAlbumListPage(ns, sectionKey, listMode, start) {
+    try {
+      const db = await openSearchDb();
+      if (!db || !sectionKey || !db.objectStoreNames.contains(ALBUM_LIST_STORE)) return;
+      const id = albumListCacheId(ns, sectionKey, listMode, start);
+      const tx = db.transaction(ALBUM_LIST_STORE, 'readwrite');
+      const store = tx.objectStore(ALBUM_LIST_STORE);
+      store.delete(id);
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB album cache delete failed.'));
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB album cache delete aborted.'));
+      }).catch(() => {});
+    } catch (_) {}
   }
 
   function formatClock(seconds) {
@@ -2404,6 +2823,91 @@
     if (!key) return '';
     const sep = key.includes('?') ? '&' : '?';
     return server + key + sep + 'X-Plex-Token=' + encodeURIComponent(token);
+  }
+
+  function isPlexLibraryPartsStreamUrl(url) {
+    return String(url || '').indexOf('/library/parts/') !== -1;
+  }
+
+  function normalizedMediaUrl(url) {
+    try {
+      return new URL(url, location.href).href;
+    } catch (_) {
+      return String(url || '');
+    }
+  }
+
+  /**
+   * Cross-origin Plex part streams often fail in Firefox (OpaqueResponseBlocking) while fetch() to the API works.
+   * Retry once with CORS mode if the server sends Access-Control-Allow-Origin on streams; otherwise show proxy hint.
+   */
+  function setAudioElementSource(audio, url) {
+    if (!audio || !url) return;
+    if (audio._plexOrbErrorTimer) {
+      clearTimeout(audio._plexOrbErrorTimer);
+      audio._plexOrbErrorTimer = null;
+    }
+    audio._plexStreamGen = (audio._plexStreamGen || 0) + 1;
+    const gen = audio._plexStreamGen;
+    const want = normalizedMediaUrl(url);
+
+    if (!isPlexLibraryPartsStreamUrl(url)) {
+      audio.removeAttribute('crossorigin');
+      audio.src = url;
+      return;
+    }
+
+    audio._plexStreamLoadStartedAt = Date.now();
+    audio._plexOrbAttempt = 0;
+    audio.removeAttribute('crossorigin');
+
+    const cancelPlexOrbErrorTimer = () => {
+      if (audio._plexStreamGen !== gen) return;
+      if (audio._plexOrbErrorTimer) {
+        clearTimeout(audio._plexOrbErrorTimer);
+        audio._plexOrbErrorTimer = null;
+      }
+    };
+    audio.addEventListener('playing', cancelPlexOrbErrorTimer, { once: true });
+    audio.addEventListener('canplay', cancelPlexOrbErrorTimer, { once: true });
+
+    const tryShowPlexOrbError = () => {
+      audio._plexOrbErrorTimer = null;
+      if (audio._plexStreamGen !== gen) return;
+      if (normalizedMediaUrl(audio.currentSrc || audio.src) !== want) return;
+      const me = audio.error;
+      if (me && (me.code === 1 || me.code === MediaError.MEDIA_ERR_ABORTED)) return;
+      if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !me) return;
+      showCors(true);
+      showError(
+        'Plex audio is blocked by the browser (often Firefox OpaqueResponseBlocking): this page and Plex must share the same origin, or use a reverse proxy. Expand the yellow note above or see Settings → Server URL.'
+      );
+    };
+
+    const onErr = () => {
+      if (audio._plexStreamGen !== gen) return;
+      if (normalizedMediaUrl(audio.currentSrc || audio.src) !== want) return;
+      const me = audio.error;
+      if (me && (me.code === 1 || me.code === MediaError.MEDIA_ERR_ABORTED)) return;
+      if (!audio._plexOrbAttempt) {
+        audio._plexOrbAttempt = 1;
+        audio.crossOrigin = 'anonymous';
+        audio.addEventListener('error', onErr, { once: true });
+        audio.src = url;
+        return;
+      }
+      const started = audio._plexStreamLoadStartedAt || Date.now();
+      const wait = Math.max(0, PLEX_STREAM_ORB_ERROR_MIN_MS - (Date.now() - started));
+      if (audio._plexOrbErrorTimer) {
+        clearTimeout(audio._plexOrbErrorTimer);
+        audio._plexOrbErrorTimer = null;
+      }
+      if (wait <= 0) tryShowPlexOrbError();
+      else audio._plexOrbErrorTimer = setTimeout(tryShowPlexOrbError, wait);
+    };
+
+    audio.addEventListener('error', onErr, { once: true });
+    audio.src = url;
   }
 
   function thumbUrl(thumbPath) {
@@ -2480,6 +2984,10 @@
       (starred ? 'currentColor' : 'none') +
       '" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
     return star;
+  }
+
+  function albumCardPlayIconHtml() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg>';
   }
 
   function fallbackThumbDataUrl() {
@@ -2655,7 +3163,10 @@
   }
 
   let albumStart = 0;
-  const PAGE = 40;
+  /** Plex audiobook (and some) sections list books via /all?type=9 instead of /albums */
+  let sectionAlbumListMode = { sectionKey: '', mode: 'albums' };
+  /** Albums per Plex request — larger = fewer round-trips for big libraries */
+  const PAGE = 120;
   let currentAlbum = null;
   let currentArtistKey = null;
   let currentTracks = [];
@@ -2663,6 +3174,41 @@
   let isLoadingAlbums = false;
   let hasMoreAlbums = false;
   let albumTotalCount = 0;
+
+  function plexMediaContainerTotal(mc) {
+    if (!mc || typeof mc !== 'object') return null;
+    const raw = mc.totalSize != null ? mc.totalSize : mc.TotalSize != null ? mc.TotalSize : null;
+    if (raw == null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  /** Plex often omits totalSize on page 2+; keep the real library total for counts and “load more”. */
+  function resolveAlbumListTotal(mediaContainer, metaLength, append) {
+    const fromApi = plexMediaContainerTotal(mediaContainer);
+    if (fromApi != null) return fromApi;
+    if (append && albumTotalCount > 0) return albumTotalCount;
+    const im = loadSearchIndexMeta();
+    const sk = activeSectionKey();
+    const saved = Number(im.totalCount);
+    if (Number.isFinite(saved) && saved > 0 && String(im.sectionKey || '') === String(sk || '')) {
+      return saved;
+    }
+    if (!append && albumTotalCount > 0) return albumTotalCount;
+    return metaLength || 0;
+  }
+
+  /** Cached pages may store a stale total; never show fewer than we already know from meta / index. */
+  function mergeAlbumListTotalHint(cachedTotal, itemCount, sectionKey) {
+    let t = Number(cachedTotal);
+    if (!Number.isFinite(t) || t < 0) t = 0;
+    const im = loadSearchIndexMeta();
+    const metaHint =
+      im && String(im.sectionKey || '') === String(sectionKey || '') ? Number(im.totalCount) : 0;
+    const hints = [t, itemCount, albumTotalCount, Number.isFinite(metaHint) ? metaHint : 0];
+    return Math.max.apply(null, hints);
+  }
+
   /** Cached Plex section track count (type=10) for library-wide shuffle */
   let libraryTrackTotalCache = { sectionKey: '', total: 0 };
   /** Recent track ratingKeys for song shuffle — reduces immediate repeats across a huge library */
@@ -2721,6 +3267,11 @@
   let settingsStatusClearTimer = 0;
   let errorClearTimer = 0;
   let activeSearchIndexSection = '';
+  /** Plex sections from last loadSections — used for multi-library hub search. */
+  let plexSectionListCache = [];
+  let plexSectionNameByKey = {};
+  let unifiedSearchTimer = 0;
+  let unifiedSearchSeq = 0;
   let playbackMode = PLAYBACK_MODE_OFF;
 
   function showError(msg) {
@@ -2926,35 +3477,133 @@
       type === 'artist' ||
       type === 'album' ||
       type === 'music' ||
+      type === 'audiobook' ||
       scanner.includes('music') ||
+      scanner.includes('audiobook') ||
       agent.includes('music') ||
-      title.includes('music')
+      agent.includes('audiobook') ||
+      title.includes('music') ||
+      title.includes('audiobook') ||
+      title.includes('audio book')
     );
   }
 
-  async function loadSections() {
-    const sel = $('inSection');
-    setSettingsStatus('Connecting to Plex and loading libraries...');
-    sel.innerHTML = '<option value="">Loading…</option>';
-    const data = await plexFetch('/library/sections');
-    const dirs = data.MediaContainer.Directory || [];
-    const music = dirs.filter(looksLikeMusicLibrary);
-    const list = music.length ? music : dirs;
-    sel.innerHTML = list.length
-      ? list
-          .map((d) => {
-            const suffix = music.length ? '' : ' (' + escapeHtml(d.type || 'unknown') + ')';
-            return '<option value="' + d.key + '">' + escapeHtml(d.title) + suffix + '</option>';
-          })
-          .join('')
-      : '<option value="">No libraries found</option>';
+  function updatePlexLibraryLinkActive() {
+    const nav = $('plexLibraryLinks');
+    if (!nav) return;
+    const cur = String($('inSection').value || '');
+    const plexBrowsing = navView === 'albums';
+    nav.querySelectorAll('.sidebar-plex-row').forEach((row) => {
+      const btn = row.querySelector('.sidebar-nav-btn[data-section-key]');
+      if (!btn) return;
+      const match = plexBrowsing && String(btn.dataset.sectionKey || '') === cur;
+      row.classList.toggle('active', match);
+    });
+    nav.querySelectorAll('.sidebar-nav-btn[data-section-key]').forEach((btn) => {
+      btn.classList.remove('active');
+    });
+  }
 
-    if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
-    else if (music.length) setSettingsStatus('Connected. Found ' + music.length + ' music librar' + (music.length === 1 ? 'y' : 'ies') + '.', 'ok');
-    else setSettingsStatus('Connected, but no libraries were returned.', 'error');
-    const saved = cfg().sectionKey;
-    if (saved && list.some((d) => String(d.key) === String(saved))) sel.value = saved;
-    else if (list[0]) sel.value = list[0].key;
+  async function applyPlexSectionUserChange() {
+    const section = $('inSection').value;
+    localStorage.setItem(LS.section, section || '');
+    activeSearchIndexSection = '';
+    albumSearchIndexCache.clear();
+    albumTrackSearchCache.clear();
+    libraryTrackTotalCache = { sectionKey: '', total: 0 };
+    songShuffleRecentKeys = [];
+    if (!section) {
+      setSettingsStatus('Pick a Plex library in the sidebar.', 'error');
+      return;
+    }
+    if (navView !== 'albums') {
+      setNavView('albums', { updateLocation: true });
+    } else {
+      const h = (location.hash || '').trim();
+      const tracksHidden = !$('viewTracks') || $('viewTracks').style.display === 'none';
+      const inDetail =
+        !tracksHidden || currentArtistKey != null || /^#(album|artist)\//.test(h);
+      if (inDetail || h !== '#albums') backToAlbums({ updateLocation: true, fullLibrary: true, skipLoad: true });
+    }
+    setSettingsStatus('Loading library...', 'ok');
+    await loadAlbums(false);
+  }
+
+  async function loadSections() {
+    const hidden = $('inSection');
+    const nav = $('plexLibraryLinks');
+    setSettingsStatus('Connecting to Plex and loading libraries...');
+    nav.innerHTML = '<p class="sidebar-plex-note"><span class="spinner"></span> Loading…</p>';
+    try {
+      const data = await plexFetch('/library/sections');
+      const dirs = data.MediaContainer.Directory || [];
+      const music = dirs.filter(looksLikeMusicLibrary);
+      const list = music.length ? music : dirs;
+      nav.innerHTML = '';
+      if (!list.length) {
+        hidden.value = '';
+        plexSectionListCache = [];
+        plexSectionNameByKey = {};
+        nav.innerHTML = '<p class="sidebar-plex-note">No libraries found</p>';
+        if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
+        else setSettingsStatus('Connected, but no libraries were returned.', 'error');
+        return;
+      }
+      list.forEach((d) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sidebar-nav-btn';
+        btn.dataset.sectionKey = String(d.key);
+        const suffix = music.length ? '' : ' (' + String(d.type || 'unknown') + ')';
+        btn.textContent = String(d.title || '') + suffix;
+        btn.addEventListener('click', async () => {
+          const key = String(d.key);
+          const prev = hidden.value;
+          hidden.value = key;
+          updatePlexLibraryLinkActive();
+          const onAlbumsGrid =
+            prev === key &&
+            navView === 'albums' &&
+            (!$('viewTracks') || $('viewTracks').style.display === 'none') &&
+            currentArtistKey == null &&
+            (location.hash || '').trim() === '#albums';
+          if (onAlbumsGrid) return;
+          await applyPlexSectionUserChange();
+        });
+        const row = document.createElement('div');
+        row.className = 'sidebar-plex-row';
+        const mark = document.createElement('span');
+        mark.className = 'sidebar-plex-mark';
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = 'PLEX';
+        row.appendChild(btn);
+        row.appendChild(mark);
+        row.addEventListener('click', (e) => {
+          if (e.target === btn || btn.contains(e.target)) return;
+          btn.click();
+        });
+        nav.appendChild(row);
+      });
+      plexSectionListCache = list.map((d) => ({ key: String(d.key), title: String(d.title || d.key) }));
+      plexSectionNameByKey = {};
+      for (let si = 0; si < plexSectionListCache.length; si++) {
+        const ent = plexSectionListCache[si];
+        plexSectionNameByKey[ent.key] = ent.title;
+      }
+      if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
+      else if (music.length) setSettingsStatus('Connected. Found ' + music.length + ' music librar' + (music.length === 1 ? 'y' : 'ies') + '.', 'ok');
+      else setSettingsStatus('Connected, but no libraries were returned.', 'error');
+      const saved = cfg().sectionKey;
+      if (saved && list.some((item) => String(item.key) === String(saved))) hidden.value = String(saved);
+      else if (list[0]) hidden.value = String(list[0].key);
+      updatePlexLibraryLinkActive();
+    } catch (e) {
+      hidden.value = '';
+      plexSectionListCache = [];
+      plexSectionNameByKey = {};
+      if (nav) nav.innerHTML = '<p class="sidebar-plex-note error">Could not load libraries.</p>';
+      throw e;
+    }
   }
 
   function escapeHtml(s) {
@@ -3069,7 +3718,19 @@
       return;
     }
     const typ = node.type;
-    if ((typ === 'track' || typ === 10 || typ === '10') && node.ratingKey) out.push(node);
+    const typStr = String(typ || '').toLowerCase();
+    if (
+      node.ratingKey &&
+      (typ === 'track' ||
+        typ === 10 ||
+        typ === '10' ||
+        typStr === 'episode' ||
+        typStr === 'chapter' ||
+        typStr === 'audiobook' ||
+        isPlexAudioLeafForPlayback(node))
+    ) {
+      out.push(node);
+    }
     const meta = node.Metadata || node.metadata;
     if (meta) {
       const arr = Array.isArray(meta) ? meta : [meta];
@@ -3109,6 +3770,81 @@
       } catch (_) {}
     }
     return Array.from(byKey.values());
+  }
+
+  function collectHubSearchMetadata(node, out) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) collectHubSearchMetadata(node[i], out);
+      return;
+    }
+    const meta = node.Metadata || node.metadata;
+    if (meta) {
+      const arr = Array.isArray(meta) ? meta : [meta];
+      for (let i = 0; i < arr.length; i++) {
+        const m = arr[i];
+        if (!m) continue;
+        const typ = String(m.type || '').toLowerCase();
+        if (typ === 'album') {
+          out.push({
+            kind: 'album',
+            ratingKey: m.ratingKey,
+            title: String(m.title || ''),
+            parentTitle: String(m.parentTitle || ''),
+            librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : ''
+          });
+        } else if (typ === 'track') {
+          out.push({
+            kind: 'track',
+            ratingKey: m.ratingKey,
+            title: String(m.title || ''),
+            parentRatingKey: m.parentRatingKey,
+            parentTitle: String(m.parentTitle || ''),
+            grandparentTitle: String(m.grandparentTitle || ''),
+            librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : ''
+          });
+        }
+      }
+    }
+    const hub = node.Hub || node.hub;
+    if (hub) {
+      const arr = Array.isArray(hub) ? hub : [hub];
+      for (let i = 0; i < arr.length; i++) collectHubSearchMetadata(arr[i], out);
+    }
+    if (node.MediaContainer) collectHubSearchMetadata(node.MediaContainer, out);
+  }
+
+  function ingestHubSearchData(data, albumsByKey, tracksByKey) {
+    const items = [];
+    collectHubSearchMetadata(data, items);
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind === 'album' && it.ratingKey != null) albumsByKey.set(String(it.ratingKey), it);
+      if (it.kind === 'track' && it.ratingKey != null) tracksByKey.set(String(it.ratingKey), it);
+    }
+  }
+
+  async function plexHubSearchEverySection(rawQuery) {
+    const encoded = encodeURIComponent(String(rawQuery || '').trim());
+    const albumsByKey = new Map();
+    const tracksByKey = new Map();
+    const sections = plexSectionListCache.length ? plexSectionListCache : [];
+    for (let i = 0; i < sections.length; i++) {
+      try {
+        const data = await plexFetch(
+          '/hubs/search?query=' + encoded + '&limit=40&sectionId=' + encodeURIComponent(sections[i].key)
+        );
+        ingestHubSearchData(data, albumsByKey, tracksByKey);
+      } catch (_) {}
+    }
+    try {
+      const data = await plexFetch('/hubs/search?query=' + encoded + '&limit=72');
+      ingestHubSearchData(data, albumsByKey, tracksByKey);
+    } catch (_) {}
+    return {
+      albums: Array.from(albumsByKey.values()),
+      tracks: Array.from(tracksByKey.values())
+    };
   }
 
   function countVisibleAlbumCards(grid) {
@@ -3167,6 +3903,14 @@
   function getFirstPlayablePartKey(track) {
     const part = getFirstPlayablePart(track);
     return part && part.key ? String(part.key) : '';
+  }
+
+  /** Music + audiobook: playable items may be track, episode, chapter, or a single-file book (album with Media). */
+  function isPlexAudioLeafForPlayback(m) {
+    if (!m || !getFirstPlayablePartKey(m)) return false;
+    const t = String(m.type || '').toLowerCase();
+    if (t === 'movie' || t === 'show' || t === 'season' || t === 'collection') return false;
+    return true;
   }
 
   /** Guess artist/title from Part.file basename when Plex tags are empty (e.g. "06. Artist - Title.ogg"). */
@@ -3268,7 +4012,7 @@
     if (albumFolderNameFetchCache.has(albumKey)) return albumFolderNameFetchCache.get(albumKey);
     const promise = plexFetch('/library/metadata/' + albumKey + '/children')
       .then((data) => {
-        const tracks = (data.MediaContainer.Metadata || []).filter((m) => m.type === 'track');
+        const tracks = (data.MediaContainer.Metadata || []).filter(isPlexAudioLeafForPlayback);
         const folder = mostFrequentValue(tracks.map(extractAlbumFolderFromTrack));
         albumFolderNameCache.set(albumKey, folder || '');
         albumFolderNameFetchCache.delete(albumKey);
@@ -3423,7 +4167,7 @@
 
   async function autoLoadMoreAlbums() {
     let loops = 0;
-    while (loops < 8 && shouldAutoLoadAlbumsForViewport()) {
+    while (loops < 12 && shouldAutoLoadAlbumsForViewport()) {
       loops += 1;
       const loaded = await loadAlbums(true);
       if (!loaded) break;
@@ -3468,10 +4212,295 @@
     });
   }
 
+  function formatIdbAlbumTitleForSearch(record) {
+    const ak = String(record.albumKey || '');
+    const fromLookup = albumLookup.get(ak);
+    if (fromLookup && fromLookup.title && !isUnknownAlbumTitle(fromLookup.title)) return String(fromLookup.title);
+    const blob = String(record.albumSearch || '').trim();
+    if (blob.length > 76) return blob.slice(0, 73) + '…';
+    return blob || 'Album';
+  }
+
+  function idbRecordsMatchingQuery(records, queryRaw) {
+    if (!normalizeSearchText(queryRaw)) return [];
+    const hits = [];
+    const seenAlbum = new Set();
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i];
+      const blob = String(r.albumSearch || '') + ' ' + String(r.trackSearch || '');
+      if (!searchMatchesBlob(blob, queryRaw)) continue;
+      const ak = String(r.albumKey || '');
+      if (!ak || seenAlbum.has(ak)) continue;
+      seenAlbum.add(ak);
+      const sk = String(r.sectionKey || '');
+      hits.push({
+        kind: 'album',
+        ratingKey: ak,
+        sectionKey: sk,
+        title: formatIdbAlbumTitleForSearch(r),
+        parentTitle: '',
+        subtitle: plexSectionNameByKey[sk] || ''
+      });
+    }
+    return hits;
+  }
+
+  function buildUnifiedSearchHtml(radioHits, albums, tracks, rawQuery) {
+    const parts = [];
+    if (radioHits.length) {
+      parts.push('<section class="unified-search-block"><h4>Radio (channels.js)</h4><ul class="unified-hit-list">');
+      for (let i = 0; i < radioHits.length; i++) {
+        const st = radioHits[i];
+        const sub = st.tags.length ? st.tags.slice(0, 5).join(' · ') : 'Live stream';
+        parts.push(
+          '<li><button type="button" class="unified-hit-btn" data-unified-radio="' +
+            escapeHtml(st.id) +
+            '">' +
+            '<span class="unified-hit-title">' +
+            escapeHtml(st.title) +
+            '</span>' +
+            '<span class="unified-hit-sub">' +
+            escapeHtml(sub) +
+            '</span></button></li>'
+        );
+      }
+      parts.push('</ul></section>');
+    }
+    if (albums.length || tracks.length) {
+      parts.push('<section class="unified-search-block"><h4>Plex (all libraries)</h4><ul class="unified-hit-list">');
+      for (let i = 0; i < albums.length; i++) {
+        const a = albums[i];
+        const bits = [];
+        if (a.subtitle) bits.push(a.subtitle);
+        if (a.parentTitle) bits.push(a.parentTitle);
+        const sub = bits.join(' · ');
+        parts.push(
+          '<li><button type="button" class="unified-hit-btn" data-unified-plex-album data-section-key="' +
+            escapeHtml(String(a.sectionKey || '')) +
+            '" data-rating-key="' +
+            escapeHtml(String(a.ratingKey || '')) +
+            '">' +
+            '<span class="unified-hit-title">' +
+            escapeHtml(String(a.title || 'Album')) +
+            '</span>' +
+            (sub ? '<span class="unified-hit-sub">' + escapeHtml(sub) + '</span>' : '') +
+            '</button></li>'
+        );
+      }
+      for (let j = 0; j < tracks.length; j++) {
+        const t = tracks[j];
+        const titleLine = [t.title, t.parentTitle, t.grandparentTitle].filter(Boolean).join(' · ');
+        const ak = String(t.parentRatingKey || '');
+        parts.push(
+          '<li><button type="button" class="unified-hit-btn" data-unified-plex-track data-section-key="' +
+            escapeHtml(String(t.librarySectionID || '')) +
+            '" data-album-key="' +
+            escapeHtml(ak) +
+            '">' +
+            '<span class="unified-hit-title">' +
+            escapeHtml(titleLine || 'Track') +
+            '</span>' +
+            '<span class="unified-hit-sub">Track · open album</span></button></li>'
+        );
+      }
+      parts.push('</ul></section>');
+    }
+    if (!parts.length) {
+      const norm = normalizeSearchText(rawQuery);
+      const hint =
+        norm.length < 2
+          ? 'Type at least 2 characters to search Plex across every library. Radio matches can appear with 1+ characters.'
+          : 'No matches in channels.js or Plex hub search for this phrase.';
+      return '<p class="unified-search-empty">' + escapeHtml(hint) + '</p>';
+    }
+    return parts.join('');
+  }
+
+  function playUnifiedRadioStation(id) {
+    if (!id) return;
+    if (!radioStations.length) buildRadioData();
+    const idx = radioStations.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    const rh = radioHash(id);
+    if (location.hash !== rh) location.hash = rh;
+    else playRadioIndex(idx);
+  }
+
+  async function unifiedOpenPlexAlbum(sectionKey, ratingKey) {
+    if (!ratingKey) return;
+    const sk = String(sectionKey || '');
+    if (sk && $('inSection') && $('inSection').value !== sk) {
+      $('inSection').value = sk;
+      localStorage.setItem(LS.section, sk);
+      updatePlexLibraryLinkActive();
+    }
+    if (navView !== 'albums') {
+      setNavView('albums', { updateLocation: true });
+    } else {
+      const h = (location.hash || '').trim();
+      const inDetail =
+        ($('viewTracks') && $('viewTracks').style.display !== 'none') ||
+        currentArtistKey != null ||
+        /^#(album|artist)\//.test(h);
+      if (inDetail || (h !== '#albums' && h !== '')) {
+        backToAlbums({ updateLocation: true, fullLibrary: true, skipLoad: true });
+      }
+    }
+    try {
+      await openAlbumByKey(String(ratingKey));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function wireUnifiedSearchPanelOnce() {
+    const panel = $('unifiedSearchPanel');
+    if (!panel || panel.dataset.wiredUnified === '1') return;
+    panel.dataset.wiredUnified = '1';
+    panel.addEventListener('click', (e) => {
+      const rb = e.target.closest('[data-unified-radio]');
+      if (rb) {
+        e.preventDefault();
+        playUnifiedRadioStation(rb.getAttribute('data-unified-radio'));
+        return;
+      }
+      const pa = e.target.closest('[data-unified-plex-album]');
+      if (pa) {
+        e.preventDefault();
+        unifiedOpenPlexAlbum(pa.getAttribute('data-section-key'), pa.getAttribute('data-rating-key'));
+        return;
+      }
+      const pt = e.target.closest('[data-unified-plex-track]');
+      if (pt) {
+        e.preventDefault();
+        unifiedOpenPlexAlbum(pt.getAttribute('data-section-key'), pt.getAttribute('data-album-key'));
+        return;
+      }
+    });
+  }
+
+  function scheduleUnifiedSearch(rawQuery, filterV) {
+    if (unifiedSearchTimer) clearTimeout(unifiedSearchTimer);
+    const q = String(rawQuery || '').trim();
+    if (!q) {
+      const p = $('unifiedSearchPanel');
+      if (p) {
+        p.hidden = true;
+        p.innerHTML = '';
+      }
+      return;
+    }
+    unifiedSearchTimer = setTimeout(() => {
+      unifiedSearchTimer = 0;
+      runUnifiedSearchPanel(q, filterV).catch((err) => {
+        console.error(err);
+      });
+    }, 300);
+  }
+
+  async function runUnifiedSearchPanel(rawQuery, filterV) {
+    const panel = $('unifiedSearchPanel');
+    if (!panel) return;
+    const inp = $('inSearch');
+    const normInput = normalizeSearchText(inp && inp.value.trim());
+    if (normInput !== normalizeSearchText(rawQuery)) return;
+    const seq = ++unifiedSearchSeq;
+    panel.hidden = false;
+    panel.innerHTML = '<p class="unified-search-loading"><span class="spinner"></span> Searching…</p>';
+
+    if (!radioStations.length) buildRadioData();
+    const qLower = rawQuery.trim().toLowerCase();
+    const radioHits = [];
+    for (let ri = 0; ri < radioStations.length; ri++) {
+      const station = radioStations[ri];
+      if (
+        station.title.toLowerCase().includes(qLower) ||
+        station.id.toLowerCase().includes(qLower) ||
+        station.tags.join(' ').toLowerCase().includes(qLower)
+      ) {
+        radioHits.push(station);
+      }
+    }
+
+    let idbHits = [];
+    try {
+      const allRec = await readAllSearchRecords();
+      if (filterV !== filterVersion) return;
+      idbHits = idbRecordsMatchingQuery(allRec, rawQuery);
+    } catch (_) {}
+
+    let hubAlbums = [];
+    let hubTracks = [];
+    const canPlex = !!(cfg().server && cfg().token);
+    const normQ = normalizeSearchText(rawQuery);
+    if (canPlex && normQ.length >= 2) {
+      try {
+        const h = await plexHubSearchEverySection(rawQuery);
+        if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
+        hubAlbums = h.albums;
+        hubTracks = h.tracks;
+      } catch (_) {}
+    }
+
+    if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
+
+    const byKey = new Map();
+    for (let hi = 0; hi < idbHits.length; hi++) {
+      const h = idbHits[hi];
+      byKey.set(String(h.ratingKey), h);
+    }
+    for (let ai = 0; ai < hubAlbums.length; ai++) {
+      const a = hubAlbums[ai];
+      const k = String(a.ratingKey);
+      const sec = String(a.librarySectionID || '');
+      const prev = byKey.get(k) || {};
+      let title = String(a.title || prev.title || '');
+      if (!title) {
+        const lu = albumLookup.get(k);
+        if (lu && lu.title) title = String(lu.title);
+      }
+      if (!title) title = 'Album';
+      const sectionKey = sec || String(prev.sectionKey || '');
+      const libLabel =
+        (sec && plexSectionNameByKey[sec]) ||
+        (prev.sectionKey && plexSectionNameByKey[String(prev.sectionKey)]) ||
+        prev.subtitle ||
+        '';
+      const parentTitle = String(a.parentTitle || prev.parentTitle || '');
+      byKey.set(k, {
+        kind: 'album',
+        ratingKey: k,
+        sectionKey,
+        title,
+        parentTitle,
+        subtitle: libLabel
+      });
+    }
+
+    const mergedAlbums = Array.from(byKey.values());
+    const trackSlice = hubTracks;
+    panel.innerHTML = buildUnifiedSearchHtml(radioHits, mergedAlbums, trackSlice, rawQuery);
+  }
+
   function updateFilterState() {
     const activeVersion = ++filterVersion;
     searchQuery = $('inSearch').value.trim().toLowerCase();
     const query = searchQuery;
+    const rawSearchInput = $('inSearch').value.trim();
+    if (!rawSearchInput) {
+      if (unifiedSearchTimer) {
+        clearTimeout(unifiedSearchTimer);
+        unifiedSearchTimer = 0;
+      }
+      unifiedSearchSeq++;
+      const usp = $('unifiedSearchPanel');
+      if (usp) {
+        usp.hidden = true;
+        usp.innerHTML = '';
+      }
+    } else {
+      scheduleUnifiedSearch(rawSearchInput, activeVersion);
+    }
     const albumGrid = $('albumGrid');
     const tracksWrap = $('viewTracks');
     let albumMatches = 0;
@@ -3571,7 +4600,7 @@
         if (query) {
           parts.push(trackMatches + ' track' + (trackMatches === 1 ? '' : 's'));
         }
-      } else if (albumGrid) {
+      } else if (albumGrid || (navView === 'albums' && albumTotalCount > 0)) {
         const showLibraryTotalOnly =
           !query &&
           navView === 'albums' &&
@@ -3579,7 +4608,7 @@
           albumTotalCount > 0;
         if (showLibraryTotalOnly) {
           parts.push(albumTotalCount + ' album' + (albumTotalCount === 1 ? '' : 's'));
-        } else {
+        } else if (albumGrid) {
           parts.push(albumMatches + ' album' + (albumMatches === 1 ? '' : 's'));
         }
       }
@@ -3644,7 +4673,7 @@
     }
     const promise = plexFetch('/library/metadata/' + albumKey + '/children')
       .then((data) => {
-        const tracks = (data.MediaContainer.Metadata || []).filter((m) => m.type === 'track');
+        const tracks = (data.MediaContainer.Metadata || []).filter(isPlexAudioLeafForPlayback);
         const titles = tracks.map((t) => String(t.title || '').trim()).filter(Boolean);
         const search = tracks.map((t) => makeSearchBlob(t)).join(' ');
         const payload = { search, titles };
@@ -3699,6 +4728,13 @@
     box.style.display = 'block';
   }
 
+  function syncSidebarNavActive() {
+    document.querySelectorAll('.sidebar-nav-btn[data-nav]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.nav === navView);
+    });
+    updatePlexLibraryLinkActive();
+  }
+
   function setNavView(next, opts) {
     const o = opts || {};
     navView = next;
@@ -3706,9 +4742,7 @@
       const nextHash = '#' + (next || 'albums');
       if (location.hash !== nextHash) location.hash = nextHash;
     }
-    document.querySelectorAll('.sidebar-nav-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.nav === next);
-    });
+    syncSidebarNavActive();
     if (next === 'radio') {
       $('viewLibrary').style.display = 'none';
       $('viewTracks').style.display = 'none';
@@ -3960,6 +4994,14 @@
     radioSections = sec;
   }
 
+  window.addEventListener('radioguaka-somafm-artwork', () => {
+    buildRadioData();
+    if (navView === 'radio') renderRadioView();
+    if (isRadioMode && currentRadioIdx >= 0 && radioStations[currentRadioIdx]) {
+      setRadioNowPlaying(radioStations[currentRadioIdx]);
+    }
+  });
+
   function radioShuffleOn() {
     return isRadioMode && playbackMode !== PLAYBACK_MODE_OFF;
   }
@@ -4111,7 +5153,7 @@
     currentRadioIdx = i;
     isRadioMode = true;
     const audio = $('audio');
-    audio.src = station.url;
+    setAudioElementSource(audio, station.url);
     audio.play().catch((err) => {
       showError('Could not start this stream: ' + (err && err.message ? err.message : 'Playback blocked'));
     });
@@ -4126,150 +5168,306 @@
     if (location.hash !== rh) location.hash = rh;
   }
 
+  function renderAlbumPageIntoView(meta, total, append) {
+    const sectionKey = String(cfg().sectionKey || $('inSection').value || '');
+    if (!sectionKey) return;
+    albumTotalCount = Number(total) || 0;
+    const indexBatch = [];
+    if (!append) {
+      $('viewAlbums').innerHTML = '<div class="albums" id="albumGrid"></div>';
+      albumStart = 0;
+    }
+    const grid = $('albumGrid');
+    if (!grid) return;
+    const starredAlbums = getStarredAlbums();
+    const filterActive = append && ($('inSearch').value || '').trim().toLowerCase().length > 0;
+    const frag = document.createDocumentFragment();
+    meta.forEach((a) => {
+      albumLookup.set(String(a.ratingKey || ''), a);
+      const albumKey = String(a.ratingKey || '');
+      const albumSearchBlob = makeSearchBlob(a);
+      const indexed = albumSearchIndexCache.get(albumKey);
+      albumSearchIndexCache.set(albumKey, {
+        albumSearch: albumSearchBlob,
+        trackSearch: String((indexed && indexed.trackSearch) || ''),
+        titles: Array.isArray(indexed && indexed.titles) ? indexed.titles : []
+      });
+      indexBatch.push({
+        id: searchRecordId(sectionKey, albumKey),
+        sectionKey,
+        albumKey,
+        albumSearch: albumSearchBlob,
+        trackSearch: String((indexed && indexed.trackSearch) || ''),
+        titles: Array.isArray(indexed && indexed.titles) ? indexed.titles : [],
+        updatedAt: Date.now()
+      });
+      const div = document.createElement('div');
+      div.className = 'album';
+      div.dataset.key = a.ratingKey;
+      div.dataset.search = albumSearchBlob;
+      if (filterActive) div.style.display = 'none';
+      const img = thumbUrl(a.thumb || a.parentThumb) || fallbackThumbDataUrl();
+      const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
+      const albumHref = albumHash(a.ratingKey);
+      const artistHref = artistHash(a.parentRatingKey);
+      const albumStarred = starredAlbums.has(String(a.ratingKey));
+      div.innerHTML =
+        '<div class="star-wrap"><button type="button" class="star-btn' + (albumStarred ? ' starred' : '') + '" data-rating-key="' + escapeHtml(String(a.ratingKey)) + '" aria-label="' + (albumStarred ? 'Unstar album' : 'Star album') + '" title="' + (albumStarred ? 'Unstar' : 'Star') + '">' + starIconHtml(albumStarred) + '</button></div>' +
+        '<div class="album-art">' +
+        '<button type="button" class="album-play-btn" aria-label="Play album" title="Play album">' +
+        albumCardPlayIconHtml() +
+        '</button>' +
+        '<img src="' + img + '" alt="" loading="lazy" /></div>' +
+        '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
+        '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
+        '<div class="song-matches"></div></div>';
+      div.onclick = (ev) => {
+        if (ev.target.closest('a[data-meta-link]')) return;
+        if (ev.target.closest('.star-btn')) return;
+        if (ev.target.closest('.album-play-btn')) return;
+        openAlbum(a);
+      };
+      const playBtn = div.querySelector('.album-play-btn');
+      if (playBtn) {
+        playBtn.onclick = (ev) => playAlbumFromCard(a, ev);
+      }
+      const starBtn = div.querySelector('.star-btn');
+      if (starBtn) {
+        starBtn.onclick = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const nowStarred = toggleAlbumStar(starBtn.dataset.ratingKey, a);
+          starBtn.classList.toggle('starred', nowStarred);
+          starBtn.setAttribute('aria-label', nowStarred ? 'Unstar album' : 'Star album');
+          starBtn.setAttribute('title', nowStarred ? 'Unstar' : 'Star');
+          starBtn.innerHTML = starIconHtml(nowStarred);
+          notifyFavoriteAlbum(a, nowStarred);
+          syncAlbumDetailStarButton(a.ratingKey, nowStarred);
+          updateFilterState();
+        };
+      }
+      frag.appendChild(div);
+      if (isUnknownAlbumTitle(a.title)) {
+        resolveAlbumFolderName(a.ratingKey)
+          .then((folderName) => {
+            if (!folderName || !document.body.contains(div)) return;
+            const titleLink = div.querySelector('.title a[data-meta-link="album"]');
+            if (titleLink) titleLink.textContent = folderName;
+            else {
+              const titleEl = div.querySelector('.title');
+              if (!titleEl) return;
+              titleEl.textContent = folderName;
+            }
+            div.dataset.search = (div.dataset.search || '') + ' ' + folderName.toLowerCase();
+            if (searchQuery) updateFilterState();
+          })
+          .catch(() => {});
+      }
+    });
+    grid.appendChild(frag);
+    putSearchRecords(indexBatch).catch(() => {});
+    saveSearchIndexMeta({
+      schemaVersion: SEARCH_INDEX_SCHEMA_VERSION,
+      sectionKey,
+      totalCount: albumTotalCount,
+      updatedAt: Date.now()
+    });
+    updateFilterState();
+    albumStart += meta.length;
+    const more = $('loadMoreAlb');
+    if (more) more.remove();
+    hasMoreAlbums = albumStart < total;
+    if (hasMoreAlbums) {
+      const wrap = document.createElement('div');
+      wrap.className = 'load-more';
+      wrap.id = 'loadMoreAlb';
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = 'Load more albums';
+      b.onclick = () => loadAlbums(true);
+      wrap.appendChild(b);
+      $('viewAlbums').appendChild(wrap);
+    }
+    if (!append) {
+      $('albumViewToggle').style.display = '';
+      applyAlbumViewMode();
+    }
+    scheduleAlbumAutoLoad(20);
+  }
+
+  function plexMetadataArray(mc) {
+    const raw = mc && mc.Metadata != null ? mc.Metadata : null;
+    if (raw == null) return [];
+    return Array.isArray(raw) ? raw : [raw];
+  }
+
   async function loadAlbums(append) {
     const section = cfg().sectionKey || $('inSection').value;
     if (!section) return 0;
     if (isLoadingAlbums) return 0;
     isLoadingAlbums = true;
-    if (!append) {
-      activeSearchIndexSection = String(section);
-      albumTrackSearchCache.clear();
-      libraryTrackTotalCache = { sectionKey: '', total: 0 };
-      songShuffleRecentKeys = [];
-      navView = 'albums';
-      $('viewLibrary').style.display = 'none';
-      albumStart = 0;
-      $('viewAlbums').innerHTML = '<p class="msg"><span class="spinner"></span> Loading albums…</p>';
-    }
-    showError('');
-    showCors(false);
+    let shownFromIdb = false;
+    let result = 0;
     try {
-      const path = '/library/sections/' + section + '/albums?X-Plex-Container-Start=' + albumStart + '&X-Plex-Container-Size=' + PAGE;
-      const data = await plexFetch(path);
-      const meta = data.MediaContainer.Metadata || [];
-      const total = data.MediaContainer.totalSize != null ? data.MediaContainer.totalSize : meta.length;
-      albumTotalCount = Number(total) || 0;
-      const sectionKey = String(section);
-      const indexBatch = [];
-      if (!append) $('viewAlbums').innerHTML = '<div class="albums" id="albumGrid"></div>';
-      const grid = $('albumGrid');
-      const starredAlbums = getStarredAlbums();
-      const filterActive = append && ($('inSearch').value || '').trim().toLowerCase().length > 0;
-      meta.forEach((a) => {
-        albumLookup.set(String(a.ratingKey || ''), a);
-        const albumKey = String(a.ratingKey || '');
-        const albumSearchBlob = makeSearchBlob(a);
-        const indexed = albumSearchIndexCache.get(albumKey);
-        albumSearchIndexCache.set(albumKey, {
-          albumSearch: albumSearchBlob,
-          trackSearch: String((indexed && indexed.trackSearch) || ''),
-          titles: Array.isArray(indexed && indexed.titles) ? indexed.titles : []
-        });
-        indexBatch.push({
-          id: searchRecordId(sectionKey, albumKey),
-          sectionKey,
-          albumKey,
-          albumSearch: albumSearchBlob,
-          trackSearch: String((indexed && indexed.trackSearch) || ''),
-          titles: Array.isArray(indexed && indexed.titles) ? indexed.titles : [],
-          updatedAt: Date.now()
-        });
-        const div = document.createElement('div');
-        div.className = 'album';
-        div.dataset.key = a.ratingKey;
-        div.dataset.search = albumSearchBlob;
-        if (filterActive) div.style.display = 'none';
-        const img = thumbUrl(a.thumb || a.parentThumb) || fallbackThumbDataUrl();
-        const initialAlbumTitle = isUnknownAlbumTitle(a.title) ? '[Unknown Album]' : String(a.title || '');
-        const albumHref = albumHash(a.ratingKey);
-        const artistHref = artistHash(a.parentRatingKey);
-        const albumStarred = starredAlbums.has(String(a.ratingKey));
-        div.innerHTML =
-          '<div class="star-wrap"><button type="button" class="star-btn' + (albumStarred ? ' starred' : '') + '" data-rating-key="' + escapeHtml(String(a.ratingKey)) + '" aria-label="' + (albumStarred ? 'Unstar album' : 'Star album') + '" title="' + (albumStarred ? 'Unstar' : 'Star') + '">' + starIconHtml(albumStarred) + '</button></div>' +
-          '<img src="' + img + '" alt="" loading="lazy" />' +
-          '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
-          '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
-          '<div class="song-matches"></div></div>';
-        div.onclick = (ev) => {
-          if (ev.target.closest('a[data-meta-link]')) return;
-          if (ev.target.closest('.star-btn')) return;
-          openAlbum(a);
-        };
-        const starBtn = div.querySelector('.star-btn');
-        if (starBtn) {
-          starBtn.onclick = (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const nowStarred = toggleAlbumStar(starBtn.dataset.ratingKey, a);
-            starBtn.classList.toggle('starred', nowStarred);
-            starBtn.setAttribute('aria-label', nowStarred ? 'Unstar album' : 'Star album');
-            starBtn.setAttribute('title', nowStarred ? 'Unstar' : 'Star');
-            starBtn.innerHTML = starIconHtml(nowStarred);
-            notifyFavoriteAlbum(a, nowStarred);
-            syncAlbumDetailStarButton(a.ratingKey, nowStarred);
-            updateFilterState();
-          };
-        }
-        grid.appendChild(div);
-        if (isUnknownAlbumTitle(a.title)) {
-          resolveAlbumFolderName(a.ratingKey)
-            .then((folderName) => {
-              if (!folderName || !document.body.contains(div)) return;
-              const titleLink = div.querySelector('.title a[data-meta-link="album"]');
-              if (titleLink) titleLink.textContent = folderName;
-              else {
-                const titleEl = div.querySelector('.title');
-                if (!titleEl) return;
-                titleEl.textContent = folderName;
-              }
-              div.dataset.search = (div.dataset.search || '') + ' ' + folderName.toLowerCase();
-              if (searchQuery) updateFilterState();
-            })
-            .catch(() => {});
-        }
-      });
-      putSearchRecords(indexBatch).catch(() => {});
-      saveSearchIndexMeta({
-        schemaVersion: SEARCH_INDEX_SCHEMA_VERSION,
-        sectionKey,
-        totalCount: albumTotalCount,
-        updatedAt: Date.now()
-      });
-      updateFilterState();
-      albumStart += meta.length;
-      const more = $('loadMoreAlb');
-      if (more) more.remove();
-      hasMoreAlbums = albumStart < total;
-      if (hasMoreAlbums) {
-        const wrap = document.createElement('div');
-        wrap.className = 'load-more';
-        wrap.id = 'loadMoreAlb';
-        const b = document.createElement('button');
-        b.className = 'btn';
-        b.textContent = 'Load more albums';
-        b.onclick = () => loadAlbums(true);
-        wrap.appendChild(b);
-        $('viewAlbums').appendChild(wrap);
-      }
+      const ns = plexAlbumCacheNs();
+      const sec = String(section);
       if (!append) {
-        $('albumViewToggle').style.display = '';
-        applyAlbumViewMode();
+        activeSearchIndexSection = String(section);
+        albumTrackSearchCache.clear();
+        libraryTrackTotalCache = { sectionKey: '', total: 0 };
+        songShuffleRecentKeys = [];
+        navView = 'albums';
+        syncSidebarNavActive();
+        $('viewLibrary').style.display = 'none';
+        albumStart = 0;
+        sectionAlbumListMode = { sectionKey: sec, mode: 'albums' };
+        $('viewAlbums').innerHTML = '<p class="msg"><span class="spinner"></span> Loading albums…</p>';
+        const libMeta = await readAlbumLibraryMetaWithTimeout(ns, sec, 450);
+        const idxEarly = loadSearchIndexMeta();
+        let countHint = 0;
+        if (libMeta && Number(libMeta.totalAlbums) > 0) {
+          countHint = Math.max(countHint, Number(libMeta.totalAlbums));
+        }
+        if (String(idxEarly.sectionKey || '') === sec && Number(idxEarly.totalCount) > 0) {
+          countHint = Math.max(countHint, Number(idxEarly.totalCount));
+        }
+        if (countHint > 0) {
+          albumTotalCount = countHint;
+          updateFilterState();
+        }
+        const cachedAlbums = await readAlbumListPageWithTimeout(ns, sec, 'albums', 0, 800);
+        if (cachedAlbums && cachedAlbums.items && cachedAlbums.items.length) {
+          showError('');
+          showCors(false);
+          const mergedTotal = mergeAlbumListTotalHint(
+            cachedAlbums.totalSize,
+            cachedAlbums.items.length,
+            sec
+          );
+          renderAlbumPageIntoView(cachedAlbums.items, mergedTotal, false);
+          shownFromIdb = true;
+        }
       }
-      scheduleAlbumAutoLoad(20);
-      return meta.length;
+      showError('');
+      showCors(false);
+      const useAllAlbums =
+        sectionAlbumListMode.sectionKey === sec && sectionAlbumListMode.mode === 'allType9';
+      const pageFetchStart = append ? albumStart : 0;
+      let path = useAllAlbums
+        ? '/library/sections/' +
+          sec +
+          '/all?type=9&X-Plex-Container-Start=' +
+          pageFetchStart +
+          '&X-Plex-Container-Size=' +
+          PAGE
+        : '/library/sections/' +
+          sec +
+          '/albums?X-Plex-Container-Start=' +
+          pageFetchStart +
+          '&X-Plex-Container-Size=' +
+          PAGE;
+      let data = await plexFetch(path);
+      let meta = plexMetadataArray(data.MediaContainer);
+      let total = resolveAlbumListTotal(data.MediaContainer, meta.length, append);
+      if (!append && pageFetchStart === 0 && !meta.length && !useAllAlbums) {
+        if (shownFromIdb) {
+          await deleteAlbumListPage(ns, sec, 'albums', 0);
+          $('viewAlbums').innerHTML = '<p class="msg"><span class="spinner"></span> Loading albums…</p>';
+          shownFromIdb = false;
+        }
+        sectionAlbumListMode = { sectionKey: sec, mode: 'allType9' };
+        const cachedAll9 = await readAlbumListPageWithTimeout(ns, sec, 'all9', 0, 800);
+        if (cachedAll9 && cachedAll9.items && cachedAll9.items.length) {
+          showError('');
+          showCors(false);
+          const mergedAll9 = mergeAlbumListTotalHint(
+            cachedAll9.totalSize,
+            cachedAll9.items.length,
+            sec
+          );
+          renderAlbumPageIntoView(cachedAll9.items, mergedAll9, false);
+          shownFromIdb = true;
+        }
+        path =
+          '/library/sections/' +
+          sec +
+          '/all?type=9&X-Plex-Container-Start=0&X-Plex-Container-Size=' +
+          PAGE;
+        data = await plexFetch(path);
+        meta = plexMetadataArray(data.MediaContainer);
+        total = resolveAlbumListTotal(data.MediaContainer, meta.length, append);
+      }
+      const listMode =
+        sectionAlbumListMode.sectionKey === sec && sectionAlbumListMode.mode === 'allType9' ? 'all9' : 'albums';
+      renderAlbumPageIntoView(meta, total, append);
+      if (meta.length) {
+        putAlbumListPage(ns, sec, listMode, pageFetchStart, total, meta);
+        if (!append && pageFetchStart === 0 && total > 0) {
+          putAlbumLibraryMeta(ns, sec, total, listMode);
+        }
+      }
+      result = meta.length;
     } catch (e) {
       console.error(e);
-      if (!append) $('viewAlbums').innerHTML = '';
+      if (!append && !shownFromIdb) $('viewAlbums').innerHTML = '';
       showError(e.message || String(e));
       if (String(e.message).includes('Failed to fetch') || e.name === 'TypeError') showCors(true);
-      return 0;
+      result = 0;
     } finally {
       isLoadingAlbums = false;
+    }
+    return result;
+  }
+
+  async function fetchAlbumPlayableTracks(album) {
+    if (!album || album.ratingKey == null) return [];
+    const data = await plexFetch('/library/metadata/' + album.ratingKey + '/children');
+    const meta = data.MediaContainer.Metadata || [];
+    let tracks = meta.filter(isPlexAudioLeafForPlayback);
+    if (!tracks.length) {
+      try {
+        const fullData = await plexFetch(
+          '/library/metadata/' + encodeURIComponent(String(album.ratingKey || ''))
+        );
+        const detail =
+          fullData.MediaContainer &&
+          fullData.MediaContainer.Metadata &&
+          fullData.MediaContainer.Metadata[0];
+        if (detail && isPlexAudioLeafForPlayback(detail)) {
+          tracks = [detail];
+        }
+      } catch (_) {}
+    }
+    return tracks;
+  }
+
+  async function playAlbumFromCard(album, ev) {
+    if (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    showError('');
+    try {
+      const tracks = await fetchAlbumPlayableTracks(album);
+      tracks.forEach((track) => {
+        if (track && track.ratingKey) trackLookup.set(String(track.ratingKey), track);
+      });
+      currentAlbum = album;
+      currentTracks = tracks;
+      if (!currentTracks.length) {
+        showError('No playable tracks in this album.');
+        return;
+      }
+      playIndex(0);
+    } catch (e) {
+      console.error(e);
+      showError(e.message || String(e));
     }
   }
 
   async function openAlbum(album) {
     navView = 'albums';
+    syncSidebarNavActive();
     $('viewLibrary').style.display = 'none';
     currentAlbum = album;
     location.hash = albumHash(album.ratingKey);
@@ -4286,7 +5484,21 @@
     try {
       const data = await plexFetch('/library/metadata/' + album.ratingKey + '/children');
       const meta = data.MediaContainer.Metadata || [];
-      currentTracks = meta.filter((m) => m.type === 'track');
+      currentTracks = meta.filter(isPlexAudioLeafForPlayback);
+      if (!currentTracks.length) {
+        try {
+          const fullData = await plexFetch(
+            '/library/metadata/' + encodeURIComponent(String(album.ratingKey || ''))
+          );
+          const detail =
+            fullData.MediaContainer &&
+            fullData.MediaContainer.Metadata &&
+            fullData.MediaContainer.Metadata[0];
+          if (detail && isPlexAudioLeafForPlayback(detail)) {
+            currentTracks = [detail];
+          }
+        } catch (_) {}
+      }
       currentTracks.forEach((track) => {
         if (track && track.ratingKey) trackLookup.set(String(track.ratingKey), track);
       });
@@ -4420,9 +5632,7 @@
     const hadArtistChrome = wantFullLibrary && !!$('backToAllAlbums');
     const hadArtistScope = wantFullLibrary && currentArtistKey != null;
     navView = 'albums';
-    document.querySelectorAll('.sidebar-nav-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.nav === 'albums');
-    });
+    syncSidebarNavActive();
     currentArtistKey = null;
     if (o.updateLocation !== false && location.hash !== '#albums') location.hash = '#albums';
     $('viewLibrary').style.display = 'none';
@@ -4435,6 +5645,7 @@
     currentTracks = [];
     document.title = 'pleXtr';
     updateFilterState();
+    if (o.skipLoad) return;
     if (hadArtistChrome || hadArtistScope) loadAlbums(false).catch(() => {});
     else scheduleAlbumAutoLoad(50);
   }
@@ -4456,6 +5667,7 @@
     if (!artistKey) return;
     currentArtistKey = String(artistKey);
     navView = 'albums';
+    syncSidebarNavActive();
     $('viewLibrary').style.display = 'none';
     $('viewTracks').style.display = 'none';
     $('viewAlbums').style.display = 'block';
@@ -4496,15 +5708,24 @@
         const albumStarred = starredAlbums.has(String(a.ratingKey));
         div.innerHTML =
           '<div class="star-wrap"><button type="button" class="star-btn' + (albumStarred ? ' starred' : '') + '" data-rating-key="' + escapeHtml(String(a.ratingKey)) + '" aria-label="' + (albumStarred ? 'Unstar album' : 'Star album') + '" title="' + (albumStarred ? 'Unstar' : 'Star') + '">' + starIconHtml(albumStarred) + '</button></div>' +
-          '<img src="' + img + '" alt="" loading="lazy" />' +
+          '<div class="album-art">' +
+          '<button type="button" class="album-play-btn" aria-label="Play album" title="Play album">' +
+          albumCardPlayIconHtml() +
+          '</button>' +
+          '<img src="' + img + '" alt="" loading="lazy" /></div>' +
           '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
           '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
           '<div class="song-matches"></div></div>';
         div.onclick = (ev) => {
           if (ev.target.closest('a[data-meta-link]')) return;
           if (ev.target.closest('.star-btn')) return;
+          if (ev.target.closest('.album-play-btn')) return;
           openAlbum(a);
         };
+        const playBtn = div.querySelector('.album-play-btn');
+        if (playBtn) {
+          playBtn.onclick = (ev) => playAlbumFromCard(a, ev);
+        }
         const starBtn = div.querySelector('.star-btn');
         if (starBtn) {
           starBtn.onclick = (ev) => {
@@ -4574,9 +5795,7 @@
     if (albumMatch) {
       const key = decodeURIComponent(albumMatch[1]);
       navView = 'albums';
-      document.querySelectorAll('.sidebar-nav-btn').forEach((btn) => {
-        btn.classList.toggle('active', btn.dataset.nav === 'albums');
-      });
+      syncSidebarNavActive();
       if (currentAlbum && String(currentAlbum.ratingKey) === String(key)) return;
       openAlbumByKey(key);
       return;
@@ -4584,9 +5803,7 @@
     if (artistMatch) {
       const key = decodeURIComponent(artistMatch[1]);
       navView = 'albums';
-      document.querySelectorAll('.sidebar-nav-btn').forEach((btn) => {
-        btn.classList.toggle('active', btn.dataset.nav === 'albums');
-      });
+      syncSidebarNavActive();
       if (currentArtistKey != null && String(currentArtistKey) === String(key)) return;
       showArtistView(key);
       return;
@@ -4797,7 +6014,7 @@
       recent.unshift(snapshot);
       saveRecentTracks(recent);
       scheduleNotifyNowPlaying(t, null);
-      audio.src = newUrl;
+      setAudioElementSource(audio, newUrl);
       if (Number.isFinite(seekTime) && seekTime > 0) {
         const applySeek = () => {
           try {
@@ -4891,7 +6108,7 @@
       );
       const meta = data.MediaContainer.Metadata || [];
       const pool = meta.filter(
-        (t) => t && t.type === 'track' && t.ratingKey && t.parentRatingKey
+        (t) => t && isPlexAudioLeafForPlayback(t) && t.ratingKey && t.parentRatingKey
       );
       if (!pool.length) continue;
       const avoidRecent = attempt < 28 && total > SONG_SHUFFLE_RECENT_CAP;
@@ -5230,7 +6447,9 @@
     const c = cfg();
     if (c.server && c.token) {
       loadSections().catch(() => {
-        $('inSection').innerHTML = '<option value="">Error loading sections</option>';
+        $('inSection').value = '';
+        const plNav = $('plexLibraryLinks');
+        if (plNav) plNav.innerHTML = '<p class="sidebar-plex-note error">Could not load libraries.</p>';
         setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
       });
     }
@@ -5318,7 +6537,7 @@
         setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
       }
     }
-    setSettingsStatus('Settings saved. Choose a library from the header.', 'ok');
+    setSettingsStatus('Settings saved. Choose a Plex library in the sidebar.', 'ok');
     closeSettingsModal();
     $('btnReload').style.display = '';
     if ($('inSection').value) {
@@ -5397,7 +6616,9 @@
     try {
       await loadSections();
     } catch (e) {
-      $('inSection').innerHTML = '<option value="">Error loading sections</option>';
+      $('inSection').value = '';
+      const plNav = $('plexLibraryLinks');
+      if (plNav) plNav.innerHTML = '<p class="sidebar-plex-note error">Could not load libraries.</p>';
       setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
       if (String(e.message).includes('Failed to fetch') || e.name === 'TypeError') showCors(true);
     }
@@ -5411,34 +6632,16 @@
       setServerDiscoveryStatus(e.message || String(e), 'error');
     }
   };
-  $('inSection').onchange = async () => {
-    const section = $('inSection').value;
-    localStorage.setItem(LS.section, section || '');
-    activeSearchIndexSection = '';
-    albumSearchIndexCache.clear();
-    albumTrackSearchCache.clear();
-    libraryTrackTotalCache = { sectionKey: '', total: 0 };
-    songShuffleRecentKeys = [];
-    if (!section) {
-      setSettingsStatus('Pick a library from the header.', 'error');
-      return;
-    }
-    setSettingsStatus('Loading library...', 'ok');
-    await loadAlbums(false);
-  };
   $('inSearch').addEventListener('input', () => {
     if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
     filterDebounceTimer = setTimeout(updateFilterState, 200);
   });
-  document.querySelectorAll('.sidebar-nav-btn').forEach((btn) => {
+  document.querySelectorAll('.sidebar-nav-btn[data-nav]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const next = btn.dataset.nav;
       const nextHash = '#' + next;
       if (location.hash !== nextHash) location.hash = nextHash;
-      else if (next === 'albums') {
-        backToAlbums({ updateLocation: false, fullLibrary: true });
-        ensureAlbumsGridLoaded();
-      } else setNavView(next, { updateLocation: false });
+      else setNavView(next, { updateLocation: false });
     });
   });
   window.addEventListener('scroll', () => {
@@ -5523,6 +6726,7 @@
 
   (function init() {
     buildRadioData();
+    wireUnifiedSearchPanelOnce();
     setChatVisibility(window.innerWidth > 720);
     $('inNsec').value = localStorage.getItem(LS.nostrNsec) || '';
     updateNostrIdentityUi();
