@@ -81,6 +81,18 @@ Radio Guaka includes a Nostr-based chat feature built with [NDK (Nostr Dev Kit)]
 
 These are community relays aligned with the nomad/travel community.
 
+### Nostr relay DNS noise (`nr-relay-to-rabbit`)
+
+Some browser/Nostr library builds may occasionally emit non-fatal promise rejections like:
+
+`HTTP request failed: Post "http://nr-relay-to-rabbit": dial tcp: lookup nr-relay-to-rabbit ... server misbehaving`
+
+This comes from an internal relay transport path and does **not** break chat/playback. To keep this from resurfacing as noisy uncaught errors:
+
+- Keep the unhandled rejection + error guards in `public/index.html` and `public/chatiframe1.html` in sync.
+- When upgrading Nostr libraries, test chat startup and posting with DevTools open to verify those errors stay downgraded to warnings.
+- Keep the relay list fixed to the two production relays above unless there is an explicit migration plan.
+
 **Authentication options:**
 - **NIP-07 browser extension** (nos2x, Alby, etc.) - Recommended, most secure. The website never accesses your private key - the extension handles signing securely.
 - Manual key entry (nsec) - Fallback option. Stores key in localStorage (less secure).

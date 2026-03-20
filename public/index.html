@@ -631,6 +631,25 @@
       line-height: 1.3;
     }
     .server-candidate:hover { border-color: var(--accent-dim); }
+    .server-candidate.selected {
+      border-color: var(--accent);
+      box-shadow:
+        inset 0 0 0 1px rgba(0, 255, 255, 0.36),
+        0 0 14px rgba(0, 255, 255, 0.18);
+    }
+    .server-candidate .server-candidate-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .server-candidate .server-selected-chip {
+      flex: 0 0 auto;
+      font-size: 0.68rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
     .server-candidate .sub { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
     .albums {
       display: grid;
@@ -1208,11 +1227,11 @@
     }
     .chat-toggle-btn {
       position: fixed;
-      right: 1.25rem;
-      bottom: 8.75rem;
+      right: 0.75rem;
+      bottom: 8.15rem;
       z-index: 19;
-      width: 2.2rem;
-      height: 2.2rem;
+      width: 1.9rem;
+      height: 1.9rem;
       border: 1px solid rgba(0, 216, 255, 0.35);
       border-radius: 999px;
       background: linear-gradient(160deg, rgba(0, 216, 255, 0.14), rgba(143, 92, 255, 0.2));
@@ -1221,7 +1240,7 @@
       display: none;
       align-items: center;
       justify-content: center;
-      font-size: 1rem;
+      font-size: 0.9rem;
       box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
     }
     .chat-toggle-btn:hover {
@@ -1273,6 +1292,16 @@
       right: 0.65rem;
       top: 50%;
       transform: translateY(-50%);
+    }
+    .plextr-footer .plextr-builddate {
+      position: absolute;
+      right: 2.25rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(0, 255, 255, 0.72);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
     }
     .plextr-footer kbd {
       display: inline-block;
@@ -1725,7 +1754,16 @@
         margin-top: 0.24rem;
       }
       .plextr-footer {
-        display: none;
+        display: block;
+        padding: 0.35rem 2.2rem 0.4rem 0.7rem;
+        font-size: 10px;
+        line-height: 1.35;
+      }
+      .plextr-footer .plextr-builddate {
+        position: static;
+        transform: none;
+        margin-left: 0.5rem;
+        font-size: 9px;
       }
       .chat-container {
         display: none;
@@ -1862,15 +1900,10 @@
       </section>
       <section class="settings-section" aria-label="Plex settings">
       <p class="settings-section-title">Plex</p>
-      <label for="inServer">Server URL (Plex or CORS proxy)</label>
-      <input id="inServer" type="url" placeholder="http://192.168.1.10:32400" autocomplete="off" />
-      <div class="inline-actions" id="detectServerActions">
-        <button type="button" class="btn" id="btnDetectServer">Detect server from token</button>
-      </div>
-      <div class="inline-note" id="serverDiscoveryStatus"></div>
-      <div class="server-candidates" id="serverCandidates" style="display:none"></div>
       <label for="inToken">X-Plex-Token</label>
       <input id="inToken" type="text" placeholder="Your token" autocomplete="off" />
+      <div class="inline-note" id="serverDiscoveryStatus"></div>
+      <div class="server-candidates" id="serverCandidates" style="display:none"></div>
       <div class="inline-actions">
         <button type="button" class="btn" id="btnPlexLogin">Sign in with Plex</button>
         <button type="button" class="btn" id="btnDisconnectPlex">Disconnect Plex</button>
@@ -1959,20 +1992,61 @@
     <kbd>↑</kbd> <kbd>↓</kbd> volume ·
     <kbd>←</kbd> <kbd>→</kbd> previous / next (track or radio station) ·
     <kbd>Space</kbd> play/pause ·
-    <kbd>⌘</kbd><kbd>K</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd> search ·
+    <kbd id="kbdModSettings">⌘</kbd><kbd>.</kbd> settings ·
+    <kbd id="kbdModSearch">⌘</kbd><kbd>/</kbd> search ·
     <kbd>Esc</kbd> close dialogs
     <a class="plextr-github" href="https://github.com/guaka/radio" target="_blank" rel="noopener noreferrer" title="Source on GitHub" aria-label="pleXtr / Radio Guaka on GitHub">
       <svg viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.229-5.378-22.229-24.054 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.6-11.404 22.913-22.324 24.054 1.738 1.48 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
     </a>
+    <span id="footerBuildDate" class="plextr-builddate" aria-label="Build date and time"></span>
   </footer>
   </div>
 
+  <script>
+    window.BUILD_TIME = '';
+
+    function formatBuildDateFallback() {
+      const now = new Date();
+      const year = now.getFullYear().toString().slice(-2);
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      return `${year}${month}${day} ${hours}:${minutes}`;
+    }
+
+    function getBuildDateText() {
+      if (typeof window.BUILD_TIME === 'string' && /^\d/.test(window.BUILD_TIME)) {
+        return window.BUILD_TIME;
+      }
+      return formatBuildDateFallback();
+    }
+
+    function updateFooterBuildDate() {
+      const el = document.getElementById('footerBuildDate');
+      if (!el) return;
+      el.textContent = getBuildDateText();
+    }
+
+    updateFooterBuildDate();
+    fetch('buildtime.js')
+      .then((r) => r.text())
+      .then((text) => {
+        const match = text.match(/BUILD_TIME\s*=\s*'([^']+)'/);
+        if (match && /^\d/.test(match[1])) {
+          window.BUILD_TIME = match[1];
+          updateFooterBuildDate();
+        }
+      })
+      .catch(() => {});
+  </script>
   <script src="channels.js"></script>
   <script>
 (function () {
   const LS = {
     server: 'plexServer',
     token: 'plexToken',
+    serverCandidatesCache: 'plexServerCandidatesCache',
     section: 'plexSection',
     playback: 'plexPlaybackState',
     playbackMode: 'plexPlaybackMode',
@@ -1989,6 +2063,18 @@
     nostrActivity: 'guakaNostrActivityCache'
   };
   const $ = (id) => document.getElementById(id);
+  function isMacPlatform() {
+    const uaDataPlatform = navigator.userAgentData && navigator.userAgentData.platform;
+    const platform = uaDataPlatform || navigator.platform || navigator.userAgent || '';
+    return /mac/i.test(platform);
+  }
+  function updateShortcutModifierLabels() {
+    const mod = isMacPlatform() ? '⌘' : 'Ctrl';
+    const settingsEl = $('kbdModSettings');
+    const searchEl = $('kbdModSearch');
+    if (settingsEl) settingsEl.textContent = mod;
+    if (searchEl) searchEl.textContent = mod;
+  }
   function bindClick(id, handler) {
     const el = $(id);
     if (el) el.onclick = handler;
@@ -2001,6 +2087,7 @@
   }
   const PLEX_PRODUCT = 'Local Plex Music Player';
   const PLEX_CLIENT_ID = 'plex-player-' + Math.random().toString(36).slice(2, 10);
+  const PLEX_SERVER_CACHE_TTL_MS = 1000 * 60 * 30;
   const CROSSFADE_DURATION_MS = 1200;
   const CROSSFADE_STEP_MS = 50;
   /** Plex part streams: avoid false “ORB blocked” toast while the browser is still loading / retrying. */
@@ -2046,8 +2133,16 @@
     if (typeof value === 'string') return value;
     const out = [];
     if (typeof value.message === 'string') out.push(value.message);
+    if (typeof value.reason === 'string') out.push(value.reason);
+    if (typeof value.name === 'string') out.push(value.name);
     if (typeof value.stack === 'string') out.push(value.stack);
     if (typeof value.filename === 'string') out.push(value.filename);
+    if (typeof value.toString === 'function') {
+      try {
+        const asString = String(value);
+        if (asString && asString !== '[object Object]') out.push(asString);
+      } catch (_) {}
+    }
     if (value.error && value.error !== value) out.push(buildNostrErrorBlob(value.error, depth + 1));
     if (Array.isArray(value.errors)) {
       value.errors.forEach(function (item) {
@@ -2060,7 +2155,7 @@
 
   function isBenignNostrRelayError(value) {
     const blob = buildNostrErrorBlob(value, 0);
-    return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:/i.test(blob);
+    return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:|uncaught \(in promise\) error:/i.test(blob);
   }
 
   /** nostr-tools runs relay I/O in internal queues; rejections often bypass try/catch. */
@@ -2070,6 +2165,8 @@
     window.addEventListener('unhandledrejection', function (ev) {
       if (isBenignNostrRelayError(ev.reason)) {
         ev.preventDefault();
+        if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
+        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
         const msg = buildNostrErrorBlob(ev.reason, 0) || 'unknown rejection';
         console.warn('[pleXtr] Nostr relay (non-fatal):', msg.slice(0, 220));
       }
@@ -3620,13 +3717,39 @@
 
   async function plexFetch(path) {
     const { server, token } = cfg();
-    if (!server || !token) throw new Error('Configure server URL and token in Settings.');
+    if (!server || !token) throw new Error('Configure token and select a Plex server in Settings.');
     const url = server + path + (path.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(token);
     const res = await fetch(url, {
       headers: { Accept: 'application/json', 'X-Plex-Token': token }
     });
     if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
     return res.json();
+  }
+
+  async function plexFetchAtServer(path, server, token, timeoutMs) {
+    const base = String(server || '').replace(/\/$/, '');
+    const tk = String(token || '');
+    if (!base || !tk) throw new Error('Configure token and select a Plex server in Settings.');
+    const url = base + path + (path.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(tk);
+    const ms = Number(timeoutMs);
+    const useTimeout = ms > 0 && typeof AbortController === 'function';
+    const ctrl = useTimeout ? new AbortController() : null;
+    const timer = useTimeout ? setTimeout(() => ctrl.abort(), ms) : 0;
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json', 'X-Plex-Token': tk },
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      return res.json();
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Plex request timed out');
+      }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async function probeSameOriginBackend() {
@@ -3670,7 +3793,7 @@
       return plexFetch(path);
     }
     const { server, token } = cfg();
-    if (!server || !token) throw new Error('Configure server URL and token in Settings.');
+    if (!server || !token) throw new Error('Configure token and select a Plex server in Settings.');
     const url = server + path + (path.includes('?') ? '&' : '?') + 'X-Plex-Token=' + encodeURIComponent(token);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ms);
@@ -3979,8 +4102,9 @@
     if (kind === 'ok') el.classList.add('ok');
     if (kind === 'error') el.classList.add('error');
 
-    // Auto-fade "ok" status messages so they don't distract during normal use.
-    if (kind === 'ok' && hasMsg) {
+    // Auto-fade non-error status messages so they don't linger.
+    if (hasMsg && kind !== 'error') {
+      const fadeDelay = kind === 'ok' ? 2400 : 1800;
       settingsStatusFadeTimer = setTimeout(() => {
         el.classList.add('fade-out');
         settingsStatusClearTimer = setTimeout(() => {
@@ -3988,7 +4112,7 @@
           el.style.display = 'none';
           el.classList.remove('fade-out');
         }, 650);
-      }, 2400);
+      }, fadeDelay);
     }
   }
 
@@ -3996,11 +4120,11 @@
     $('settingsModal').classList.add('open');
     syncModalBodyScrollLock();
     const c = cfg();
-    $('inServer').value = c.server;
     $('inToken').value = c.token;
     updatePlexLoginButtonVisibility();
     updatePlexSettingsButtonsVisibility();
     setServerDiscoveryStatus('');
+    if (c.token) autoDetectServersFromToken().catch(() => {});
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
     setTimeout(function () {
@@ -4030,14 +4154,12 @@
   function updatePlexLoginButtonVisibility() {
     const btn = $('btnPlexLogin');
     if (!btn) return;
-    const detectWrap = $('detectServerActions');
     const c = cfg();
-    const hasWorkingTokenConnection = !!(c.server && c.token && plexConnectionWorking);
-    const shouldShow = !hasWorkingTokenConnection;
+    const hasValidPlexConnection = !!(plexConnectionWorking && c.server && c.token);
+    const shouldShow = !hasValidPlexConnection;
     const wrap = btn.closest('.inline-actions');
     if (wrap) wrap.style.display = shouldShow ? '' : 'none';
     else btn.style.display = shouldShow ? '' : 'none';
-    if (detectWrap) detectWrap.style.display = shouldShow ? '' : 'none';
   }
 
   function updatePlexSettingsButtonsVisibility() {
@@ -4054,8 +4176,6 @@
     localStorage.removeItem(LS.server);
     localStorage.removeItem(LS.token);
     localStorage.removeItem(LS.section);
-    const serverInput = $('inServer');
-    if (serverInput) serverInput.value = '';
     const tokenInput = $('inToken');
     if (tokenInput) tokenInput.value = '';
     const sectionInput = $('inSection');
@@ -4076,40 +4196,45 @@
     setSettingsStatus('Disconnected from Plex. Token removed.', 'ok');
   }
 
-  function renderServerCandidates(candidates) {
+  function renderServerCandidates(candidates, selectedServer) {
     const wrap = $('serverCandidates');
     if (!candidates || !candidates.length) {
       wrap.style.display = 'none';
       wrap.innerHTML = '';
       return;
     }
+    const normalizedSelectedServer = String(selectedServer || '').replace(/\/$/, '');
     wrap.style.display = 'flex';
     wrap.innerHTML = '';
     candidates.forEach((c) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'server-candidate';
+      const candidateServer = String(c.uri || '').replace(/\/$/, '');
+      const isSelected = normalizedSelectedServer && candidateServer === normalizedSelectedServer;
+      b.className = 'server-candidate' + (isSelected ? ' selected' : '');
       const localLabel = c.local ? 'local' : 'remote';
       b.innerHTML =
-        '<div>' +
+        '<div class="server-candidate-head"><div>' +
         escapeHtml(c.deviceName) +
         ' - ' +
         escapeHtml(c.address || c.uri) +
         ' (' +
         localLabel +
         ')</div>' +
+        (isSelected ? '<span class="server-selected-chip">Selected</span>' : '') +
+        '</div>' +
         '<div class="sub">' +
         escapeHtml(c.uri) +
         '</div>';
       b.onclick = () => {
         const chosenServer = (c.uri || '').replace(/\/$/, '');
-        $('inServer').value = chosenServer;
         localStorage.setItem(LS.server, chosenServer);
         if (c.deviceToken) {
           $('inToken').value = c.deviceToken;
           localStorage.setItem(LS.token, c.deviceToken);
         }
         updatePlexSettingsButtonsVisibility();
+        renderServerCandidates(candidates, chosenServer);
         setServerDiscoveryStatus(
           'Using ' + (c.address || c.uri) + (c.local ? ' (local).' : '.'),
           'ok'
@@ -4117,6 +4242,28 @@
       };
       wrap.appendChild(b);
     });
+  }
+
+  function renderCurrentServerPlaceholderDuringDetect() {
+    const currentServer = String((cfg().server || '')).trim().replace(/\/$/, '');
+    if (!currentServer) return;
+    let host = '';
+    try {
+      host = new URL(currentServer).host || '';
+    } catch (_) {}
+    renderServerCandidates(
+      [
+        {
+          deviceName: 'Current server',
+          deviceToken: String(cfg().token || ''),
+          uri: currentServer,
+          address: host,
+          local: false,
+          relay: false
+        }
+      ],
+      currentServer
+    );
   }
 
   function scoreConnection(c) {
@@ -4127,18 +4274,86 @@
     return s;
   }
 
-  async function detectServersFromToken() {
-    const token = $('inToken').value.trim();
-    if (!token) throw new Error('Enter token first.');
-    setServerDiscoveryStatus('Detecting Plex servers from token...');
-    const res = await fetch('https://plex.tv/api/resources?includeHttps=1&includeRelay=1', {
-      headers: plexHeaders({ 'X-Plex-Token': token })
-    });
-    if (!res.ok) throw new Error('Could not query Plex resources (' + res.status + ').');
-    const xml = await res.text();
+  function normalizePlexServerCandidates(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    for (let i = 0; i < raw.length; i++) {
+      const item = raw[i];
+      if (!item || typeof item !== 'object') continue;
+      const uri = String(item.uri || '').trim();
+      if (!uri) continue;
+      out.push({
+        deviceName: String(item.deviceName || 'Plex server'),
+        deviceToken: String(item.deviceToken || ''),
+        uri: uri,
+        address: String(item.address || ''),
+        local: !!item.local,
+        relay: !!item.relay
+      });
+    }
+    out.sort((a, b) => scoreConnection(b) - scoreConnection(a));
+    return out;
+  }
+
+  function cachePlexServerCandidates(token, candidates) {
+    if (!token || !Array.isArray(candidates) || !candidates.length) return;
+    try {
+      localStorage.setItem(
+        LS.serverCandidatesCache,
+        JSON.stringify({
+          token: String(token),
+          savedAt: Date.now(),
+          candidates: normalizePlexServerCandidates(candidates)
+        })
+      );
+    } catch (_) {}
+  }
+
+  function getCachedPlexServerCandidates(token) {
+    if (!token) return null;
+    try {
+      const raw = localStorage.getItem(LS.serverCandidatesCache);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      if (String(parsed.token || '') !== String(token)) return null;
+      const savedAt = Number(parsed.savedAt || 0);
+      if (!Number.isFinite(savedAt) || savedAt <= 0) return null;
+      if (Date.now() - savedAt > PLEX_SERVER_CACHE_TTL_MS) return null;
+      const candidates = normalizePlexServerCandidates(parsed.candidates);
+      if (!candidates.length) return null;
+      return candidates;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyDetectedCandidates(candidates) {
+    if (!Array.isArray(candidates) || !candidates.length) {
+      throw new Error('No Plex servers found for this token.');
+    }
+    const currentServer = String((cfg().server || '')).trim().replace(/\/$/, '');
+    const chosen = candidates.find((c) => String(c.uri || '').replace(/\/$/, '') === currentServer) || candidates[0];
+    const chosenServer = (chosen.uri || '').replace(/\/$/, '');
+    localStorage.setItem(LS.server, chosenServer);
+    if (chosen.deviceToken) {
+      $('inToken').value = chosen.deviceToken;
+      localStorage.setItem(LS.token, chosen.deviceToken);
+    }
+    renderServerCandidates(candidates, chosenServer);
+    setServerDiscoveryStatus(
+      'Detected ' +
+        candidates.length +
+        ' server connection(s). Selected ' +
+        (chosen.address || chosen.uri) +
+        (chosen.local ? ' (local).' : '.'),
+      'ok'
+    );
+  }
+
+  function parsePlexResourcesCandidates(xml) {
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Unexpected Plex resources response.');
-
     const devices = Array.from(doc.querySelectorAll('Device')).filter((d) =>
       String(d.getAttribute('provides') || '').toLowerCase().includes('server')
     );
@@ -4160,28 +4375,71 @@
         });
       });
     });
+    return normalizePlexServerCandidates(candidates);
+  }
 
-    if (!candidates.length) throw new Error('No Plex servers found for this token.');
-    candidates.sort((a, b) => scoreConnection(b) - scoreConnection(a));
-    renderServerCandidates(candidates);
-
-    const chosen = candidates[0];
-    const chosenServer = (chosen.uri || '').replace(/\/$/, '');
-    $('inServer').value = chosenServer;
-    localStorage.setItem(LS.server, chosenServer);
-    if (chosen.deviceToken) {
-      $('inToken').value = chosen.deviceToken;
-      localStorage.setItem(LS.token, chosen.deviceToken);
+  async function detectServersFromToken() {
+    const token = $('inToken').value.trim();
+    if (!token) throw new Error('Enter token first.');
+    const cached = getCachedPlexServerCandidates(token);
+    if (cached && cached.length) {
+      applyDetectedCandidates(cached);
+      setServerDiscoveryStatus(
+        'Loaded ' +
+          cached.length +
+          ' cached server connection(s).',
+        'ok'
+      );
+      return cached;
     }
-    setServerDiscoveryStatus(
-      'Detected ' +
-        candidates.length +
-        ' server connection(s). Auto-selected ' +
-        (chosen.address || chosen.uri) +
-        (chosen.local ? ' (local).' : '.'),
-      'ok'
-    );
+    renderCurrentServerPlaceholderDuringDetect();
+    if (String((cfg().server || '')).trim()) {
+      setServerDiscoveryStatus('Detecting Plex servers from token... Showing current server meanwhile.');
+    } else {
+      setServerDiscoveryStatus('Detecting Plex servers from token...');
+    }
+    const res = await fetch('https://plex.tv/api/resources?includeHttps=1&includeRelay=1', {
+      headers: plexHeaders({ 'X-Plex-Token': token })
+    });
+    if (!res.ok) throw new Error('Could not query Plex resources (' + res.status + ').');
+    const xml = await res.text();
+    const candidates = parsePlexResourcesCandidates(xml);
+    applyDetectedCandidates(candidates);
+    cachePlexServerCandidates(token, candidates);
     return candidates;
+  }
+
+  async function autoDetectServersFromToken() {
+    const token = $('inToken').value.trim();
+    if (!token) {
+      renderServerCandidates([]);
+      setServerDiscoveryStatus('');
+      return [];
+    }
+    return detectServersFromToken();
+  }
+
+  async function fetchSectionsViaServerFallback(token, failedServer) {
+    if (!token) return null;
+    let candidates = [];
+    try {
+      candidates = await detectServersFromToken();
+    } catch (_) {
+      return null;
+    }
+    if (!Array.isArray(candidates) || !candidates.length) return null;
+    const failed = String(failedServer || '').replace(/\/$/, '');
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i] || {};
+      const candidateServer = String(c.uri || '').replace(/\/$/, '');
+      if (!candidateServer || candidateServer === failed) continue;
+      const candidateToken = String(c.deviceToken || token || '');
+      try {
+        const data = await plexFetchAtServer('/library/sections', candidateServer, candidateToken, 3500);
+        return { data, server: candidateServer, token: candidateToken };
+      } catch (_) {}
+    }
+    return null;
   }
 
   function looksLikeMusicLibrary(d) {
@@ -4202,6 +4460,39 @@
       title.includes('audiobook') ||
       title.includes('audio book')
     );
+  }
+
+  function resolvePlexTotalSize(mc) {
+    if (!mc || typeof mc !== 'object') return 0;
+    const keys = ['totalSize', 'TotalSize', 'size', 'Size'];
+    for (let i = 0; i < keys.length; i++) {
+      const raw = Number(mc[keys[i]]);
+      if (Number.isFinite(raw) && raw >= 0) return raw;
+    }
+    return 0;
+  }
+
+  async function hasAlbumsInSection(sectionKey) {
+    const key = String(sectionKey || '');
+    if (!key) return false;
+    try {
+      const albums = await plexFetch(
+        '/library/sections/' +
+          encodeURIComponent(key) +
+          '/albums?X-Plex-Container-Start=0&X-Plex-Container-Size=1'
+      );
+      const mc = albums && albums.MediaContainer ? albums.MediaContainer : {};
+      if (resolvePlexTotalSize(mc) > 0) return true;
+      const fallback = await plexFetch(
+        '/library/sections/' +
+          encodeURIComponent(key) +
+          '/all?type=9&X-Plex-Container-Start=0&X-Plex-Container-Size=1'
+      );
+      const fallbackMc = fallback && fallback.MediaContainer ? fallback.MediaContainer : {};
+      return resolvePlexTotalSize(fallbackMc) > 0;
+    } catch (_) {
+      return false;
+    }
   }
 
   function updatePlexLibraryLinkActive() {
@@ -4303,24 +4594,35 @@
     nav.innerHTML = '<p class="sidebar-plex-note"><span class="spinner"></span> Loading…</p>';
     refreshMobileLibraryPicker('loading');
     try {
-      const data = await plexFetch('/library/sections');
+      let data = await plexFetch('/library/sections');
       plexConnectionWorking = true;
       updatePlexLoginButtonVisibility();
       const dirs = data.MediaContainer.Directory || [];
       const music = dirs.filter(looksLikeMusicLibrary);
       const list = music.length ? music : dirs;
+      const sectionHasAlbums = await Promise.all(
+        list.map((d) =>
+          hasAlbumsInSection(d && d.key).then((ok) => ({ key: String((d && d.key) || ''), ok }))
+        )
+      );
+      const albumsByKey = {};
+      for (let ai = 0; ai < sectionHasAlbums.length; ai++) {
+        const item = sectionHasAlbums[ai];
+        if (!item || !item.key) continue;
+        albumsByKey[item.key] = !!item.ok;
+      }
+      const listWithAlbums = list.filter((d) => albumsByKey[String((d && d.key) || '')]);
       nav.innerHTML = '';
-      if (!list.length) {
+      if (!listWithAlbums.length) {
         hidden.value = '';
         plexSectionListCache = [];
         plexSectionNameByKey = {};
-        nav.innerHTML = '<p class="sidebar-plex-note">No libraries found</p>';
+        nav.innerHTML = '<p class="sidebar-plex-note">No libraries with albums found</p>';
         refreshMobileLibraryPicker();
-        if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
-        else setSettingsStatus('Connected, but no libraries were returned.', 'error');
+        setSettingsStatus('Connected, but no libraries with albums were returned.', 'error');
         return;
       }
-      list.forEach((d) => {
+      listWithAlbums.forEach((d) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'sidebar-nav-btn';
@@ -4345,21 +4647,31 @@
         });
         nav.appendChild(row);
       });
-      plexSectionListCache = list.map((d) => ({ key: String(d.key), title: String(d.title || d.key) }));
+      plexSectionListCache = listWithAlbums.map((d) => ({ key: String(d.key), title: String(d.title || d.key) }));
       plexSectionNameByKey = {};
       for (let si = 0; si < plexSectionListCache.length; si++) {
         const ent = plexSectionListCache[si];
         plexSectionNameByKey[ent.key] = ent.title;
       }
-      if (!music.length && dirs.length) setSettingsStatus('Connected. No music library auto-detected; choose from all libraries.', 'error');
-      else if (music.length) setSettingsStatus('');
-      else setSettingsStatus('Connected, but no libraries were returned.', 'error');
+      setSettingsStatus('');
       const saved = cfg().sectionKey;
-      if (saved && list.some((item) => String(item.key) === String(saved))) hidden.value = String(saved);
-      else if (list[0]) hidden.value = String(list[0].key);
+      if (saved && listWithAlbums.some((item) => String(item.key) === String(saved))) hidden.value = String(saved);
+      else if (listWithAlbums[0]) hidden.value = String(listWithAlbums[0].key);
       refreshMobileLibraryPicker();
       updatePlexLibraryLinkActive();
     } catch (e) {
+      const c = cfg();
+      const fallback = await fetchSectionsViaServerFallback(c.token, c.server);
+      if (fallback && fallback.data && fallback.data.MediaContainer) {
+        localStorage.setItem(LS.server, fallback.server);
+        if (fallback.token) {
+          localStorage.setItem(LS.token, fallback.token);
+          const tokenInput = $('inToken');
+          if (tokenInput) tokenInput.value = fallback.token;
+        }
+        setSettingsStatus('Switched to a reachable Plex connection and loaded libraries.', 'ok');
+        return loadSections();
+      }
       plexConnectionWorking = false;
       updatePlexLoginButtonVisibility();
       hidden.value = '';
@@ -5952,6 +6264,12 @@
       showError('Could not start this stream: ' + (err && err.message ? err.message : 'Playback blocked'));
     });
     setRadioNowPlaying(station);
+    updateMediaSessionNowPlaying({
+      title: station.title || 'Radio',
+      artist: '',
+      album: 'Live stream',
+      artwork: station.img || station.fallbackImg || fallbackThumbDataUrl()
+    });
     renderRadioView();
     updatePlayPauseButton();
     updateNextAlbumButtonVisibility();
@@ -6715,6 +7033,107 @@
       : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"></path></svg>';
   }
 
+  function setupMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.setActionHandler('play', () => {
+        const audio = $('audio');
+        if (!audio.currentSrc) return;
+        audio.play().catch(() => {});
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        const audio = $('audio');
+        if (!audio.currentSrc) return;
+        audio.pause();
+      });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        handlePreviousTrackAction();
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        handleNextTrackAction();
+      });
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        if (!isRadioMode && playbackMode === PLAYBACK_MODE_ALBUM_SHUFFLE) {
+          skipToNextRandomAlbum().catch((err) => {
+            console.error(err);
+            showError(err && err.message ? err.message : String(err));
+          });
+          return;
+        }
+        handleNextTrackAction();
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        const audio = $('audio');
+        if (!audio.currentSrc) return;
+        audio.pause();
+        try {
+          audio.currentTime = 0;
+        } catch (_) {}
+      });
+    } catch (_) {
+      // Ignore unsupported action handlers on older browsers/head units.
+    }
+  }
+
+  function updateMediaSessionNowPlaying(payload) {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata !== 'function') return;
+    const data = payload || {};
+    const title = String(data.title || '').trim() || 'Radio Guaka';
+    const artist = String(data.artist || '').trim();
+    const album = String(data.album || '').trim();
+    const artworkSrc = String(data.artwork || '').trim();
+    const artwork = artworkSrc
+      ? [{ src: artworkSrc, sizes: '512x512', type: 'image/jpeg' }]
+      : [{ src: fallbackThumbDataUrl(), sizes: '512x512', type: 'image/png' }];
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title,
+        artist,
+        album,
+        artwork
+      });
+    } catch (_) {}
+  }
+
+  function handlePreviousTrackAction() {
+    if (isRadioMode && radioStations.length) {
+      if (radioShuffleOn()) {
+        playRadioIndex(randomRadioStationIndex(currentRadioIdx));
+      } else {
+        const prev = currentRadioIdx > 0 ? currentRadioIdx - 1 : radioStations.length - 1;
+        playRadioIndex(prev);
+      }
+      return;
+    }
+    const audio = $('audio');
+    if (playingIdx < 0 || !currentTracks.length) return;
+    if (playingIdx > 0) {
+      playIndex(playingIdx - 1);
+    } else if (audio.currentTime > 4) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+  }
+
+  function handleNextTrackAction() {
+    if (isRadioMode && radioStations.length) {
+      if (radioShuffleOn()) {
+        playRadioIndex(randomRadioStationIndex(currentRadioIdx));
+      } else {
+        const next = currentRadioIdx + 1 < radioStations.length ? currentRadioIdx + 1 : 0;
+        playRadioIndex(next);
+      }
+      return;
+    }
+    if (playingIdx < 0 || !currentTracks.length) return;
+    if (playingIdx + 1 < currentTracks.length) {
+      playIndex(playingIdx + 1);
+    } else {
+      $('audio').pause();
+      persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
+    }
+  }
+
   function updateNowPlayingUI(t, i) {
     const fileHints = filenameDisplayHints(getTrackFilePath(t));
     const trackAlbumTitle = String(t.parentTitle || '').trim();
@@ -6771,6 +7190,12 @@
     document.title = artistTitle && trackTitle
       ? `${artistTitle} - ${trackTitle} | pleXtr`
       : (trackTitle ? `${trackTitle} | pleXtr` : 'pleXtr');
+    updateMediaSessionNowPlaying({
+      title: trackTitle || pathBasename(getTrackFilePath(t)) || '—',
+      artist: artistTitle || '',
+      album: albumTitle || '',
+      artwork: nowPlayingArtUrl(t, currentAlbum, currentTracks)
+    });
   }
 
   function playIndex(i, options) {
@@ -7058,23 +7483,7 @@
   }
 
   bindClick('btnPrev', () => {
-    if (isRadioMode && radioStations.length) {
-      if (radioShuffleOn()) {
-        playRadioIndex(randomRadioStationIndex(currentRadioIdx));
-      } else {
-        const prev = currentRadioIdx > 0 ? currentRadioIdx - 1 : radioStations.length - 1;
-        playRadioIndex(prev);
-      }
-      return;
-    }
-    const audio = $('audio');
-    if (playingIdx < 0 || !currentTracks.length) return;
-    if (playingIdx > 0) {
-      playIndex(playingIdx - 1);
-    } else if (audio.currentTime > 4) {
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
-    }
+    handlePreviousTrackAction();
   });
 
   bindClick('btnFavNow', () => {
@@ -7095,21 +7504,7 @@
   });
 
   bindClick('btnNext', () => {
-    if (isRadioMode && radioStations.length) {
-      if (radioShuffleOn()) {
-        playRadioIndex(randomRadioStationIndex(currentRadioIdx));
-      } else {
-        const next = currentRadioIdx + 1 < radioStations.length ? currentRadioIdx + 1 : 0;
-        playRadioIndex(next);
-      }
-      return;
-    }
-    if (playingIdx < 0 || !currentTracks.length) return;
-    if (playingIdx + 1 < currentTracks.length) playIndex(playingIdx + 1);
-    else {
-      $('audio').pause();
-      persistCurrentPlaybackState({ wasPlaying: false, currentTime: 0 });
-    }
+    handleNextTrackAction();
   });
 
   bindClick('btnNextAlbum', () => {
@@ -7165,10 +7560,12 @@
     a._targetVolume = a.volume;
   });
   $('audio').addEventListener('pause', () => {
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     persistCurrentPlaybackState({ wasPlaying: false });
     updatePlayPauseButton();
   });
   $('audio').addEventListener('play', () => {
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
     persistCurrentPlaybackState({ wasPlaying: true });
     updatePlayPauseButton();
   });
@@ -7246,7 +7643,7 @@
         $('inSection').value = '';
         const plNav = $('plexLibraryLinks');
         if (plNav) plNav.innerHTML = '<p class="sidebar-plex-note error">Could not load libraries.</p>';
-        setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
+        setSettingsStatus('Could not load libraries. Check token and CORS.', 'error');
       });
     }
   });
@@ -7265,7 +7662,7 @@
         return;
       }
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    if ((e.metaKey || e.ctrlKey) && e.key === '/') {
       e.preventDefault();
       $('inSearch').focus();
       $('inSearch').select();
@@ -7282,6 +7679,12 @@
     );
     if (isInputField) return;
 
+    if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+      e.preventDefault();
+      openSettingsModal();
+      return;
+    }
+
     const audio = $('audio');
     if (e.code === 'Space') {
       e.preventDefault();
@@ -7295,7 +7698,11 @@
     }
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      $('btnNext').click();
+      if (playbackMode === PLAYBACK_MODE_ALBUM_SHUFFLE && !isRadioMode) {
+        $('btnNextAlbum').click();
+      } else {
+        $('btnNext').click();
+      }
       return;
     }
     if (e.key === 'ArrowUp' && audio) {
@@ -7316,20 +7723,28 @@
   });
 
   bindClick('btnSave', async () => {
-    const server = $('inServer').value.trim().replace(/\/$/, '');
     const token = $('inToken').value.trim();
-    if (!server || !token) {
-      setSettingsStatus('Enter server URL and token before saving.', 'error');
+    if (!token) {
+      setSettingsStatus('Enter token before saving.', 'error');
       return;
     }
-    localStorage.setItem(LS.server, server);
     localStorage.setItem(LS.token, token);
+    try {
+      await autoDetectServersFromToken();
+    } catch (_) {
+      setSettingsStatus('Could not detect Plex servers from token.', 'error');
+      return;
+    }
+    if (!cfg().server) {
+      setSettingsStatus('No Plex servers found for this token.', 'error');
+      return;
+    }
     updatePlexSettingsButtonsVisibility();
     if (!$('inSection').value) {
       try {
         await loadSections();
       } catch (_) {
-        setSettingsStatus('Could not load libraries. Check server URL, token, and CORS.', 'error');
+        setSettingsStatus('Could not load libraries. Check token and CORS.', 'error');
       }
     }
     setSettingsStatus('Settings saved. Choose a Plex library in the sidebar.', 'ok');
@@ -7357,12 +7772,11 @@
     showError('');
     try {
       await plexSignInGetToken();
-      const server = $('inServer').value.trim().replace(/\/$/, '');
       const token = $('inToken').value.trim();
-      if (server && token) {
-        localStorage.setItem(LS.server, server);
+      if (token) {
         localStorage.setItem(LS.token, token);
-        await loadSections();
+        await autoDetectServersFromToken();
+        if (cfg().server) await loadSections();
       }
     } catch (e) {
       $('plexLoginStatus').textContent = '';
@@ -7383,21 +7797,29 @@
     if (pendingPinId && expiry && Date.now() < parseInt(expiry, 10)) {
       openSettingsModal();
       resumePlexPinPoll(pendingPinId).then(() => {
-        const server = $('inServer').value.trim().replace(/\/$/, '');
         const token = $('inToken').value.trim();
-        if (server && token) {
-          localStorage.setItem(LS.server, server);
+        if (token) {
           localStorage.setItem(LS.token, token);
-          loadSections().catch(() => {});
+          autoDetectServersFromToken().then(() => {
+            if (cfg().server) loadSections().catch(() => {});
+          }).catch(() => {});
         }
       });
     }
   } catch (_) {}
 
-  bindClick('btnDetectServer', async () => {
+  bindEvent('inToken', 'input', () => {
+    updatePlexLoginButtonVisibility();
+    const token = $('inToken').value.trim();
+    if (!token) {
+      renderServerCandidates([]);
+      setServerDiscoveryStatus('');
+    }
+  });
+  bindEvent('inToken', 'change', async () => {
     showError('');
     try {
-      await detectServersFromToken();
+      await autoDetectServersFromToken();
     } catch (e) {
       renderServerCandidates([]);
       setServerDiscoveryStatus(e.message || String(e), 'error');
@@ -7550,6 +7972,7 @@
   });
 
   (function init() {
+    updateShortcutModifierLabels();
     buildRadioData();
     wireUnifiedSearchPanelOnce();
     setChatVisibility(window.innerWidth > 720);
@@ -7560,8 +7983,8 @@
     applyPlaybackModeUI();
     updateNowPlayingFavButton('');
     updatePlayPauseButton();
+    setupMediaSession();
     const c = cfg();
-    $('inServer').value = c.server;
     $('inToken').value = c.token;
     probeSameOriginBackend().catch(() => {});
     if (c.server && c.token) {

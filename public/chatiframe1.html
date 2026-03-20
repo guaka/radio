@@ -12,8 +12,16 @@
       if (typeof value === 'string') return value;
       const out = [];
       if (typeof value.message === 'string') out.push(value.message);
+      if (typeof value.reason === 'string') out.push(value.reason);
+      if (typeof value.name === 'string') out.push(value.name);
       if (typeof value.stack === 'string') out.push(value.stack);
       if (typeof value.filename === 'string') out.push(value.filename);
+      if (typeof value.toString === 'function') {
+        try {
+          const asString = String(value);
+          if (asString && asString !== '[object Object]') out.push(asString);
+        } catch (_) {}
+      }
       if (value.error && value.error !== value) out.push(buildNostrErrorBlob(value.error, depth + 1));
       if (Array.isArray(value.errors)) {
         value.errors.forEach(function (item) {
@@ -26,7 +34,7 @@
 
     function isBenignNostrRelayError(value) {
       const blob = buildNostrErrorBlob(value, 0);
-      return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:/i.test(blob);
+      return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:|uncaught \(in promise\) error:/i.test(blob);
     }
 
     (function installNostrErrorGuard() {
@@ -35,6 +43,8 @@
       window.addEventListener('unhandledrejection', function (ev) {
         if (isBenignNostrRelayError(ev.reason)) {
           ev.preventDefault();
+          if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
+          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
           const msg = buildNostrErrorBlob(ev.reason, 0) || 'unknown rejection';
           console.warn('[chat] Nostr relay (non-fatal):', msg.slice(0, 220));
         }

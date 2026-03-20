@@ -1,10 +1,12 @@
 package main
 
 import (
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"syscall"
 	"strings"
 	"time"
 
@@ -30,7 +32,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	h.Register(mux)
-	registerStatic(mux)
+	staticRoot := registerStatic(mux)
+	startPublicAutoRestart(staticRoot)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -43,7 +46,7 @@ func main() {
 	}
 }
 
-func registerStatic(mux *http.ServeMux) {
+func registerStatic(mux *http.ServeMux) string {
 	root, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("cwd error: %v", err)
@@ -57,7 +60,7 @@ func registerStatic(mux *http.ServeMux) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(filepath.Clean(r.URL.Path), "/")
 		if p == "" {
-			http.ServeFile(w, r, filepath.Join(staticRoot, "index.html"))
+			serveHTMLNoCache(w, r, filepath.Join(staticRoot, "index.html"))
 			return
 		}
 		// Keep SPA-like behavior for unknown non-API paths.
@@ -67,11 +70,28 @@ func registerStatic(mux *http.ServeMux) {
 		}
 		full := filepath.Join(staticRoot, p)
 		if info, err := os.Stat(full); err == nil && !info.IsDir() {
+			if strings.EqualFold(filepath.Ext(full), ".html") {
+				serveHTMLNoCache(w, r, full)
+				return
+			}
+			// Prevent stale JS/CSS/assets during development and hard refreshes.
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
 			fs.ServeHTTP(w, r)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join(staticRoot, "index.html"))
+		serveHTMLNoCache(w, r, filepath.Join(staticRoot, "index.html"))
 	})
+	return staticRoot
+}
+
+func serveHTMLNoCache(w http.ResponseWriter, r *http.Request, fullPath string) {
+	// Always revalidate HTML to avoid stale SPA shells during local dev.
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	http.ServeFile(w, r, fullPath)
 }
 
 func withLogging(next http.Handler) http.Handler {
@@ -80,4 +100,41 @@ func withLogging(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start).Truncate(time.Millisecond))
 	})
+}
+
+func startPublicAutoRestart(staticRoot string) {
+	last := latestTreeModTime(staticRoot)
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			current := latestTreeModTime(staticRoot)
+			if current.After(last) {
+				log.Printf("public/ changed; restarting server")
+				// Re-exec in-place so dev servers pick up updated static assets and code paths.
+				if err := syscall.Exec(os.Args[0], os.Args, os.Environ()); err != nil {
+					log.Printf("auto-restart failed: %v", err)
+				}
+				return
+			}
+		}
+	}()
+}
+
+func latestTreeModTime(root string) time.Time {
+	var latest time.Time
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		info, statErr := d.Info()
+		if statErr != nil {
+			return nil
+		}
+		if mod := info.ModTime(); mod.After(latest) {
+			latest = mod
+		}
+		return nil
+	})
+	return latest
 }

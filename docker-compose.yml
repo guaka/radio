@@ -3,13 +3,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd
+        - action: rebuild
+          path: ./internal
+        - action: rebuild
+          path: ./go.mod
+        - action: rebuild
+          path: ./go.sum
     container_name: plextr
     restart: unless-stopped
     ports:
-      - "3030:8080"
+      - "3030:3030"
+    volumes:
+      - ./public:/app/public:ro
     environment:
       # Core server
-      ADDR: ":8080"
+      ADDR: ":3030"
       SESSION_SECRET: "${SESSION_SECRET:-change-me-in-production}"
       SESSION_COOKIE_NAME: "${SESSION_COOKIE_NAME:-plextr_session}"
 
