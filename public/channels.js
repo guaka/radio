@@ -216,8 +216,21 @@ const channels = {
 
   // Other Stations
   'king_dub_radio': {
-    url: 'http://london-dedicated.myautodj.com:8862/stream%20King%20Dub%20Radio',
-    tags: ['other', 'uk', 'london', 'dub', 'reggae']
+    url: 'https://london-dedicated.myautodj.com:8862/stream%20King%20Dub%20Radio',
+    tags: ['other', 'fr', 'france', 'dub', 'reggae'],
+    site: 'https://kingdubfamily.com/',
+    artwork: [
+      {
+        src: 'https://kingdubfamily.com/wp-content/uploads/2025/03/cropped-img_4948.jpg',
+        sizes: '1136x666',
+        type: 'image/jpeg'
+      },
+      {
+        src: 'https://kingdubfamily.com/wp-content/uploads/2021/03/download.png',
+        sizes: '209x241',
+        type: 'image/png'
+      }
+    ]
   },
   'wassoulou': {
     url: 'https://listen.radionomy.com/radio-wassoulou-internationale',
