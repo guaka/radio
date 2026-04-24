@@ -1818,6 +1818,7 @@
       background: #000;
       overflow: hidden;
       isolation: isolate;
+      touch-action: manipulation;
     }
     .viz-overlay.active { display: block; }
     .viz-overlay canvas#vizGl {
@@ -2089,7 +2090,7 @@
     <kbd>Space</kbd> play/pause ·
     <kbd id="kbdModSettings">⌘</kbd><kbd>.</kbd> settings ·
     <kbd id="kbdModSearch">⌘</kbd><kbd>/</kbd> search ·
-    <kbd id="kbdModViz">⌘</kbd><kbd>V</kbd> visualizations ·
+    <kbd id="kbdModViz">⌘</kbd><kbd>V</kbd> visualizations (dbl-click for fullscreen) ·
     <kbd>Esc</kbd> close dialogs
     <a class="plextr-github" href="https://github.com/guaka/radio" target="_blank" rel="noopener noreferrer" title="Source on GitHub" aria-label="pleXtr / Radio Guaka on GitHub">
       <svg viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.229-5.378-22.229-24.054 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.6-11.404 22.913-22.324 24.054 1.738 1.48 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
@@ -8135,15 +8136,16 @@
   <script>
   // Music visualization overlay — five WebGL shader visualizations driven by a
   // synthetic spectrum analyzer (bass/mid/treble + ~118 BPM beat). Toggled with
-  // ⌘/Ctrl + V; arrows / 1–5 cycle visualizations while open; Esc closes.
-  // Lazy-initialized on first toggle and idle when hidden.
+  // ⌘/Ctrl + V; arrows / 1–5 cycle visualizations while open; double-click the
+  // viz area (not the mode bar) toggles browser fullscreen; Esc exits fullscreen
+  // first, then closes the overlay. Lazy-initialized on first toggle and idle when hidden.
   (function () {
     const overlay  = document.getElementById('vizOverlay');
     const canvas   = document.getElementById('vizGl');
     const switcher = document.getElementById('vizSwitcher');
     const hint     = overlay && overlay.querySelector('.viz-hint');
     if (!overlay || !canvas || !switcher) return;
-    const HINT_BASE = '↔ / 1–5 to switch · esc to close';
+    const HINT_BASE = '↔ / 1–5 to switch · dbl-click fullscreen · esc to close';
     const HINT_LABEL = {
       live:        ' · LIVE',
       cors:        ' · SIM (CORS-tainted stream)',
@@ -8695,6 +8697,44 @@ void main(){
     let rafId = 0;
     let initFailed = false;
 
+    function vizFullscreenElement() {
+      const el = document.fullscreenElement || document.webkitFullscreenElement;
+      return el === overlay ? el : null;
+    }
+    function isVizFullscreen() {
+      return !!vizFullscreenElement();
+    }
+    function requestVizFullscreen() {
+      if (!overlay || isVizFullscreen()) return Promise.resolve();
+      if (overlay.requestFullscreen) return overlay.requestFullscreen();
+      if (overlay.webkitRequestFullscreen) {
+        try {
+          overlay.webkitRequestFullscreen();
+        } catch (e) {
+          return Promise.reject(e);
+        }
+        return Promise.resolve();
+      }
+      return Promise.reject(new Error('fullscreen unavailable'));
+    }
+    function exitVizFullscreen() {
+      if (!isVizFullscreen()) return Promise.resolve();
+      if (document.exitFullscreen) return document.exitFullscreen();
+      if (document.webkitExitFullscreen) {
+        try {
+          document.webkitExitFullscreen();
+        } catch (e) {
+          return Promise.reject(e);
+        }
+        return Promise.resolve();
+      }
+      return Promise.resolve();
+    }
+    function toggleVizFullscreen() {
+      if (isVizFullscreen()) return exitVizFullscreen();
+      return requestVizFullscreen();
+    }
+
     function compile(type, src) {
       const sh = gl.createShader(type);
       gl.shaderSource(sh, src);
@@ -8838,12 +8878,16 @@ void main(){
     }
 
     function closeViz() {
-      overlay.classList.remove('active');
-      overlay.setAttribute('aria-hidden', 'true');
+      return exitVizFullscreen()
+        .catch(() => {})
+        .then(() => {
+          overlay.classList.remove('active');
+          overlay.setAttribute('aria-hidden', 'true');
+        });
     }
 
     function toggleViz() {
-      if (isVizActive()) closeViz();
+      if (isVizActive()) void closeViz();
       else openViz();
     }
 
@@ -8869,7 +8913,11 @@ void main(){
         if (settingsEl && settingsEl.classList.contains('open')) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        closeViz();
+        if (isVizFullscreen()) {
+          void exitVizFullscreen().catch(() => {});
+          return;
+        }
+        void closeViz();
         return;
       }
 
@@ -8900,6 +8948,19 @@ void main(){
       if (!document.hidden && isVizActive() && !rafId) {
         rafId = requestAnimationFrame(frame);
       }
+    });
+
+    function onVizFullscreenChange() {
+      if (gl && isVizActive()) resize();
+    }
+    document.addEventListener('fullscreenchange', onVizFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onVizFullscreenChange);
+
+    overlay.addEventListener('dblclick', (e) => {
+      if (!isVizActive() || initFailed) return;
+      if (switcher.contains(e.target)) return;
+      e.preventDefault();
+      void toggleVizFullscreen().catch(() => {});
     });
   })();
   </script>
