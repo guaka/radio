@@ -215,6 +215,10 @@ const channels = {
   },
 
   // Other Stations
+  'king_dub_radio': {
+    url: 'http://london-dedicated.myautodj.com:8862/stream%20King%20Dub%20Radio',
+    tags: ['other', 'uk', 'london', 'dub', 'reggae']
+  },
   'wassoulou': {
     url: 'https://listen.radionomy.com/radio-wassoulou-internationale',
     tags: ['other', 'mali', 'africa']
