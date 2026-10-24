@@ -402,7 +402,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     if (settings) {
         var url by remember { mutableStateOf(model.repository.assistantUrl()) }
         var token by remember { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { settings = false }, title = { Text("Connections") }, text = {
+        AlertDialog(onDismissRequest = { settings = false }, modifier = Modifier.imePadding(), title = { Text("Connections") }, text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Plex works away from home when your server's Remote Access is configured.")
                 TextButton(onClick = { model.signIn(); settings = false }) { Text("Sign in to Plex") }
