@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/guaka/radio-guaka/internal/appledevtoken"
 	"github.com/guaka/radio-guaka/internal/config"
 	nostrsvc "github.com/guaka/radio-guaka/internal/nostr"
 	"github.com/guaka/radio-guaka/internal/plex"
@@ -27,9 +28,10 @@ type Handler struct {
 	plex     *plex.Client
 	pin      *plex.PINClient
 	share    *share.LinksService
+	appleDev *appledevtoken.Generator
 }
 
-func New(cfg config.Config, st *store.Store, auth *nostrsvc.AuthService, contacts *nostrsvc.ContactsService, pol *policy.AccessPolicy, px *plex.Client, pin *plex.PINClient, sh *share.LinksService) *Handler {
+func New(cfg config.Config, st *store.Store, auth *nostrsvc.AuthService, contacts *nostrsvc.ContactsService, pol *policy.AccessPolicy, px *plex.Client, pin *plex.PINClient, sh *share.LinksService, appleDev *appledevtoken.Generator) *Handler {
 	return &Handler{
 		cfg:      cfg,
 		store:    st,
@@ -39,11 +41,19 @@ func New(cfg config.Config, st *store.Store, auth *nostrsvc.AuthService, contact
 		plex:     px,
 		pin:      pin,
 		share:    sh,
+		appleDev: appleDev,
 	}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/health", h.handleHealth)
+	mux.HandleFunc("/api/music-export-config", h.handleMusicExportConfig)
+	mux.HandleFunc("/api/music-proxy/spotify-accounts/", h.handleSpotifyAccountsProxy)
+	mux.HandleFunc("/api/music-proxy/spotify-api/", h.handleSpotifyAPIProxy)
+	mux.HandleFunc("/api/music-proxy/applemusic/", h.handleAppleMusicAPIProxy)
+	mux.Handle("/api/music-proxy/music-assistant/", h.withFriendHTTP(http.HandlerFunc(h.handleMusicAssistantAPIProxy)))
+	mux.Handle("/api/music-assistant/probe", h.withFriendHTTP(http.HandlerFunc(h.handleMusicAssistantProbe)))
+	mux.HandleFunc("/api/music-assistant/quick-map", h.handleMusicAssistantQuickMap)
 	mux.HandleFunc("/api/plex/", h.handlePlexProxy)
 	mux.HandleFunc("/auth/nostr/challenge", h.handleNostrChallenge)
 	mux.HandleFunc("/auth/nostr/verify", h.handleNostrVerify)
