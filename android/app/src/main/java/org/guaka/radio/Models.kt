@@ -13,6 +13,10 @@ data class Entry(
     val token: String = "",
     val artwork: String = "",
     val plexKey: String = "",
+    val credentialGeneration: Long = 0L,
+    val plexSection: String = "",
+    val plexParentKey: String = "",
+    val plexGrandparentKey: String = "",
 )
 data class PlexConnection(val uri: String, val local: Boolean, val relay: Boolean)
 data class PlexServer(val id: String, val name: String, val token: String, val connections: List<PlexConnection>)
@@ -21,6 +25,23 @@ data class Speaker(val id: String, val name: String)
 data class SpeakerTrack(val uri: String, val name: String, val artist: String)
 
 object IntegrationParser {
+    fun collectionUrl(baseUrl: String, sectionId: String, type: Int, start: Int, size: Int, title: String? = null): String {
+        require(sectionId.matches(Regex("[A-Za-z0-9_-]{1,128}")))
+        return baseUrl.toHttpUrl().newBuilder().addPathSegments("library/sections/$sectionId/all")
+            .addQueryParameter("type", type.toString())
+            .addQueryParameter("X-Plex-Container-Start", start.toString())
+            .addQueryParameter("X-Plex-Container-Size", size.toString())
+            .apply { if (!title.isNullOrEmpty()) addQueryParameter("title", title) }
+            .build().toString()
+    }
+
+    fun childrenUrl(baseUrl: String, ratingKey: String, start: Int, size: Int): String {
+        require(ratingKey.matches(Regex("[A-Za-z0-9_-]{1,128}")))
+        return baseUrl.toHttpUrl().newBuilder().addPathSegments("library/metadata/$ratingKey/children")
+            .addQueryParameter("X-Plex-Container-Start", start.toString())
+            .addQueryParameter("X-Plex-Container-Size", size.toString()).build().toString()
+    }
+
     fun servers(rows: JSONArray): List<PlexServer> = (0 until rows.length()).mapNotNull { i ->
         val row = rows.getJSONObject(i)
         if (!row.optString("provides").split(',').contains("server")) return@mapNotNull null
@@ -40,12 +61,45 @@ object IntegrationParser {
 
     fun metadata(payload: JSONObject): JSONArray = payload.optJSONObject("MediaContainer")?.optJSONArray("Metadata") ?: JSONArray()
 
+    fun mediaEntries(payload: JSONObject, serverId: String, sectionId: String): List<Entry> =
+        mediaEntries(metadata(payload), serverId, sectionId)
+
+    fun mediaEntries(rows: JSONArray, serverId: String, sectionId: String): List<Entry> =
+        (0 until rows.length()).mapNotNull { i -> mediaEntry(rows.optJSONObject(i), serverId, sectionId) }
+
+    fun mediaEntry(row: JSONObject?, serverId: String, sectionId: String): Entry? {
+        row ?: return null
+        val ratingKey = row.optString("ratingKey")
+        if (!ratingKey.matches(Regex("[A-Za-z0-9_-]{1,128}"))) return null
+        val kind = when (row.optString("type").lowercase()) {
+            "artist", "8" -> "artist"
+            "album", "9" -> "album"
+            "track", "10" -> "track"
+            else -> return null
+        }
+        val title = row.optString("title").ifBlank { kind.replaceFirstChar { it.uppercase() } }
+        val subtitle = when (kind) {
+            "artist" -> "Artist"
+            "album" -> row.optString("parentTitle", row.optString("grandparentTitle"))
+            else -> listOf(row.optString("grandparentTitle"), row.optString("parentTitle"))
+                .filter { it.isNotBlank() }.distinct().joinToString(" · ")
+        }
+        val id = "$kind:$serverId:$ratingKey"
+        return Entry(id, title, subtitle, playable = kind == "track", artwork = safeArtworkPath(row.optString("thumb")), plexKey = ratingKey,
+            plexSection = sectionId.ifBlank { row.optString("librarySectionID") },
+            plexParentKey = row.optString("parentRatingKey"), plexGrandparentKey = row.optString("grandparentRatingKey"))
+    }
+
+    private fun safeArtworkPath(raw: String): String = raw.takeIf {
+        it.startsWith('/') && !it.startsWith("//") && '?' !in it && '#' !in it &&
+            !it.contains("X-Plex-Token", ignoreCase = true)
+    }.orEmpty()
+
     fun tracks(payload: JSONObject, serverId: String): List<Entry> {
         val rows = metadata(payload)
-        return (0 until rows.length()).map { i ->
-            val row = rows.getJSONObject(i)
-            Entry("track:$serverId:${row.getString("ratingKey")}", row.optString("title", "Track"),
-                row.optString("grandparentTitle"), playable = true, plexKey = row.getString("ratingKey"))
+        return (0 until rows.length()).mapNotNull { i ->
+            rows.optJSONObject(i)?.put("type", "track")
+            mediaEntry(rows.optJSONObject(i), serverId, "")
         }
     }
 

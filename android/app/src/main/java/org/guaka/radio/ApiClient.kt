@@ -17,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.IOException
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Builder()
@@ -27,7 +28,7 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
         if (assistant) req.header("Authorization", "Bearer $token")
         else {
             req.header("X-Plex-Client-Identifier", clientId).header("X-Plex-Product", "Radio Guaka")
-                .header("X-Plex-Platform", "Android").header("X-Plex-Version", "0.1.0")
+                .header("X-Plex-Platform", "Android").header("X-Plex-Version", "0.2.0")
             if (token.isNotBlank()) req.header("X-Plex-Token", token)
         }
         if (body != null) req.post(body)
@@ -54,6 +55,48 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
             })
         }
     }
+
+    /** Fetch a bounded image body. The caller supplies an already-validated HTTPS URL. */
+    suspend fun imageBytes(url: String, token: String, maxBytes: Int): ByteArray =
+        suspendCancellableCoroutine { continuation ->
+            val request = Request.Builder().url(url).header("Accept", "image/*")
+                .header("X-Plex-Client-Identifier", clientId).header("X-Plex-Product", "Radio Guaka")
+                .header("X-Plex-Platform", "Android").header("X-Plex-Version", "0.2.0")
+                .header("X-Plex-Token", token).build()
+            val call = http.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        try {
+                            if (!response.isSuccessful) throw IOException("Artwork request failed.")
+                            if (!response.header("Content-Type").orEmpty().startsWith("image/", ignoreCase = true)) {
+                                throw IOException("Plex returned invalid artwork.")
+                            }
+                            val body = response.body ?: throw IOException("Plex returned empty artwork.")
+                            if (body.contentLength() > maxBytes) throw IOException("Artwork is too large.")
+                            val input = body.byteStream()
+                            val output = ByteArrayOutputStream(minOf(maxBytes, 16 * 1024))
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > maxBytes) throw IOException("Artwork is too large.")
+                                output.write(buffer, 0, count)
+                            }
+                            if (continuation.isActive) continuation.resume(output.toByteArray())
+                        } catch (e: Exception) {
+                            if (continuation.isActive) continuation.resumeWithException(e)
+                        }
+                    }
+                }
+            })
+        }
 
     suspend fun createPin(): Pin {
         val response = request("https://plex.tv/api/v2/pins", body = FormBody.Builder().add("strong", "true").build()) as JSONObject
