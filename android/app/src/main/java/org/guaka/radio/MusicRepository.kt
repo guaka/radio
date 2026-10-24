@@ -254,17 +254,22 @@ class MusicRepository(private val context: Context) {
     private suspend fun endpoint(server: PlexServer): String = coroutineScope {
         endpointCache[server.id]?.let { return@coroutineScope it }
         // Probe concurrently so an unreachable LAN address cannot block remote playback.
-        val results = Channel<String?>(Channel.UNLIMITED)
+        val results = Channel<Result<String>>(Channel.UNLIMITED)
         val probes = server.connections.map { connection -> launch {
-            val result = try { api.request(connection.uri + "/identity", server.token); connection.uri }
+            val result = try { api.request(connection.uri + "/identity", server.token); Result.success(connection.uri) }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) { null }
+            catch (e: Exception) { Result.failure(e) }
             results.send(result)
         } }
         try {
+            var authenticationFailure: ApiRequestException? = null
             repeat(probes.size) {
-                results.receive()?.let { endpointCache[server.id] = it; return@coroutineScope it }
+                val result = results.receive()
+                result.getOrNull()?.let { endpointCache[server.id] = it; return@coroutineScope it }
+                (result.exceptionOrNull() as? ApiRequestException)?.takeIf { it.statusCode in listOf(401, 403) }
+                    ?.let { authenticationFailure = it }
             }
+            authenticationFailure?.let { throw it }
             throw IOException("Cannot reach this Plex server. Check Plex Remote Access when away from home.")
         } finally { probes.forEach { it.cancel() }; results.close() }
     }
@@ -273,6 +278,7 @@ class MusicRepository(private val context: Context) {
         val server = server(id)
         return try { api.request(endpoint(server) + path, server.token) as JSONObject }
         catch (error: IOException) {
+            if (error is ApiRequestException && error.statusCode !in listOf(408, 429) && error.statusCode !in 500..599) throw error
             endpointCache.remove(id)
             api.request(endpoint(server) + path, server.token) as JSONObject
         }
@@ -327,6 +333,9 @@ class MusicRepository(private val context: Context) {
         check(generation == listening.plexGeneration()) { "Plex sign-in changed. Choose the track again." }
         parsed.copy(url = stream.toString(), token = server.token, credentialGeneration = generation).also { entries[id] = it }
     }
+
+    /** Explicit user retry re-discovers endpoints after a Wi-Fi/mobile or Plex server change. */
+    fun invalidatePlexConnections() { serverCache.clear(); endpointCache.clear() }
 
     fun savePlexToken(token: String) {
         val previous = credentials.get("plexToken")

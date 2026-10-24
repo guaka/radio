@@ -118,4 +118,22 @@ class IntegrationTest {
             assertEquals("library://track/42", body.getJSONObject("args").getJSONArray("media").getString(0))
         } finally { server.shutdown() }
     }
+    @Test fun authenticationErrorsRetainServiceAndStatusWithoutRetrying() = runBlocking {
+        val server = MockWebServer(); server.start()
+        try {
+            val api = ApiClient("test-client")
+            server.enqueue(MockResponse().setResponseCode(401))
+            val plex = runCatching { api.request(server.url("/library").toString(), "secret") }.exceptionOrNull()
+            assertTrue(plex is ApiRequestException)
+            assertEquals(401, (plex as ApiRequestException).statusCode)
+            assertFalse(plex.assistant)
+            assertFalse(plex.message!!.contains("secret"))
+            server.enqueue(MockResponse().setResponseCode(403))
+            val assistant = runCatching { api.command("http://localhost:${server.port}", "ma-secret", "players/all") }.exceptionOrNull()
+            assertTrue(assistant is ApiRequestException)
+            assertTrue((assistant as ApiRequestException).assistant)
+            assertEquals(2, server.requestCount)
+        } finally { server.shutdown() }
+    }
+
 }

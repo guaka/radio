@@ -248,7 +248,7 @@ class PlaybackService : MediaLibraryService() {
                 .setDefaultRequestProperties(if (entry.token.isBlank()) emptyMap() else mapOf("X-Plex-Token" to entry.token))
             val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlaybackService, http))
             drm?.let { factory.setDrmSessionManagerProvider(it) }
-            policy?.let { factory.setLoadErrorHandlingPolicy(it) }
+            factory.setLoadErrorHandlingPolicy(policy ?: PlaybackRecovery.loadErrorPolicy())
             return factory.createMediaSource(item)
         }
     }
