@@ -114,3 +114,10 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 ## Links
 
 * [radio.guaka.org](https://radio.guaka.org/)
+
+
+## Local configuration and validation
+
+The Go server defaults to `http://localhost:3030`. If `SESSION_SECRET` is unset, it generates a random secret and stores it in `data/plextr.sqlite3`. Sessions and share links remain in memory and are lost on restart. Docker Compose persists the database in the `plextr-data` volume. Local `.env`, `.p8` keys, and `data/` are ignored by Git and Docker.
+
+Run `go test -race ./...` and `go vet ./...` to validate the backend.

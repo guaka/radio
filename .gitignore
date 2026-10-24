@@ -31,3 +31,12 @@ yarn-error.log*
 
 
 assets/
+
+spotify-csv
+
+# Local credentials and runtime state
+.env
+.env.*
+!.env.example
+data/
+*.p8

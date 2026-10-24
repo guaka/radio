@@ -36,8 +36,8 @@ func Load() Config {
 	}
 
 	return Config{
-		Addr:              envDefault("ADDR", ":8080"),
-		SessionSecret:     envDefault("SESSION_SECRET", "dev-change-me"),
+		Addr:              envDefault("ADDR", ":3030"),
+		SessionSecret:     strings.TrimSpace(os.Getenv("SESSION_SECRET")),
 		OwnerPubKey:       strings.TrimSpace(os.Getenv("OWNER_PUBKEY")),
 		NostrRelays:       relays,
 		NostrCacheTTL:     ttl,

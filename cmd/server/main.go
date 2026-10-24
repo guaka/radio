@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"syscall"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/guaka/radio-guaka/internal/config"
@@ -21,13 +21,25 @@ import (
 
 func main() {
 	cfg := config.Load()
-	st := store.New()
-	auth := nostrsvc.NewAuthService(cfg.SessionSecret)
+	st, err := store.New("")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer st.Close()
+	sessionSecret := cfg.SessionSecret
+	if strings.TrimSpace(sessionSecret) == "" {
+		sessionSecret, err = st.GetOrCreateAppSecret("session_secret", 32)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	auth := nostrsvc.NewAuthService(sessionSecret)
 	contacts := nostrsvc.NewContactsService(cfg.OwnerPubKey, cfg.NostrRelays, cfg.NostrCacheTTL)
 	pol := policy.New(contacts)
 	px := plex.NewClient(cfg.PlexBaseURL, cfg.PlexToken, cfg.PlexClientID)
 	pin := plex.NewPINClient(cfg.PlexClientID)
 	shares := share.New(st, cfg.ShareTokenBytes)
+
 	h := httpapi.New(cfg, st, auth, contacts, pol, px, pin, shares)
 
 	mux := http.NewServeMux()
