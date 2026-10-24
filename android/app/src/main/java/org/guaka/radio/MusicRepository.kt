@@ -17,6 +17,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class RadioApp : Application() {
+    override fun onCreate() { super.onCreate(); SettingsMigration.migrate(this) }
     val repository by lazy { MusicRepository(this) }
 }
 

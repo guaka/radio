@@ -12,7 +12,7 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The CI workflow uploads a debug-signed APK. Debug builds are for development: different machines/CI jobs may generate different debug keys, requiring uninstall before installation. Stable signed beta updates and release-key storage are milestone 4. Never commit signing keys, local.properties or access tokens.
+The CI workflow uploads a debug-signed APK for development. Beta builds use a stable signing identity and can update one another while preserving app data. Follow [BETA.md](BETA.md) to create and protect the key, build a signed beta APK, install updates, and troubleshoot signing errors. Debug and beta APKs use different keys; switching between them requires uninstalling first and removes the app's local data. Never commit signing keys, password files, `local.properties` or access tokens.
 
 Stations are bundled for cold startup/offline browsing; streams need a network. After changing the web catalogue, run `node android/scripts/sync-stations.mjs` from the repository root. CI verifies that the snapshot is current.
 
@@ -51,6 +51,6 @@ The following acceptance checks require actual accounts/devices and must be reco
 - [ ] Home MA: list actual speakers, play one station and one Plex track, confirm phone pauses.
 - [ ] Away from home: speakers are unavailable, while radio/Plex remain usable.
 
-Remaining milestones add resilient network/credential recovery, process/network transition hardening, and signed beta delivery. Voice search remains deferred. These changes build on the milestone-1 foundation in PR #87; hardware acceptance remains separate from emulator checks.
+Remaining milestones add resilient network/credential recovery and process/network transition hardening. Voice search remains deferred. These changes build on the milestone-1 foundation in PR #87; hardware acceptance remains separate from emulator checks.
 
 References: [Media3 background playback](https://developer.android.com/media/media3/session/background-playback), [MediaLibraryService](https://developer.android.com/media/media3/session/serve-content), [Android Auto testing](https://developer.android.com/training/cars/testing), [Plex sign-in](https://forums.plex.tv/t/authenticating-with-plex/609370), [Music Assistant API](https://www.music-assistant.io/api/).
