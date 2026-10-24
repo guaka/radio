@@ -114,3 +114,8 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 ## Links
 
 * [radio.guaka.org](https://radio.guaka.org/)
+
+
+## Android prototype
+
+A native Android companion is being developed for Radio, Plex, Android Auto and local Music Assistant speakers. See [android/README.md](android/README.md) for build/install instructions, scope and the device acceptance checklist; progress is tracked in [issue #86](https://github.com/guaka/radio/issues/86).

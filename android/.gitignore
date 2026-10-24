@@ -1,0 +1,11 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+.idea/
+
+# The repository ignores assets/ globally; bundle this audited station snapshot.
+!app/src/main/assets/
+!app/src/main/assets/stations.json
