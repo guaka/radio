@@ -1,3 +1,6 @@
+import java.security.KeyStore
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -56,6 +59,16 @@ gradle.taskGraph.whenReady {
         require(!betaKeyAlias.orNull.isNullOrBlank()) { "RADIO_BETA_KEY_ALIAS is required to build a beta APK." }
         require(!betaKeyPassword.orNull.isNullOrEmpty()) { "RADIO_BETA_KEY_PASSWORD is required to build a beta APK." }
         require(betaKeystore.orNull?.let(::file)?.isFile == true) { "RADIO_BETA_KEYSTORE must point to an existing keystore file." }
+        val expectedFingerprint = rootProject.file("beta-certificate.sha256").readText().trim().lowercase()
+        require(expectedFingerprint.matches(Regex("[0-9a-f]{64}"))) { "Invalid public beta certificate fingerprint." }
+        val keys = KeyStore.getInstance("JKS")
+        file(betaKeystore.get()).inputStream().use { keys.load(it, betaStorePassword.get().toCharArray()) }
+        val certificate = requireNotNull(keys.getCertificate(betaKeyAlias.get())) { "Beta signing alias has no certificate." }
+        val fingerprint = MessageDigest.getInstance("SHA-256").digest(certificate.encoded)
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        require(fingerprint == expectedFingerprint) {
+            "Beta certificate does not match beta-certificate.sha256. Reuse the established signing identity."
+        }
     }
 }
 dependencies {

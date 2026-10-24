@@ -1,6 +1,8 @@
-# Radio Guaka for Android — listening experience (milestone 2)
+# Radio Guaka for Android — personal beta
 
 Tracks [issue #86](https://github.com/guaka/radio/issues/86). Target acceptance device: Pixel 8a. This is a native Kotlin/Compose app, independent of the web/Go server. Media3 owns phone/background playback; Android Auto browses the same MediaLibraryService. Music Assistant owns speaker playback.
+
+For signed beta installation, stable-key updates and backup instructions, see [BETA.md](BETA.md). Developer debug builds below use a different signing certificate. Playback recovery behavior and remaining device checks are described in [RELIABILITY.md](RELIABILITY.md).
 
 ## Build and install
 
@@ -43,6 +45,8 @@ Unit tests cover resource discovery, HTTPS/token routing, local endpoint validat
 
 Milestone 2 validated on 2026-10-24: 11 JVM tests and six API 36 emulator instrumentation tests passed, with zero lint errors. Coverage includes favorites persistence/limits, Plex account-data clearing, queue reordering/removal/clearing, preservation across an empty service restart, and the live screen-off radio test. A manual phone UI smoke check covered favorite selection, adding/clearing stations in the queue, and an explicit Resume choice after restarting the process. Real Plex browsing/search/artwork and seek/resume still need an account-backed acceptance run.
 
+Milestones 3–4 validated on 2026-10-24: 15 JVM tests and eight API 36 emulator tests passed, including saved-queue resumption, audio-focus interruption/user-pause handling and settings-schema preservation. The signed beta installed successfully; an in-place update from version code 4 to 5 retained the app UID, original install time, favorite, endpoint setting and an encrypted dummy MA token. A local fake MA server confirmed the updated app decrypted and used that token. Unsigned releases and a different signing certificate are rejected. This does not establish real-account or physical-device acceptance.
+
 The following acceptance checks require actual accounts/devices and must be recorded separately:
 
 - [ ] Pixel 8a: 30 minutes of radio with screen off and notification/headset controls.
@@ -51,6 +55,6 @@ The following acceptance checks require actual accounts/devices and must be reco
 - [ ] Home MA: list actual speakers, play one station and one Plex track, confirm phone pauses.
 - [ ] Away from home: speakers are unavailable, while radio/Plex remain usable.
 
-Remaining milestones add resilient network/credential recovery and process/network transition hardening. Voice search remains deferred. These changes build on the milestone-1 foundation in PR #87; hardware acceptance remains separate from emulator checks.
+Bounded retry and explicit network/credential recovery are implemented; broader process/network transition hardening still requires the hardware acceptance runs above. Voice search remains deferred. These changes build on the milestone-1 foundation in PR #87; hardware acceptance remains separate from emulator checks.
 
 References: [Media3 background playback](https://developer.android.com/media/media3/session/background-playback), [MediaLibraryService](https://developer.android.com/media/media3/session/serve-content), [Android Auto testing](https://developer.android.com/training/cars/testing), [Plex sign-in](https://forums.plex.tv/t/authenticating-with-plex/609370), [Music Assistant API](https://www.music-assistant.io/api/).

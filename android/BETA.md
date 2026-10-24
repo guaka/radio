@@ -1,10 +1,10 @@
 # Android beta signing and installation
 
-Radio Guaka uses the Android application ID `org.guaka.radio`. Android accepts an APK update only when it has the same application ID and is signed by the same certificate as the installed app. Keep one beta signing identity for every beta build. Version codes must increase for each update; this build defaults to version code `4` and version name `0.4.0`.
+Radio Guaka uses the Android application ID `org.guaka.radio`. Android accepts an APK update only when it has the same application ID and is signed by the same certificate as the installed app. Keep one beta signing identity for every beta build. Its public SHA-256 fingerprint is pinned in `beta-certificate.sha256`; release builds reject a different certificate. Version codes must increase for each update; this build defaults to version code `4` and version name `0.4.0`.
 
 ## Create and protect the signing identity
 
-Create a JKS keystore once on a trusted computer. Use a unique, strong store password and key password, and record the alias and both passwords in a password manager. The command prompts for passwords so they do not appear in shell history or process listings:
+This workspace already has a private signing identity at `~/.local/share/radio-guaka/signing/radio-guaka-beta.jks`; reuse and securely back it up. Do not generate another key for this beta channel. For a separate new installation channel, create a JKS keystore once on a trusted computer and establish its own public certificate pin. Use a unique, strong store password and key password, and record the alias and both passwords in a password manager. The command prompts for passwords so they do not appear in shell history or process listings:
 
 ```sh
 mkdir -p "$HOME/.local/share/radio-guaka/signing"
@@ -79,3 +79,8 @@ For a manually triggered signed CI build, configure these repository or environm
 - `RADIO_BETA_KEY_PASSWORD`: private key password.
 
 Use an environment with required reviewers if release access needs approval. GitHub secrets are separate from the local signing files, and setting them does not create or back up the signing identity. The workflow must write the decoded keystore only to a temporary runner directory, restrict its file permissions, avoid caching it, remove it after the job, and publish only the signed APK and public certificate fingerprint.
+
+
+## Recorded validation
+
+On 2026-10-24, a local 0.4.0 beta (version code 4) was signed and verified, then updated in place on an API 36 emulator using a same-certificate test build with version code 5. Android retained the UID and original install time; the favorite and endpoint setting remained, and the updated app successfully authenticated to a local fake MA endpoint with the encrypted dummy token saved before the update. Missing signing inputs and a different certificate are rejected. Fifteen JVM tests and eight instrumentation tests passed. Actual Pixel/car/Plex/speaker acceptance and an encrypted off-device backup of the signing identity remain separate user tasks.
