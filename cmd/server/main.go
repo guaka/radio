@@ -36,7 +36,7 @@ func main() {
 	auth := nostrsvc.NewAuthService(sessionSecret)
 	contacts := nostrsvc.NewContactsService(cfg.OwnerPubKey, cfg.NostrRelays, cfg.NostrCacheTTL)
 	pol := policy.New(contacts)
-	px := plex.NewClient(cfg.PlexBaseURL, cfg.PlexToken, cfg.PlexClientID)
+	px := plex.NewClient(cfg.PlexBaseURL, cfg.PlexToken, cfg.PlexClientID, cfg.WrapsterMediaURL, cfg.WrapsterMediaKey)
 	pin := plex.NewPINClient(cfg.PlexClientID)
 	shares := share.New(st, cfg.ShareTokenBytes)
 

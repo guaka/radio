@@ -16,6 +16,8 @@ type Config struct {
 	PlexBaseURL       string
 	PlexToken         string
 	PlexClientID      string
+	WrapsterMediaURL  string
+	WrapsterMediaKey  string
 	ShareTokenBytes   int
 	SessionCookieName string
 }
@@ -44,6 +46,8 @@ func Load() Config {
 		PlexBaseURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("PLEX_BASE_URL")), "/"),
 		PlexToken:         strings.TrimSpace(os.Getenv("PLEX_TOKEN")),
 		PlexClientID:      envDefault("PLEX_CLIENT_ID", "plextr-go-gateway"),
+		WrapsterMediaURL:  strings.TrimRight(strings.TrimSpace(os.Getenv("WRAPSTER_MEDIA_URL")), "/"),
+		WrapsterMediaKey:  strings.TrimSpace(os.Getenv("WRAPSTER_MEDIA_NSEC")),
 		ShareTokenBytes:   shareBytes,
 		SessionCookieName: envDefault("SESSION_COOKIE_NAME", "plextr_session"),
 	}

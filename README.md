@@ -121,3 +121,7 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 The Go server defaults to `http://localhost:3030`. If `SESSION_SECRET` is unset, it generates a random secret and stores it in `data/plextr.sqlite3`. Sessions and share links remain in memory and are lost on restart. Docker Compose persists the database in the `plextr-data` volume. Local `.env`, `.p8` keys, and `data/` are ignored by Git and Docker.
 
 Run `go test -race ./...` and `go vet ./...` to validate the backend.
+
+## Plex gateways
+
+Set `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` to route friend-gated `/libraries`, `/tracks`, and `/stream/:id` through Wrapster's NIP-98 protected Plex gateway. The same-origin `/api/plex/*` proxy still requires `PLEX_BASE_URL` for arbitrary Plex browsing. That proxy accepts the caller's `X-Plex-Token` query parameter or header. Only authenticated friends can use the server's Plex token when no caller token is supplied.

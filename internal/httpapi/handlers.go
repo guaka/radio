@@ -44,6 +44,7 @@ func New(cfg config.Config, st *store.Store, auth *nostrsvc.AuthService, contact
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/health", h.handleHealth)
+	mux.HandleFunc("/api/plex/", h.handlePlexProxy)
 	mux.HandleFunc("/auth/nostr/challenge", h.handleNostrChallenge)
 	mux.HandleFunc("/auth/nostr/verify", h.handleNostrVerify)
 	mux.HandleFunc("/me", h.withAuth(h.handleMe))
@@ -60,10 +61,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":              true,
-		"time":            time.Now().UTC().Format(time.RFC3339),
-		"ownerConfigured": h.cfg.OwnerPubKey != "",
-		"plexConfigured":  h.plex.Enabled(),
+		"ok":                   true,
+		"time":                 time.Now().UTC().Format(time.RFC3339),
+		"ownerConfigured":      h.cfg.OwnerPubKey != "",
+		"plexConfigured":       h.plex.Enabled(),
+		"plexDirectConfigured": h.plex.DirectEnabled(),
+		"plexProxyReady":       h.plex.CanProxy(),
+		"wrapsterPlexReady":    h.plex.WrapsterEnabled(),
 	})
 }
 

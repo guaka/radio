@@ -35,6 +35,8 @@ services:
       PLEX_BASE_URL: "${PLEX_BASE_URL:-http://host.docker.internal:32400}"
       PLEX_TOKEN: "${PLEX_TOKEN:-}"
       PLEX_CLIENT_ID: "${PLEX_CLIENT_ID:-plextr-go-gateway}"
+      WRAPSTER_MEDIA_URL: "${WRAPSTER_MEDIA_URL:-}"
+      WRAPSTER_MEDIA_NSEC: "${WRAPSTER_MEDIA_NSEC:-}"
 
 
       # Share links
