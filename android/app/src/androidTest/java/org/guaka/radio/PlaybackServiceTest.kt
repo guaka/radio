@@ -184,7 +184,12 @@ class PlaybackServiceTest {
 
         } finally {
             instrumentation.uiAutomation.executeShellCommand("input keyevent 224").close()
-            instrumentation.runOnMainSync { browser.stop(); browser.release(); activity.finish() }
+            instrumentation.runOnMainSync { browser.stop(); browser.clearMediaItems() }
+            val store = (context.applicationContext as RadioApp).repository.listening
+            val cleanupDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            while (store.loadPlayback() != null && android.os.SystemClock.elapsedRealtime() < cleanupDeadline) Thread.sleep(25)
+            instrumentation.runOnMainSync { browser.release(); activity.finish() }
+            instrumentation.waitForIdleSync()
         }
     }
 
