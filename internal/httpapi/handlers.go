@@ -47,6 +47,7 @@ func New(cfg config.Config, st *store.Store, auth *nostrsvc.AuthService, contact
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/health", h.handleHealth)
+	mux.HandleFunc("/api/build-info", h.handleBuildInfo)
 	mux.HandleFunc("/api/music-export-config", h.handleMusicExportConfig)
 	mux.HandleFunc("/api/music-proxy/spotify-accounts/", h.handleSpotifyAccountsProxy)
 	mux.HandleFunc("/api/music-proxy/spotify-api/", h.handleSpotifyAPIProxy)
@@ -55,6 +56,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("/api/music-assistant/probe", h.withFriendHTTP(http.HandlerFunc(h.handleMusicAssistantProbe)))
 	mux.HandleFunc("/api/music-assistant/quick-map", h.handleMusicAssistantQuickMap)
 	mux.HandleFunc("/api/plex/", h.handlePlexProxy)
+	mux.HandleFunc("/api/youtube/resolve", h.handleYouTubeResolve)
+	mux.HandleFunc("/api/youtube/external-links", h.handleYouTubeExternalLinks)
+	mux.HandleFunc("/api/youtube/stream", h.handleYouTubeStreamProxy)
 	mux.HandleFunc("/auth/nostr/challenge", h.handleNostrChallenge)
 	mux.HandleFunc("/auth/nostr/verify", h.handleNostrVerify)
 	mux.HandleFunc("/me", h.withAuth(h.handleMe))
