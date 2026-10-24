@@ -2,9 +2,6 @@ package org.guaka.radio
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import java.io.ByteArrayOutputStream
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -52,7 +49,6 @@ class PlaybackService : MediaLibraryService() {
     private var hasSeenTimeline = false
     private var destroying = false
     private var purgingCredentials = false
-    private val maxSavedQueueSize = 500
     private var artworkJob: kotlinx.coroutines.Job? = null
     private var stopCredentialObserver: (() -> Unit)? = null
     private var requestedArtworkTarget: Pair<String, Int>? = null
@@ -153,7 +149,7 @@ class PlaybackService : MediaLibraryService() {
         if (entry.artwork.isBlank()) return
         artworkJob = scope.launch {
             val bytes = repository.artwork(entry) ?: return@launch
-            val thumbnail = kotlinx.coroutines.withContext(Dispatchers.IO) { makeArtworkThumbnail(bytes) } ?: return@launch
+            val thumbnail = kotlinx.coroutines.withContext(Dispatchers.IO) { Artwork.thumbnail(bytes) } ?: return@launch
             val currentPlayer = session.player as? ExoPlayer ?: return@launch
             if (currentPlayer.currentMediaItemIndex != index || currentPlayer.currentMediaItem?.mediaId != id) return@launch
             val currentItem = currentPlayer.getMediaItemAt(index)
@@ -161,30 +157,6 @@ class PlaybackService : MediaLibraryService() {
                 .setArtworkData(thumbnail, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()
             currentPlayer.replaceMediaItem(index, currentItem.buildUpon().setMediaMetadata(metadata).build())
         }
-    }
-
-    private fun makeArtworkThumbnail(bytes: ByteArray): ByteArray? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 256) sample *= 2
-        var bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
-            ?: return null
-        try {
-            while (true) {
-                for (quality in intArrayOf(85, 70, 55, 40)) {
-                    val output = ByteArrayOutputStream()
-                    if (bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output) && output.size() <= 32 * 1024) {
-                        return output.toByteArray()
-                    }
-                }
-                if (bitmap.width <= 32 || bitmap.height <= 32) return null
-                val smaller = Bitmap.createScaledBitmap(bitmap, maxOf(32, bitmap.width / 2), maxOf(32, bitmap.height / 2), true)
-                if (smaller !== bitmap) bitmap.recycle()
-                bitmap = smaller
-            }
-        } finally { bitmap.recycle() }
     }
 
     /** Saves identifiers only. The fresh-service empty timeline must not erase a pending Resume choice. */
@@ -203,9 +175,9 @@ class PlaybackService : MediaLibraryService() {
         val plexAvailable = repository.credentials.get("plexToken").isNotBlank()
         val currentIndex = player.currentMediaItemIndex.coerceIn(0, player.mediaItemCount - 1)
         // Keep a window that always includes the current item when a controller queues over 500 entries.
-        val windowStart = if (player.mediaItemCount <= maxSavedQueueSize) 0
-            else (currentIndex - maxSavedQueueSize + 1).coerceIn(0, player.mediaItemCount - maxSavedQueueSize)
-        val windowEnd = minOf(player.mediaItemCount, windowStart + maxSavedQueueSize)
+        val windowStart = if (player.mediaItemCount <= ListeningStore.MAX_QUEUE) 0
+            else (currentIndex - ListeningStore.MAX_QUEUE + 1).coerceIn(0, player.mediaItemCount - ListeningStore.MAX_QUEUE)
+        val windowEnd = minOf(player.mediaItemCount, windowStart + ListeningStore.MAX_QUEUE)
         val indexed = (windowStart until windowEnd).mapNotNull { index ->
             val id = player.getMediaItemAt(index).mediaId
             val entry = player.getMediaItemAt(index).localConfiguration?.tag as? Entry

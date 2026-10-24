@@ -84,6 +84,7 @@ class IntegrationTest {
             api.request(server.url("/library/sections").toString(), "private-token")
             val request = server.takeRequest()
             assertEquals("private-token", request.getHeader("X-Plex-Token"))
+            assertEquals(BuildConfig.VERSION_NAME, request.getHeader("X-Plex-Version"))
             assertFalse(request.path!!.contains("private-token"))
             server.enqueue(MockResponse().setResponseCode(302).addHeader("Location", "https://example.org"))
             assertTrue(runCatching { api.request(server.url("/redirect").toString(), "private-token") }.isFailure)

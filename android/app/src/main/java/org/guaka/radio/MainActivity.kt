@@ -5,12 +5,13 @@ package org.guaka.radio
 import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -200,14 +201,7 @@ private fun EntryArtwork(entry: Entry, model: MainModel) {
     LaunchedEffect(entry.id, entry.artwork) {
         bitmap = withContext(Dispatchers.IO) {
             val bytes = model.repository.artwork(entry) ?: return@withContext null
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            val options = BitmapFactory.Options().apply {
-                var sample = 1
-                while (bounds.outWidth / sample > 256 || bounds.outHeight / sample > 256) sample *= 2
-                inSampleSize = sample
-            }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+            Artwork.decode(bytes)?.asImageBitmap()
         }
     }
     val image = bitmap
@@ -283,7 +277,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     }
     BackHandler(enabled = model.canGoBack) { model.back() }
     fun enqueue(items: List<MediaItem>) {
-        if (queue.size + items.size > 500) { playerError = "The phone queue can hold up to 500 items."; return }
+        if (queue.size + items.size > ListeningStore.MAX_QUEUE) { playerError = "The phone queue can hold up to 500 items."; return }
         browser?.addMediaItems(items)
     }
     fun retryPlayback() {
@@ -303,7 +297,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     }
     fun play(items: List<MediaItem>) {
         if (items.isEmpty()) return
-        if (items.size > 500) { playerError = "Choose up to 500 items for the phone queue."; return }
+        if (items.size > ListeningStore.MAX_QUEUE) { playerError = "Choose up to 500 items for the phone queue."; return }
         playerError = ""; playerFailure = null; model.phoneOutput()
         browser?.setMediaItems(items); browser?.prepare(); browser?.play()
     }
@@ -409,7 +403,7 @@ fun AppScreen(model: MainModel = viewModel()) {
         var url by remember { mutableStateOf(model.repository.assistantUrl()) }
         var token by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { settings = false }, title = { Text("Connections") }, text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Plex works away from home when your server's Remote Access is configured.")
                 TextButton(onClick = { model.signIn(); settings = false }) { Text("Sign in to Plex") }
                 TextButton(onClick = { browser?.stop(); browser?.clearMediaItems(); model.signOut() }) { Text("Sign out of Plex") }
