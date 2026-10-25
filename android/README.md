@@ -47,6 +47,21 @@ Milestone 2 validated on 2026-10-24: 11 JVM tests and six API 36 emulator instru
 
 Milestones 3–4 validated on 2026-10-24: 15 JVM tests and eight API 36 emulator tests passed, including saved-queue resumption, audio-focus interruption/user-pause handling and settings-schema preservation. The signed beta installed successfully; an in-place update from version code 4 to 5 retained the app UID, original install time, favorite, endpoint setting and an encrypted dummy MA token. A local fake MA server confirmed the updated app decrypted and used that token. Unsigned releases and a different signing certificate are rejected. This does not establish real-account or physical-device acceptance.
 
+## Review across milestones (2026-10-25)
+
+The combined implementation was reviewed across all four stacked milestones, rather than reviewing only the latest PR diff. Implementation and acceptance remain separate:
+
+| Milestone | Automated evidence | Acceptance still required |
+| --- | --- | --- |
+| 1 · Prototype | Reproducible debug builds/CI; cold local MediaBrowser tree; screen-off live radio; integration parser, token-header and endpoint tests | Real Plex sign-in/discovery/local and mobile-data playback; actual Android Auto cold browse/controls; actual MA radio/Plex speaker start |
+| 2 · Listening | Favorites and queue persistence/limits; bounded Favorites hydration and missing-item isolation; deterministic saved queue order/index/seek and stale-account tests; artwork bounds | Account-backed Plex browsing/search/artwork and seek/resume; real speaker output confirmation |
+| 3 · Reliability | Bounded retry policy and typed controller errors; cancellation and account-generation guards; emulator audio focus/user pause and process/service checks | Real calls/Bluetooth/noisy-route behavior, Wi-Fi/mobile transitions, doze/battery saver and long Pixel/car sessions |
+| 4 · Beta | Fail-closed signing with a pinned identity; schema preservation; recorded same-key update retaining settings and encrypted dummy credentials | Encrypted off-device signing-key backup and tester/device installation acceptance |
+
+This review fixed an MA URL validation bypass involving private-looking numeric hostname labels, Plex sign-out clearing radio playback, misleading/silent controller errors, sequential Favorites lookups, and the loss of entered MA settings after validation failure. Production resume and Favorites resolution now have hermetic tests for their asynchronous behavior. No private credentials or real accounts were used.
+
+The combined suite passed 31 JVM tests and 12 API 36 emulator tests, including the opt-in live screen-off radio check. Debug and signed release builds pass; lint passes with warnings. The final CI run is recorded in the PR. None of the four milestones is claimed fully accepted until the remaining account and hardware checks are completed.
+
 The following acceptance checks require actual accounts/devices and must be recorded separately:
 
 - [ ] Pixel 8a: 30 minutes of radio with screen off and notification/headset controls.

@@ -49,7 +49,7 @@ class MusicRepository(private val context: Context) {
             parent == "favorites" -> favoriteEntries(start, size)
             parent == "plex" -> {
                 val token = credentials.get("plexToken")
-                if (token.isBlank()) throw IOException("Sign in to Plex on your phone first.")
+                if (token.isBlank()) throw ApiRequestException(401)
                 val servers = discoverServers()
                 servers.map { Entry("server:${it.id}", it.name, "Music libraries") }.drop(start).take(size).also(::cache)
             }
@@ -192,28 +192,20 @@ class MusicRepository(private val context: Context) {
         val parts = id.split(':', limit = 3)
         require(parts.size == 3 && parts[0] in listOf("track", "artist", "album") && validPathKey(parts[1]) && validPathKey(parts[2]))
         val payload = plexRequest(parts[1], "/library/metadata/${parts[2]}")
-        val row = IntegrationParser.metadata(payload).optJSONObject(0) ?: throw IOException("Media item is no longer available.")
+        val row = IntegrationParser.metadata(payload).optJSONObject(0)
+            ?: throw ApiRequestException(404)
         if (row.optString("type").isBlank()) row.put("type", parts[0])
         return IntegrationParser.mediaEntry(row, parts[1], "")?.takeIf { it.id == id }?.also { entries[id] = it }
-            ?: throw IOException("Plex returned unsupported media metadata.")
+            ?: throw ApiRequestException(422)
     }
 
-    private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> {
-        val unavailableServers = mutableSetOf<String>()
-        return listening.favoriteIds().drop(start).take(size).map { id ->
-            val serverId = if (id.startsWith("track:")) id.split(':')[1] else null
-            val cached = entries[id]
-            if (cached != null) cached.copy(url = "", token = "")
-            else if (serverId != null && (serverId in unavailableServers || credentials.get("plexToken").isBlank()))
-                Entry(id, "Unavailable Plex track", "Sign in or remove this favorite", playable = true)
-            else try { item(id).copy(url = "", token = "") }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) {
-                serverId?.let { unavailableServers += it }
-                Entry(id, "Unavailable Plex track", "Reconnect or remove this favorite", playable = true)
-            }
-        }
-    }
+    private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> =
+        resolveFavoriteEntries(
+            ids = listening.favoriteIds().drop(start).take(size),
+            tokenAvailable = credentials.get("plexToken").isNotBlank(),
+            cachedEntry = { entries[it] },
+            resolveEntry = { item(it) },
+        )
 
     private suspend fun plexScopes(parent: String): List<Triple<String, String, String?>> {
         suspend fun sections(serverId: String): List<Triple<String, String, String?>> {
@@ -246,7 +238,7 @@ class MusicRepository(private val context: Context) {
     private suspend fun discoverServers(): List<PlexServer> {
         val snapshot = discovery.snapshot()
         val token = credentials.get("plexToken")
-        check(token.isNotBlank()) { "Sign in to Plex on your phone first." }
+        if (token.isBlank()) throw ApiRequestException(401)
         return api.servers(token).also { discovery.storeServers(snapshot, it) }
     }
 
@@ -285,7 +277,7 @@ class MusicRepository(private val context: Context) {
         val snapshot = discovery.snapshot()
         val result = try { api.request(endpoint(server) + path, server.token) as JSONObject }
         catch (error: IOException) {
-            if (error is ApiRequestException && error.statusCode !in listOf(408, 429) && error.statusCode !in 500..599) throw error
+            if (!PlaybackRecovery.isRetryable(PlaybackRecovery.classify(error))) throw error
             discovery.removeEndpoint(server)
             api.request(endpoint(server) + path, server.token) as JSONObject
         }

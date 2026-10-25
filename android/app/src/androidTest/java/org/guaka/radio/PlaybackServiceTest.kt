@@ -40,6 +40,54 @@ class PlaybackServiceTest {
         } finally { instrumentation.runOnMainSync { browser.release() } }
     }
 
+    @Test fun invalidMediaIdsReportAnErrorWithoutReplacingTheCurrentQueue() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val error = java.util.concurrent.CompletableFuture<androidx.media3.session.SessionError>()
+        lateinit var future: com.google.common.util.concurrent.ListenableFuture<MediaBrowser>
+        instrumentation.runOnMainSync {
+            future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
+                .setListener(object : MediaBrowser.Listener {
+                    override fun onError(controller: androidx.media3.session.MediaController, sessionError: androidx.media3.session.SessionError) {
+                        error.complete(sessionError)
+                    }
+                }).buildAsync()
+        }
+        val browser = future.get(15, TimeUnit.SECONDS)
+        try {
+            instrumentation.runOnMainSync {
+                browser.setMediaItem(androidx.media3.common.MediaItem.Builder().setMediaId("radio:7soul").build())
+            }
+            val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            var count = 0
+            while (count != 1 && android.os.SystemClock.elapsedRealtime() < deadline) {
+                instrumentation.runOnMainSync { count = browser.mediaItemCount }
+                Thread.sleep(25)
+            }
+            assertEquals(1, count)
+            instrumentation.runOnMainSync {
+                browser.addMediaItem(androidx.media3.common.MediaItem.Builder().setMediaId("radio:missing-station").build())
+            }
+            val reported = error.get(10, TimeUnit.SECONDS)
+            assertEquals(androidx.media3.session.SessionError.ERROR_BAD_VALUE, reported.code)
+            assertFalse(reported.message.contains("http"))
+            // MediaController initially masks additions; wait for the failed-command response too.
+            val rejectionDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            do {
+                instrumentation.runOnMainSync { count = browser.mediaItemCount }
+                if (count == 1) break
+                Thread.sleep(25)
+            } while (android.os.SystemClock.elapsedRealtime() < rejectionDeadline)
+            instrumentation.runOnMainSync {
+                assertEquals(1, browser.mediaItemCount)
+                assertEquals("radio:7soul", browser.getMediaItemAt(0).mediaId)
+            }
+        } finally {
+            instrumentation.runOnMainSync { browser.clearMediaItems(); browser.release() }
+            context.stopService(android.content.Intent(context, PlaybackService::class.java))
+        }
+    }
+
     @Test fun favoritesAreBrowsableFromTheColdService() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val instrumentation = InstrumentationRegistry.getInstrumentation()

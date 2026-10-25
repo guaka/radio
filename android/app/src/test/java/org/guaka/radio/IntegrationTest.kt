@@ -25,11 +25,15 @@ class IntegrationTest {
     }
     @Test fun assistantRejectsPublicOrCredentialBearingUrls() {
         listOf("https://example.org", "https://user:password@192.168.1.3:8095", "http://192.168.1.3:8095?token=secret",
-            "http://192.168.999.3", "http://8.8.8.8").forEach { value ->
+            "http://192.168.999.3", "http://8.8.8.8", "http://192.168.1.20.attacker.example:8095",
+            "http://music.192.168.1.20:8095", "http://192.168.music.1.20:8095").forEach { value ->
             assertTrue(value, runCatching { IntegrationParser.localAssistantUrl(value) }.isFailure)
         }
         assertEquals("http://192.168.1.20:8095", IntegrationParser.localAssistantUrl("http://192.168.1.20:8095/"))
+        assertEquals("http://10.0.0.8:8095", IntegrationParser.localAssistantUrl("http://10.0.0.8:8095"))
+        assertEquals("http://172.31.255.254:8095", IntegrationParser.localAssistantUrl("http://172.31.255.254:8095"))
         assertEquals("http://music-assistant.local:8095", IntegrationParser.localAssistantUrl("http://music-assistant.local:8095"))
+        assertEquals("http://music-assistant:8095", IntegrationParser.localAssistantUrl("http://music-assistant:8095"))
     }
     @Test fun tracksHaveStableServerScopedIds() {
         val payload = JSONObject("""{"MediaContainer":{"Metadata":[{"ratingKey":"42","title":"Test","grandparentTitle":"Artist"}]}}""")

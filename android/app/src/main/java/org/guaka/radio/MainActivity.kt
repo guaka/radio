@@ -133,6 +133,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         favorites = repository.listening.favoriteIds().toSet()
         if (parent == "favorites") refresh()
     }
+    fun requirePlexSignIn() { plexAuthRequired = true }
     fun refreshSaved() { savedPlayback = repository.listening.loadPlayback() }
     fun signIn() {
         loginJob?.cancel()
@@ -189,9 +190,11 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     fun phoneOutput() { output = "This phone" }
     fun dismissSpeakers() { speakers = null; speakerTracks = null }
-    fun saveAssistant(url: String, token: String) = action {
+    fun saveAssistant(url: String, token: String, onSaved: () -> Unit) = action {
+        status = ""
         io { repository.saveAssistant(url, token) }
         status = "Music Assistant saved. Connect to home Wi-Fi to choose speakers."
+        onSaved()
     }
 }
 
@@ -237,9 +240,15 @@ fun AppScreen(model: MainModel = viewModel()) {
         val future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
             .setListener(object : MediaBrowser.Listener {
                 override fun onError(controller: androidx.media3.session.MediaController, sessionError: androidx.media3.session.SessionError) {
-                    playerFailure = if (sessionError.code == androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
-                        PlaybackFailure.AUTHENTICATION else PlaybackFailure.UNKNOWN
-                    playerError = PlaybackRecovery.guidance(playerFailure!!)
+                    playerFailure = when (sessionError.code) {
+                        androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED -> PlaybackFailure.AUTHENTICATION
+                        androidx.media3.session.SessionError.ERROR_BAD_VALUE -> PlaybackFailure.NOT_FOUND
+                        androidx.media3.session.SessionError.ERROR_NOT_SUPPORTED -> PlaybackFailure.UNSUPPORTED_MEDIA
+                        androidx.media3.session.SessionError.ERROR_IO -> PlaybackFailure.TRANSIENT_NETWORK
+                        else -> PlaybackFailure.UNKNOWN
+                    }
+                    if (playerFailure == PlaybackFailure.AUTHENTICATION) model.requirePlexSignIn()
+                    playerError = sessionError.message
                 }
             }).buildAsync()
         fun sync(player: Player) {
@@ -402,17 +411,22 @@ fun AppScreen(model: MainModel = viewModel()) {
     if (settings) {
         var url by remember { mutableStateOf(model.repository.assistantUrl()) }
         var token by remember { mutableStateOf("") }
+        var saveAttempted by remember { mutableStateOf(false) }
         AlertDialog(onDismissRequest = { settings = false }, modifier = Modifier.imePadding(), title = { Text("Connections") }, text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Plex works away from home when your server's Remote Access is configured.")
                 TextButton(onClick = { model.signIn(); settings = false }) { Text("Sign in to Plex") }
-                TextButton(onClick = { browser?.stop(); browser?.clearMediaItems(); model.signOut() }) { Text("Sign out of Plex") }
+                TextButton(onClick = model::signOut) { Text("Sign out of Plex") }
                 Text("Music Assistant · home Wi-Fi only")
                 OutlinedTextField(url, { url = it }, label = { Text("Local server URL") }, placeholder = { Text("http://192.168.1.20:8095") }, singleLine = true)
                 OutlinedTextField(token, { token = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 Text("Create an access token in Music Assistant → Settings → Profile.")
+                if (saveAttempted && model.status.isNotBlank()) Text(model.status, color = MaterialTheme.colorScheme.error)
             }
-        }, confirmButton = { TextButton(onClick = { model.saveAssistant(url, token); settings = false }) { Text("Save Music Assistant") } },
+        }, confirmButton = { TextButton(enabled = !model.busy, onClick = {
+            saveAttempted = true
+            model.saveAssistant(url, token) { settings = false }
+        }) { Text("Save Music Assistant") } },
             dismissButton = { TextButton(onClick = { settings = false }) { Text("Close") } })
     }
     model.speakers?.let { speakers ->

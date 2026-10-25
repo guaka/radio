@@ -240,10 +240,7 @@ class PlaybackService : MediaLibraryService() {
                 val entries = repository.browse(parentId, page, pageSize)
                 LibraryResult.ofItemList(entries.map { it.asMediaItem() }, params)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) {
-                LibraryResult.ofError(if (parentId == "plex") androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED
-                    else androidx.media3.session.SessionError.ERROR_IO, params)
-            }
+            catch (e: Exception) { LibraryResult.ofError(LibraryErrors.code(e), params) }
         }
         override fun onGetItem(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String): ListenableFuture<LibraryResult<MediaItem>> = future {
             try {
@@ -251,22 +248,28 @@ class PlaybackService : MediaLibraryService() {
                 else LibraryResult.ofItem(repository.item(mediaId).asMediaItem(), null)
             }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) { LibraryResult.ofError(androidx.media3.session.SessionError.ERROR_BAD_VALUE, null) }
+            catch (e: Exception) { LibraryResult.ofError(LibraryErrors.code(e), null) }
         }
         override fun onAddMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: List<MediaItem>): ListenableFuture<List<MediaItem>> = future {
-            // Controllers supply IDs, never trusted URLs or tokens. Resolve each request locally.
-            val generation = listening.plexGeneration()
-            val resolved = coroutineScope {
-                val semaphore = Semaphore(4)
-                mediaItems.map { requested -> async {
-                    semaphore.withPermit {
-                        val entry = repository.playable(requested.mediaId)
-                        entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build()
-                    }
-                } }.awaitAll()
+            try {
+                // Controllers supply IDs, never trusted URLs or tokens. Resolve each request locally.
+                val generation = listening.plexGeneration()
+                val resolved = coroutineScope {
+                    val semaphore = Semaphore(4)
+                    mediaItems.map { requested -> async {
+                        semaphore.withPermit {
+                            val entry = repository.playable(requested.mediaId)
+                            entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build()
+                        }
+                    } }.awaitAll()
+                }
+                check(generation == listening.plexGeneration()) { "Plex sign-in changed. Choose your queue again." }
+                resolved
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                mediaSession.sendError(controller, androidx.media3.session.SessionError(LibraryErrors.code(e), LibraryErrors.message(e)))
+                throw e
             }
-            check(generation == listening.plexGeneration()) { "Plex sign-in changed. Choose your queue again." }
-            resolved
         }
 
         override fun onPlaybackResumption(
@@ -284,26 +287,20 @@ class PlaybackService : MediaLibraryService() {
                 val selected = retained.firstOrNull { it.first == saved.index } ?: retained.first()
                 val id = selected.second
                 val entry = repository.stations.firstOrNull { it.id == id } ?: Entry(id, "Saved Plex track", playable = true)
+                if (generation != listening.plexGeneration())
+                    return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
                 return@future MediaSession.MediaItemsWithStartPosition(listOf(entry.asMediaItem()), 0,
                     if (selected.first == saved.index && !id.startsWith("radio:")) saved.positionMs else 0L)
             }
-            val resolved = coroutineScope {
-                val semaphore = Semaphore(4)
-                retained.map { (originalIndex, id) -> async {
-                    semaphore.withPermit {
-                        try { originalIndex to repository.playable(id) }
-                        catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                        catch (_: Exception) { null }
-                    }
-                } }.awaitAll().filterNotNull().sortedBy { it.first }
-            }
-            if (resolved.isEmpty()) return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
-            val items = resolved.map { (_, entry) -> entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build() }
-            val index = resolved.indexOfFirst { it.first == saved.index }
-                .takeIf { it >= 0 } ?: resolved.indexOfFirst { it.first > saved.index }.takeIf { it >= 0 } ?: resolved.lastIndex
-            val position = if (resolved[index].first != saved.index || items[index].mediaId.startsWith("radio:")) 0L else saved.positionMs
-            if (generation != listening.plexGeneration()) MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
-            else MediaSession.MediaItemsWithStartPosition(items, index, position)
+            val restored = PlaybackResumption.resolve(
+                saved = saved,
+                tokenAvailable = tokenAvailable,
+                startingGeneration = generation,
+                currentGeneration = listening::plexGeneration,
+                resolver = repository::playable,
+            ) ?: return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
+            val items = restored.entries.map { entry -> entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build() }
+            MediaSession.MediaItemsWithStartPosition(items, restored.index, restored.positionMs)
         }
     }
 }
