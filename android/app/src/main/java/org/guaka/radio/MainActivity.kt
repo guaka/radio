@@ -12,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -25,15 +27,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaBrowser
@@ -44,6 +54,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private data class PlaybackSelectionRequest(
+    val ids: List<String>,
+    val index: Int,
+    val positionMs: Long,
+    val retrySelectedOnly: Boolean,
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -130,8 +147,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun back() { if (history.isNotEmpty()) { val (id, title) = history.removeAt(history.lastIndex); browse(id, false, title) } }
-    fun favorite(entry: Entry) = action {
-        io { repository.listening.toggleFavorite(entry.id) }
+    fun favorite(mediaId: String) = action {
+        io { repository.listening.toggleFavorite(mediaId) }
         favorites = repository.listening.favoriteIds().toSet()
         if (parent == "favorites") refresh()
     }
@@ -257,6 +274,17 @@ class MainModel(application: Application) : AndroidViewModel(application) {
 }
 
 @Composable
+private fun FavoriteButton(mediaId: String, title: String, model: MainModel) {
+    val favorite = mediaId in model.favorites
+    IconToggleButton(checked = favorite, onCheckedChange = { model.favorite(mediaId) },
+        modifier = Modifier.semantics {
+            contentDescription = if (favorite) "Remove favorite $title" else "Favorite $title"
+        }) {
+        Icon(painterResource(if (favorite) R.drawable.ic_star else R.drawable.ic_star_outline), contentDescription = null)
+    }
+}
+
+@Composable
 private fun EntryArtwork(entry: Entry, model: MainModel) {
     var bitmap by remember(entry.id, entry.artwork) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(entry.id, entry.artwork) {
@@ -291,28 +319,47 @@ fun AppScreen(model: MainModel = viewModel()) {
     var playerError by remember { mutableStateOf("") }
     var playerFailure by remember { mutableStateOf<PlaybackFailure?>(null) }
     var buffering by remember { mutableStateOf(false) }
+    var pendingSelection by remember { mutableStateOf(false) }
+    var selectionEpoch by remember { mutableIntStateOf(0) }
+    var failedSelection by remember { mutableStateOf<PlaybackSelectionRequest?>(null) }
     var settings by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    fun submitSearch() {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+        model.search()
+    }
+    fun showSessionError(error: androidx.media3.session.SessionError) {
+        playerFailure = when (error.code) {
+            androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED -> PlaybackFailure.AUTHENTICATION
+            androidx.media3.session.SessionError.ERROR_BAD_VALUE -> PlaybackFailure.NOT_FOUND
+            androidx.media3.session.SessionError.ERROR_NOT_SUPPORTED -> PlaybackFailure.UNSUPPORTED_MEDIA
+            androidx.media3.session.SessionError.ERROR_IO -> PlaybackFailure.TRANSIENT_NETWORK
+            else -> PlaybackFailure.UNKNOWN
+        }
+        if (playerFailure == PlaybackFailure.AUTHENTICATION) model.requirePlexSignIn()
+        playerError = error.message
+    }
     LaunchedEffect(model.listEpoch) { listState.scrollToItem(0) }
     DisposableEffect(Unit) {
         val future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
             .setListener(object : MediaBrowser.Listener {
                 override fun onError(controller: androidx.media3.session.MediaController, sessionError: androidx.media3.session.SessionError) {
-                    playerFailure = when (sessionError.code) {
-                        androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED -> PlaybackFailure.AUTHENTICATION
-                        androidx.media3.session.SessionError.ERROR_BAD_VALUE -> PlaybackFailure.NOT_FOUND
-                        androidx.media3.session.SessionError.ERROR_NOT_SUPPORTED -> PlaybackFailure.UNSUPPORTED_MEDIA
-                        androidx.media3.session.SessionError.ERROR_IO -> PlaybackFailure.TRANSIENT_NETWORK
-                        else -> PlaybackFailure.UNKNOWN
-                    }
-                    if (playerFailure == PlaybackFailure.AUTHENTICATION) model.requirePlexSignIn()
-                    playerError = sessionError.message
+                    showSessionError(sessionError)
                 }
             }).buildAsync()
         fun sync(player: Player) {
+            val previousMediaId = current?.mediaId
             current = player.currentMediaItem; playing = player.isPlaying
             buffering = player.playbackState == Player.STATE_BUFFERING
-            if (player.playerError == null && player.playbackState == Player.STATE_READY) { playerError = ""; playerFailure = null }
+            if (current?.mediaId != previousMediaId) {
+                failedSelection = null
+                if (player.playerError == null && player.playbackState == Player.STATE_READY) {
+                    playerError = ""; playerFailure = null
+                }
+            }
             queue = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
             queueIndex = player.currentMediaItemIndex
             if (player.isPlaying) model.phoneOutput(cancelSpeakerRequests = false)
@@ -347,47 +394,95 @@ fun AppScreen(model: MainModel = viewModel()) {
         if (queue.size + items.size > ListeningStore.MAX_QUEUE) { playerError = "The phone queue can hold up to 500 items."; return }
         browser?.addMediaItems(items)
     }
+    fun selectPlayback(ids: List<String>, index: Int, positionMs: Long = 0L, retrySelectedOnly: Boolean = false) {
+        val player = browser ?: run { playerError = "Playback service is unavailable."; return }
+        if (ids.isEmpty()) return
+        val request = ++selectionEpoch
+        val attempted = PlaybackSelectionRequest(ids.toList(), index.coerceIn(ids.indices),
+            positionMs.coerceAtLeast(0L), retrySelectedOnly)
+        failedSelection = null
+        pendingSelection = true
+        playerError = ""; playerFailure = null
+        model.phoneOutput()
+        val result = player.sendCustomCommand(
+            PlaybackSelectionCommand.COMMAND,
+            PlaybackSelectionCommand.bundle(ids, index.coerceIn(ids.indices), positionMs.coerceAtLeast(0L), retrySelectedOnly)
+        )
+        result.addListener({
+            if (request != selectionEpoch) return@addListener
+            pendingSelection = false
+            val outcome = runCatching { result.get() }.getOrNull()
+            if (outcome == null || (outcome.resultCode != androidx.media3.session.SessionResult.RESULT_SUCCESS &&
+                    outcome.resultCode != androidx.media3.session.SessionError.INFO_CANCELLED)) {
+                failedSelection = attempted
+                outcome?.sessionError?.let(::showSessionError) ?: run {
+                    playerFailure = PlaybackFailure.UNKNOWN
+                    playerError = "Could not start the selected item. Current playback was kept."
+                }
+            } else if (outcome.resultCode == androidx.media3.session.SessionResult.RESULT_SUCCESS) {
+                failedSelection = null
+            }
+        }, context.mainExecutor)
+    }
     fun retryPlayback() {
         val player = browser ?: return
-        val currentId = player.currentMediaItem?.mediaId
-        val index = player.currentMediaItemIndex.coerceAtLeast(0)
-        val resumePosition = if (player.currentMediaItem?.mediaId?.startsWith("track:") == true) player.currentPosition.coerceAtLeast(0) else 0L
+        val failed = failedSelection
+        val selection = if (failed != null) failed else {
+            val currentId = player.currentMediaItem?.mediaId ?: return
+            val ids = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(currentId) }
+            val index = if (player.mediaItemCount > 0) player.currentMediaItemIndex.coerceIn(ids.indices) else 0
+            PlaybackSelectionRequest(ids, index,
+                if (currentId.startsWith("track:")) player.currentPosition.coerceAtLeast(0) else 0L,
+                retrySelectedOnly = true)
+        }
         model.action {
             withContext(Dispatchers.IO) { model.repository.invalidatePlexConnections() }
-            playerError = ""; playerFailure = null; model.phoneOutput()
-            if (currentId == null) player.play()
-            else {
-                // Resolve only the failed item: an unavailable later track must not block recovery.
-                player.replaceMediaItem(index, MediaItem.Builder().setMediaId(currentId).build())
-                player.seekTo(index, resumePosition)
-                player.prepare(); player.play()
-            }
+            // Retry the failed candidate when present; otherwise retry only the active queue slot.
+            selectPlayback(selection.ids, selection.index, selection.positionMs, selection.retrySelectedOnly)
         }
     }
     fun play(items: List<MediaItem>) {
         if (items.isEmpty()) return
         if (items.size > ListeningStore.MAX_QUEUE) { playerError = "Choose up to 500 items for the phone queue."; return }
-        playerError = ""; playerFailure = null; model.phoneOutput()
-        browser?.setMediaItems(items); browser?.prepare(); browser?.play()
+        selectPlayback(items.map { it.mediaId }, 0)
     }
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Radio Guaka", style = MaterialTheme.typography.headlineMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { model.browse("radio") }) { Text("Radio") }
-            TextButton(onClick = { model.browse("plex") }) { Text("Plex") }
-            TextButton(onClick = { model.browse("favorites") }) { Text("Favorites") }
-            TextButton(onClick = { settings = true }) { Text("Setup") }
+        val selectedSource = if (settings) "setup" else when (model.parent) {
+            "radio", "favorites" -> model.parent
+            else -> "plex"
         }
-        Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            OutlinedTextField(model.searchTerm, { model.searchTerm = it }, Modifier.weight(1f), label = { Text("Search this source") }, singleLine = true)
-            TextButton(onClick = model::search, enabled = !model.busy) { Text("Search") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = selectedSource == "radio", onClick = { model.browse("radio") }, label = { Text("Radio") })
+            FilterChip(selected = selectedSource == "plex", onClick = { model.browse("plex") }, label = { Text("Plex") })
+            FilterChip(selected = selectedSource == "favorites", onClick = { model.browse("favorites") },
+                label = { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") })
+            FilterChip(selected = selectedSource == "setup", onClick = { settings = true }, label = { Text("Setup") })
         }
+        if (model.parent !in setOf("radio", "plex", "favorites"))
+            Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(model.searchTerm, { model.searchTerm = it },
+            modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                    if (event.type == KeyEventType.KeyUp) submitSearch()
+                    true
+                } else false
+            },
+            label = { Text("Search this source") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { submitSearch() }, onDone = { submitSearch() }),
+            trailingIcon = {
+                IconButton(onClick = ::submitSearch) {
+                    Icon(painterResource(R.drawable.ic_search), contentDescription = "Search")
+                }
+            })
         Row {
             TextButton(onClick = model::back) { Text("Back") }
             TextButton(onClick = model::refresh) { Text("Refresh") }
             if (model.parent == "plex") TextButton(onClick = model::signIn) { Text("Sign in") }
-            TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
+            if (model.parent != "radio" && (model.parent != "favorites" ||
+                    model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })) {
+                TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
+            }
         }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (model.status.isNotBlank()) Text(model.status, style = MaterialTheme.typography.bodySmall)
@@ -399,9 +494,8 @@ fun AppScreen(model: MainModel = viewModel()) {
             else if (playerFailure?.let { PlaybackRecovery.isRetryable(it) || it == PlaybackFailure.UNKNOWN } == true)
                 TextButton(onClick = ::retryPlayback, enabled = !model.busy && browser != null) { Text("Retry playback") }
         }
-        if (buffering) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("Buffering audio…", style = MaterialTheme.typography.bodySmall) }
-        val playable = model.entries.filter { it.playable }.map { it.asMediaItem() }
-        if (playable.isNotEmpty()) Row {
+        val playable = model.entries.filter { it.playable && !it.id.startsWith("radio:") }.map { it.asMediaItem() }
+        if (model.parent != "radio" && playable.isNotEmpty()) Row {
             TextButton(onClick = { play(playable) }, enabled = browser != null) { Text("Play listed") }
             TextButton(onClick = { enqueue(playable) }, enabled = browser != null) { Text("Queue listed") }
         }
@@ -411,10 +505,8 @@ fun AppScreen(model: MainModel = viewModel()) {
                     leadingContent = { EntryArtwork(entry, model) },
                     trailingContent = {
                         if (entry.playable) Row {
-                            IconButton(onClick = { model.favorite(entry) }, modifier = Modifier.semantics {
-                                contentDescription = if (entry.id in model.favorites) "Remove favorite ${entry.title}" else "Favorite ${entry.title}"
-                            }) { Text(if (entry.id in model.favorites) "★" else "☆") }
-                            IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
+                            FavoriteButton(entry.id, entry.title, model)
+                            if (!entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
                                 modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
                         }
                     }, modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
@@ -424,8 +516,22 @@ fun AppScreen(model: MainModel = viewModel()) {
             if (model.hasMore) item { TextButton(onClick = model::loadMore, enabled = !model.busy) { Text("Load more") } }
         }
         HorizontalDivider()
-        Text("Output: ${model.output}", style = MaterialTheme.typography.labelMedium)
-        Text(current?.mediaMetadata?.title?.toString() ?: "Choose a station or track", maxLines = 1)
+        Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Output: ${model.output}", style = MaterialTheme.typography.labelMedium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (buffering || pendingSelection) {
+                CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Buffering…", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            val title = current?.mediaMetadata?.title?.toString() ?: "Choose a station or track"
+            Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            current?.let { FavoriteButton(it.mediaId, title, model) }
+        }
         if (seekable && duration > 0 && model.output == "This phone") {
             Slider(value = dragging ?: position.toFloat().coerceIn(0f, duration.toFloat()),
                 onValueChange = { dragging = it }, valueRange = 0f..duration.toFloat(),
@@ -434,13 +540,20 @@ fun AppScreen(model: MainModel = viewModel()) {
             Text("${durationLabel(position)} / ${durationLabel(duration)}", style = MaterialTheme.typography.labelSmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Button(enabled = current != null && model.output == "This phone", onClick = {
+            FilledIconButton(enabled = current != null && model.output == "This phone", onClick = {
                 if (playing) browser?.pause() else { browser?.prepare(); browser?.play() }
-            }) { Text(if (playing) "Pause" else "Play") }
-            IconButton(enabled = browser?.hasPreviousMediaItem() == true && model.output == "This phone",
-                onClick = { browser?.seekToPreviousMediaItem() }, modifier = Modifier.semantics { contentDescription = "Previous track" }) { Text("‹") }
-            IconButton(enabled = browser?.hasNextMediaItem() == true && model.output == "This phone",
-                onClick = { browser?.seekToNextMediaItem() }, modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
+            }) {
+                Icon(painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play),
+                    contentDescription = if (playing) "Pause" else "Play")
+            }
+            if (current?.mediaId?.startsWith("track:") == true) {
+                IconButton(enabled = browser?.hasPreviousMediaItem() == true && model.output == "This phone",
+                    onClick = { selectPlayback(queue.map { it.mediaId }, (queueIndex - 1).coerceAtLeast(0)) },
+                    modifier = Modifier.semantics { contentDescription = "Previous track" }) { Text("‹") }
+                IconButton(enabled = browser?.hasNextMediaItem() == true && model.output == "This phone",
+                    onClick = { selectPlayback(queue.map { it.mediaId }, queueIndex + 1) },
+                    modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
+            }
             TextButton(onClick = { model.speakerPicker(current) }, enabled = current != null) { Text("Speakers") }
         }
         if (current == null && model.savedPlayback != null) TextButton(enabled = browser != null, onClick = {
@@ -451,13 +564,13 @@ fun AppScreen(model: MainModel = viewModel()) {
         }) { Text("Resume saved queue") }
     }
     if (showQueue) AlertDialog(onDismissRequest = { showQueue = false }, title = { Text("Phone queue") }, text = {
-        if (queue.isEmpty()) Text("Use +Q to add a station or track.")
+        if (queue.isEmpty()) Text("Add Plex tracks to build a queue.")
         else LazyColumn(Modifier.heightIn(max = 420.dp)) {
             itemsIndexed(queue) { index, item ->
                 Column {
-                    TextButton(onClick = {
-                        model.phoneOutput(); browser?.seekTo(index, C.TIME_UNSET); browser?.prepare(); browser?.play()
-                    }) { Text("${if (index == queueIndex) "▶ " else ""}${item.mediaMetadata.title ?: "Track"}") }
+                    TextButton(onClick = { selectPlayback(queue.map { it.mediaId }, index) }) {
+                        Text("${if (index == queueIndex) "▶ " else ""}${item.mediaMetadata.title ?: "Track"}")
+                    }
                     Row {
                         TextButton(enabled = index > 0, onClick = { browser?.moveMediaItem(index, index - 1) }) { Text("Up") }
                         TextButton(enabled = index < queue.lastIndex, onClick = { browser?.moveMediaItem(index, index + 1) }) { Text("Down") }

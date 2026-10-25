@@ -133,6 +133,75 @@ class PlaybackServiceTest {
         }
     }
 
+    @Test fun stagedSelectionKeepsCurrentStationUntilReadyAndRetainsItOnFailure() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveRadio") == "true")
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        lateinit var connection: com.google.common.util.concurrent.ListenableFuture<MediaBrowser>
+        instrumentation.runOnMainSync {
+            connection = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
+        }
+        val browser = connection.get(15, TimeUnit.SECONDS)
+        fun start(ids: List<String>, index: Int = 0): com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.SessionResult> {
+            lateinit var result: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.SessionResult>
+            instrumentation.runOnMainSync {
+                result = browser.sendCustomCommand(
+                    PlaybackSelectionCommand.COMMAND,
+                    PlaybackSelectionCommand.bundle(ids, index, 0L),
+                )
+            }
+            return result
+        }
+        fun currentId(): String? {
+            var id: String? = null
+            instrumentation.runOnMainSync { id = browser.currentMediaItem?.mediaId }
+            return id
+        }
+        try {
+            val initial = start(listOf("radio:7soul"))
+            assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS, initial.get(60, TimeUnit.SECONDS).resultCode)
+            val oldId = currentId()
+            assertEquals("radio:7soul", oldId)
+            val audibleDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            var audible = false
+            do {
+                instrumentation.runOnMainSync { audible = browser.isPlaying }
+                if (audible) break
+                Thread.sleep(25)
+            } while (android.os.SystemClock.elapsedRealtime() < audibleDeadline)
+            assertTrue("Initial station must be audibly playing before testing handoff", audible)
+
+            val bad = start(listOf("radio:missing-station"))
+            val failed = bad.get(15, TimeUnit.SECONDS)
+            assertNotNull("A failed selection should return a sanitized session error", failed.sessionError)
+            assertEquals("radio:7soul", currentId())
+            instrumentation.runOnMainSync { assertTrue("Failed staging must retain playback", browser.isPlaying) }
+
+            val switching = start(listOf("radio:beatblender"))
+            var sawOldWhileBuffering = false
+            val deadline = android.os.SystemClock.elapsedRealtime() + 60_000
+            while (!switching.isDone && android.os.SystemClock.elapsedRealtime() < deadline) {
+                if (currentId() == oldId) {
+                    instrumentation.runOnMainSync {
+                        // Recheck on the player thread: the candidate can become ready between snapshots.
+                        if (browser.currentMediaItem?.mediaId == oldId) {
+                            assertTrue("Old audio stopped while the new station was preparing", browser.isPlaying)
+                            sawOldWhileBuffering = true
+                        }
+                    }
+                }
+                Thread.sleep(40)
+            }
+            val switched = switching.get(5, TimeUnit.SECONDS)
+            assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS, switched.resultCode)
+            assertEquals("radio:beatblender", currentId())
+            assertTrue("The old station should remain active for the entire preload window", sawOldWhileBuffering)
+        } finally {
+            instrumentation.runOnMainSync { browser.stop(); browser.clearMediaItems(); browser.release() }
+            context.stopService(android.content.Intent(context, PlaybackService::class.java))
+        }
+    }
+
     @Test fun favoritesAreBrowsableFromTheColdService() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val instrumentation = InstrumentationRegistry.getInstrumentation()

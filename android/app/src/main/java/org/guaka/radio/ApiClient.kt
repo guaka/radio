@@ -66,8 +66,15 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
 
     /** Fetch a bounded image body. The caller supplies an already-validated HTTPS URL. */
     suspend fun imageBytes(url: String, token: String, maxBytes: Int): ByteArray =
+        boundedImageBytes(url, maxBytes) { it.plexHeaders(token) }
+
+    /** Fetch a public image without attaching Plex identity or credentials. */
+    suspend fun publicImageBytes(url: String, maxBytes: Int): ByteArray =
+        boundedImageBytes(url, maxBytes) { it }
+
+    private suspend fun boundedImageBytes(url: String, maxBytes: Int, prepare: (Request.Builder) -> Request.Builder): ByteArray =
         suspendCancellableCoroutine { continuation ->
-            val request = Request.Builder().url(url).header("Accept", "image/*").plexHeaders(token).build()
+            val request = prepare(Request.Builder().url(url).header("Accept", "image/*")).build()
             val call = http.newCall(request)
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
@@ -95,6 +102,52 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
                                 output.write(buffer, 0, count)
                             }
                             if (continuation.isActive) continuation.resume(output.toByteArray())
+                        } catch (e: Exception) {
+                            if (continuation.isActive) continuation.resumeWithException(e)
+                        }
+                    }
+                }
+            })
+        }
+
+    /** Fetch a bounded public JSON document from a caller-validated HTTPS origin. */
+    suspend fun publicJson(url: String, expectedHost: String, maxBytes: Int): JSONObject =
+        suspendCancellableCoroutine { continuation ->
+            val parsed = runCatching { url.toHttpUrl() }.getOrNull()
+            if (parsed == null || !parsed.isHttps || parsed.port != 443 || parsed.host != expectedHost ||
+                parsed.username.isNotEmpty() || parsed.password.isNotEmpty() || parsed.fragment != null) {
+                continuation.resumeWithException(IOException("Invalid public metadata URL."))
+                return@suspendCancellableCoroutine
+            }
+            val request = Request.Builder().url(parsed).header("Accept", "application/json").build()
+            val call = http.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        try {
+                            if (!response.isSuccessful) throw IOException("Public metadata request failed.")
+                            if (!response.header("Content-Type").orEmpty().startsWith("application/json", ignoreCase = true)) {
+                                throw IOException("Public metadata response was not JSON.")
+                            }
+                            val body = response.body ?: throw IOException("Public metadata response was empty.")
+                            if (body.contentLength() > maxBytes) throw IOException("Public metadata response was too large.")
+                            val input = body.byteStream()
+                            val output = ByteArrayOutputStream(minOf(maxBytes, 16 * 1024))
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > maxBytes) throw IOException("Public metadata response was too large.")
+                                output.write(buffer, 0, count)
+                            }
+                            val result = JSONObject(output.toString(Charsets.UTF_8.name()))
+                            if (continuation.isActive) continuation.resume(result)
                         } catch (e: Exception) {
                             if (continuation.isActive) continuation.resumeWithException(e)
                         }
