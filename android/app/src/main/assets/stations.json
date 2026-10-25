@@ -1,0 +1,854 @@
+[
+  {
+    "id": "7soul",
+    "title": "7soul",
+    "url": "https://ice1.somafm.com/7soul-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "beatblender",
+    "title": "beatblender",
+    "url": "https://ice1.somafm.com/beatblender-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "bootliquor",
+    "title": "bootliquor",
+    "url": "https://ice1.somafm.com/bootliquor-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "bossa",
+    "title": "bossa",
+    "url": "https://ice1.somafm.com/bossa-128-mp3",
+    "tags": "soma, world"
+  },
+  {
+    "id": "brfm",
+    "title": "brfm",
+    "url": "https://ice1.somafm.com/brfm-128-mp3",
+    "tags": "soma, burningman"
+  },
+  {
+    "id": "chillits",
+    "title": "chillits",
+    "url": "https://ice1.somafm.com/chillits-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "christmas",
+    "title": "christmas",
+    "url": "https://ice1.somafm.com/christmas-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "cliqhop",
+    "title": "cliqhop",
+    "url": "https://ice1.somafm.com/cliqhop-128-mp3",
+    "tags": "soma, idm"
+  },
+  {
+    "id": "covers",
+    "title": "covers",
+    "url": "https://ice1.somafm.com/covers-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "darkzone",
+    "title": "darkzone",
+    "url": "https://ice1.somafm.com/darkzone-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "deepspaceone",
+    "title": "deepspaceone",
+    "url": "https://ice1.somafm.com/deepspaceone-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "defcon",
+    "title": "defcon",
+    "url": "https://ice1.somafm.com/defcon-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "deptstore",
+    "title": "deptstore",
+    "url": "https://ice1.somafm.com/deptstore-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "digitalis",
+    "title": "digitalis",
+    "url": "https://ice1.somafm.com/digitalis-128-mp3",
+    "tags": "soma, indie"
+  },
+  {
+    "id": "doomed",
+    "title": "doomed",
+    "url": "https://ice1.somafm.com/doomed-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "dronezone",
+    "title": "dronezone",
+    "url": "https://ice1.somafm.com/dronezone-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "dubstep",
+    "title": "dubstep",
+    "url": "https://ice1.somafm.com/dubstep-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "fluid",
+    "title": "fluid",
+    "url": "https://ice1.somafm.com/fluid-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "folkfwd",
+    "title": "folkfwd",
+    "url": "https://ice1.somafm.com/folkfwd-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "gsclassic",
+    "title": "gsclassic",
+    "url": "https://ice1.somafm.com/gsclassic-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "groovesalad",
+    "title": "groovesalad",
+    "url": "https://ice1.somafm.com/groovesalad-128-mp3",
+    "tags": "soma, indie"
+  },
+  {
+    "id": "illstreet",
+    "title": "illstreet",
+    "url": "https://ice1.somafm.com/illstreet-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "indiepop",
+    "title": "indiepop",
+    "url": "https://ice1.somafm.com/indiepop-128-mp3",
+    "tags": "soma, indie"
+  },
+  {
+    "id": "insound",
+    "title": "insound",
+    "url": "https://ice1.somafm.com/insound-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "jollysoul",
+    "title": "jollysoul",
+    "url": "https://ice1.somafm.com/jollysoul-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "live",
+    "title": "live",
+    "url": "https://ice1.somafm.com/live-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "lush",
+    "title": "lush",
+    "url": "https://ice1.somafm.com/lush-128-mp3",
+    "tags": "soma, female"
+  },
+  {
+    "id": "metal",
+    "title": "metal",
+    "url": "https://ice1.somafm.com/metal-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "missioncontrol",
+    "title": "missioncontrol",
+    "url": "https://ice1.somafm.com/missioncontrol-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "n5md",
+    "title": "n5md",
+    "url": "https://ice1.somafm.com/n5md-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "poptron",
+    "title": "poptron",
+    "url": "https://ice1.somafm.com/poptron-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "reggae",
+    "title": "reggae",
+    "url": "https://ice1.somafm.com/reggae-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "scanner",
+    "title": "scanner",
+    "url": "https://ice1.somafm.com/scanner-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "secretagent",
+    "title": "secretagent",
+    "url": "https://ice1.somafm.com/secretagent-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "seventies",
+    "title": "seventies",
+    "url": "https://ice1.somafm.com/seventies-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "sf1033",
+    "title": "sf1033",
+    "url": "https://ice1.somafm.com/sf1033-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "sfinsf",
+    "title": "sfinsf",
+    "url": "https://ice1.somafm.com/sfinsf-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "sonicuniverse",
+    "title": "sonicuniverse",
+    "url": "https://ice1.somafm.com/sonicuniverse-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "spacestation",
+    "title": "spacestation",
+    "url": "https://ice1.somafm.com/spacestation-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "specials",
+    "title": "specials",
+    "url": "https://ice1.somafm.com/specials-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "suburbsofgoa",
+    "title": "suburbsofgoa",
+    "url": "https://ice1.somafm.com/suburbsofgoa-128-mp3",
+    "tags": "soma, world"
+  },
+  {
+    "id": "synphaera",
+    "title": "synphaera",
+    "url": "https://ice1.somafm.com/synphaera-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "thetrip",
+    "title": "thetrip",
+    "url": "https://ice1.somafm.com/thetrip-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "thistle",
+    "title": "thistle",
+    "url": "https://ice1.somafm.com/thistle-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "tikitime",
+    "title": "tikitime",
+    "url": "https://ice1.somafm.com/tikitime-128-mp3",
+    "tags": "soma, world"
+  },
+  {
+    "id": "u80s",
+    "title": "u80s",
+    "url": "https://ice1.somafm.com/u80s-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "vaporwaves",
+    "title": "vaporwaves",
+    "url": "https://ice1.somafm.com/vaporwaves-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "xmasinfrisko",
+    "title": "xmasinfrisko",
+    "url": "https://ice1.somafm.com/xmasinfrisko-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "xmasrocks",
+    "title": "xmasrocks",
+    "url": "https://ice1.somafm.com/xmasrocks-128-mp3",
+    "tags": "soma"
+  },
+  {
+    "id": "paradise",
+    "title": "paradise",
+    "url": "https://stream.radioparadise.com/aac-128",
+    "tags": "paradise, US, rock, eclectic"
+  },
+  {
+    "id": "paradise_mellow",
+    "title": "paradise_mellow",
+    "url": "https://stream.radioparadise.com/mellow-128",
+    "tags": "paradise, US, mellow, acoustic"
+  },
+  {
+    "id": "paradise_rock",
+    "title": "paradise_rock",
+    "url": "https://stream.radioparadise.com/rock-128",
+    "tags": "paradise, US, rock"
+  },
+  {
+    "id": "paradise_global",
+    "title": "paradise_global",
+    "url": "https://stream.radioparadise.com/global-128",
+    "tags": "paradise, US, global, world"
+  },
+  {
+    "id": "paradise_beyond",
+    "title": "paradise_beyond",
+    "url": "https://stream.radioparadise.com/beyond-128",
+    "tags": "paradise, US"
+  },
+  {
+    "id": "paradise_serenity",
+    "title": "paradise_serenity",
+    "url": "https://stream.radioparadise.com/serenity",
+    "tags": "paradise, US, relaxation"
+  },
+  {
+    "id": "paradise_2050",
+    "title": "paradise_2050",
+    "url": "https://stream.radioparadise.com/radio2050-128",
+    "tags": "paradise, US, electronic, future"
+  },
+  {
+    "id": "antena1",
+    "title": "antena1",
+    "url": "https://radiocast.rtp.pt/antena180a.mp3",
+    "tags": "portugal, pt, public, news, variety"
+  },
+  {
+    "id": "antena2",
+    "title": "antena2",
+    "url": "https://radiocast.rtp.pt/antena280a.mp3",
+    "tags": "portugal, pt, public, classical, culture"
+  },
+  {
+    "id": "antena3",
+    "title": "antena3",
+    "url": "https://radiocast.rtp.pt/antena380a.mp3",
+    "tags": "portugal, pt, public, alternative, rock"
+  },
+  {
+    "id": "concertzender_live",
+    "title": "concertzender_live",
+    "url": "https://streams.greenhost.nl:8006/live",
+    "tags": "concertzender, nl, classical, eclectic"
+  },
+  {
+    "id": "concertzender_barok",
+    "title": "concertzender_barok",
+    "url": "https://streams.greenhost.nl:8006/barok",
+    "tags": "concertzender, nl, baroque, classical"
+  },
+  {
+    "id": "concertzender_klassiek",
+    "title": "concertzender_klassiek",
+    "url": "https://streams.greenhost.nl:8006/klassiek",
+    "tags": "concertzender, nl, classical"
+  },
+  {
+    "id": "concertzender_oudemuziek",
+    "title": "concertzender_oudemuziek",
+    "url": "https://streams.greenhost.nl:8006/oudemuziek",
+    "tags": "concertzender, nl, early, baroque"
+  },
+  {
+    "id": "concertzender_jazz",
+    "title": "concertzender_jazz",
+    "url": "https://streams.greenhost.nl:8006/jazz",
+    "tags": "concertzender, nl, jazz"
+  },
+  {
+    "id": "concertzender_jazznotjazz",
+    "title": "concertzender_jazznotjazz",
+    "url": "https://streams.greenhost.nl:8006/jazznotjazz",
+    "tags": "concertzender, nl, jazz, eclectic"
+  },
+  {
+    "id": "concertzender_wereldmuziek",
+    "title": "concertzender_wereldmuziek",
+    "url": "https://streams.greenhost.nl:8006/wereldmuziek",
+    "tags": "concertzender, nl, world"
+  },
+  {
+    "id": "traxx_fm_ambient",
+    "title": "traxx_fm_ambient",
+    "url": "https://traxx011.ice.infomaniak.ch/traxx011-low.mp3",
+    "tags": "traxx, ch, ambient, chill, switzerland"
+  },
+  {
+    "id": "traxx_fm_deluxe",
+    "title": "traxx_fm_deluxe",
+    "url": "https://traxx001.ice.infomaniak.ch/traxx001-low.mp3",
+    "tags": "traxx, ch, electronic, edm, switzerland"
+  },
+  {
+    "id": "traxx_fm_deep",
+    "title": "traxx_fm_deep",
+    "url": "https://traxx013.ice.infomaniak.ch/traxx013-low.mp3",
+    "tags": "traxx, ch, deep, house, switzerland"
+  },
+  {
+    "id": "traxx_fm_funk",
+    "title": "traxx_fm_funk",
+    "url": "https://traxx016.ice.infomaniak.ch/traxx016-low.mp3",
+    "tags": "traxx, ch, funk, switzerland"
+  },
+  {
+    "id": "traxx_fm_house",
+    "title": "traxx_fm_house",
+    "url": "https://traxx002.ice.infomaniak.ch/traxx002-low.mp3",
+    "tags": "traxx, ch, house, electronic, switzerland"
+  },
+  {
+    "id": "traxx_fm_jazz",
+    "title": "traxx_fm_jazz",
+    "url": "https://traxx014.ice.infomaniak.ch/traxx014-low.mp3",
+    "tags": "traxx, ch, jazz, switzerland"
+  },
+  {
+    "id": "traxx_fm_latino",
+    "title": "traxx_fm_latino",
+    "url": "https://traxx008.ice.infomaniak.ch/traxx008-low.mp3",
+    "tags": "traxx, ch, latin, switzerland"
+  },
+  {
+    "id": "traxx_fm_latino_pop",
+    "title": "traxx_fm_latino_pop",
+    "url": "https://traxx022.ice.infomaniak.ch/traxx022-1.mp3",
+    "tags": "traxx, ch, latin, pop, switzerland"
+  },
+  {
+    "id": "traxx_fm_lounge",
+    "title": "traxx_fm_lounge",
+    "url": "https://traxx004.ice.infomaniak.ch/traxx004-low.mp3",
+    "tags": "traxx, ch, lounge, chill, switzerland"
+  },
+  {
+    "id": "traxx_fm_pop",
+    "title": "traxx_fm_pop",
+    "url": "https://traxx009.ice.infomaniak.ch/traxx009-low.mp3",
+    "tags": "traxx, ch, pop, switzerland"
+  },
+  {
+    "id": "traxx_fm_rnb",
+    "title": "traxx_fm_rnb",
+    "url": "https://traxx007.ice.infomaniak.ch/traxx007-low.mp3",
+    "tags": "traxx, ch, rnb, soul, switzerland"
+  },
+  {
+    "id": "traxx_fm_rock",
+    "title": "traxx_fm_rock",
+    "url": "https://traxx019.ice.infomaniak.ch/traxx019-low.mp3",
+    "tags": "traxx, ch, rock, switzerland"
+  },
+  {
+    "id": "traxx_fm_soul",
+    "title": "traxx_fm_soul",
+    "url": "https://traxx006.ice.infomaniak.ch/traxx006-low.mp3",
+    "tags": "traxx, ch, soul, switzerland"
+  },
+  {
+    "id": "traxx_fm_tech_minimal",
+    "title": "traxx_fm_tech_minimal",
+    "url": "https://traxx020.ice.infomaniak.ch/traxx020-low.mp3",
+    "tags": "traxx, ch, electronic, minimal, techno, switzerland"
+  },
+  {
+    "id": "king_dub_radio",
+    "title": "king_dub_radio",
+    "url": "https://london-dedicated.myautodj.com:8862/stream%20King%20Dub%20Radio",
+    "tags": "other, fr, france, dub, reggae"
+  },
+  {
+    "id": "wassoulou",
+    "title": "wassoulou",
+    "url": "https://listen.radionomy.com/radio-wassoulou-internationale",
+    "tags": "other, mali, africa"
+  },
+  {
+    "id": "meuh",
+    "title": "meuh",
+    "url": "https://radiomeuh.ice.infomaniak.ch/radiomeuh-128.mp3",
+    "tags": "other, fr, eclectic, paris"
+  },
+  {
+    "id": "ambientsleepingpill",
+    "title": "ambientsleepingpill",
+    "url": "https://radio.stereoscenic.com/asp-s",
+    "tags": "ambient, sleep, relaxation"
+  },
+  {
+    "id": "amambient",
+    "title": "amambient",
+    "url": "https://radio.stereoscenic.com/ama-s",
+    "tags": "ambient, bright, daytime"
+  },
+  {
+    "id": "ambientmodern",
+    "title": "ambientmodern",
+    "url": "https://radio.stereoscenic.com/mod-s",
+    "tags": "ambient, modern"
+  },
+  {
+    "id": "urbanspaceradio",
+    "title": "urbanspaceradio",
+    "url": "https://stream.urbanspaceradio.com:8443/urban-space-radio",
+    "tags": "other, ua, eclectic, chill"
+  },
+  {
+    "id": "ledjam",
+    "title": "ledjam",
+    "url": "https://stream9.xdevel.com/audio1s976748-1515/stream/icecast.audio",
+    "tags": "other, fr, eclectic"
+  },
+  {
+    "id": "cumbiasinmortales",
+    "title": "cumbiasinmortales",
+    "url": "https://panel.retrolandigital.com/listen/cumbias_inmortales_radio/listen",
+    "tags": "mx, cumbia, latin"
+  },
+  {
+    "id": "radio_art_cuban",
+    "title": "radio_art_cuban",
+    "url": "https://live.radioart.com/fCuban_lounge.mp3",
+    "tags": "cuban, cuba, latin, lounge"
+  },
+  {
+    "id": "cubania_radio",
+    "title": "cubania_radio",
+    "url": "https://streaming.brol.tech/rtfmlounge",
+    "tags": "cuban, cuba, latin"
+  },
+  {
+    "id": "cubaradio80s",
+    "title": "cubaradio80s",
+    "url": "https://a7.asurahosting.com:7670/radio.mp3",
+    "tags": "cuban, cuba, latin, 80s"
+  },
+  {
+    "id": "radio_pozo_de_la_salsa",
+    "title": "radio_pozo_de_la_salsa",
+    "url": "https://cast4.my-control-panel.com/proxy/elpozosalsa/;",
+    "tags": "latin, salsa"
+  },
+  {
+    "id": "world_salsa_radio",
+    "title": "world_salsa_radio",
+    "url": "https://s4.radio.co/sc6b77aa40/listen",
+    "tags": "latin, salsa"
+  },
+  {
+    "id": "100_por_ciento_salsa",
+    "title": "100_por_ciento_salsa",
+    "url": "https://stm01.streammaximum.com:8194/;",
+    "tags": "latin, salsa"
+  },
+  {
+    "id": "zonasalsa",
+    "title": "zonasalsa",
+    "url": "https://cast6.asurahosting.com/proxy/salsafou/stream",
+    "tags": "latin, salsa"
+  },
+  {
+    "id": "latina_bachata",
+    "title": "latina_bachata",
+    "url": "https://latinabachata.ice.infomaniak.ch/latinabachata.mp3",
+    "tags": "latin, bachata"
+  },
+  {
+    "id": "top_bachata_radio",
+    "title": "top_bachata_radio",
+    "url": "https://radio.dominiserver.com/proxy/topbachata?mp=/stream",
+    "tags": "latin, bachata"
+  },
+  {
+    "id": "wsm_nashville",
+    "title": "wsm_nashville",
+    "url": "https://stream01048.westreamradio.com/wsm-am-mp3",
+    "tags": "country, classic, nashville, US"
+  },
+  {
+    "id": "lautfm_country",
+    "title": "lautfm_country",
+    "url": "https://stream.laut.fm/country",
+    "tags": "country, de"
+  },
+  {
+    "id": "lautfm_nashville",
+    "title": "lautfm_nashville",
+    "url": "https://stream.laut.fm/nashville",
+    "tags": "country, de"
+  },
+  {
+    "id": "gotradio_bluegrass",
+    "title": "gotradio_bluegrass",
+    "url": "http://gr01.cdnstream.com:8490/",
+    "tags": "bluegrass, country, US"
+  },
+  {
+    "id": "fip",
+    "title": "fip",
+    "url": "https://icecast.radiofrance.fr/fip-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, eclectic"
+  },
+  {
+    "id": "fip_jazz",
+    "title": "fip_jazz",
+    "url": "https://icecast.radiofrance.fr/fipjazz-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, jazz"
+  },
+  {
+    "id": "fip_rock",
+    "title": "fip_rock",
+    "url": "https://icecast.radiofrance.fr/fiprock-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, rock"
+  },
+  {
+    "id": "fip_groove",
+    "title": "fip_groove",
+    "url": "https://icecast.radiofrance.fr/fipgroove-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, groove, soul, funk"
+  },
+  {
+    "id": "fip_reggae",
+    "title": "fip_reggae",
+    "url": "https://icecast.radiofrance.fr/fipreggae-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, reggae"
+  },
+  {
+    "id": "fip_pop",
+    "title": "fip_pop",
+    "url": "https://icecast.radiofrance.fr/fippop-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, pop"
+  },
+  {
+    "id": "fip_electro",
+    "title": "fip_electro",
+    "url": "https://icecast.radiofrance.fr/fipelectro-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, electro, electronic"
+  },
+  {
+    "id": "fip_monde",
+    "title": "fip_monde",
+    "url": "https://icecast.radiofrance.fr/fipworld-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, world"
+  },
+  {
+    "id": "fip_nouveautes",
+    "title": "fip_nouveautes",
+    "url": "https://icecast.radiofrance.fr/fipnouveautes-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, nouveautes"
+  },
+  {
+    "id": "fip_metal",
+    "title": "fip_metal",
+    "url": "https://icecast.radiofrance.fr/fipmetal-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, metal"
+  },
+  {
+    "id": "fip_hiphop",
+    "title": "fip_hiphop",
+    "url": "https://icecast.radiofrance.fr/fiphiphop-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, hiphop, hip-hop"
+  },
+  {
+    "id": "fip_sacre_francais",
+    "title": "fip_sacre_francais",
+    "url": "https://icecast.radiofrance.fr/fipsacrefrancais-midfi.mp3?id=radiofrance",
+    "tags": "fr, fip, francais, french"
+  },
+  {
+    "id": "flux_fm_techno_underground",
+    "title": "flux_fm_techno_underground",
+    "url": "https://channels.fluxfm.de/techno-underground/externalembedflxhp/stream.mp3",
+    "tags": "flux, techno, underground, electronic, berlin, de"
+  },
+  {
+    "id": "flux_fm_boomfm",
+    "title": "flux_fm_boomfm",
+    "url": "https://streams.fluxfm.de/boomfm/mp3-320/audio/",
+    "tags": "flux, hiphop, rap, urban, berlin, de"
+  },
+  {
+    "id": "flux_fm_boomfm_classics",
+    "title": "flux_fm_boomfm_classics",
+    "url": "https://streams.fluxfm.de/boomfmclassics/mp3-320/audio/",
+    "tags": "flux, hiphop, rap, classics, berlin, de"
+  },
+  {
+    "id": "flux_fm_elektroflux",
+    "title": "flux_fm_elektroflux",
+    "url": "https://streams.fluxfm.de/elektro/mp3-320/audio/",
+    "tags": "flux, electronic, indie, berlin, de"
+  },
+  {
+    "id": "flux_fm_clubsandwich",
+    "title": "flux_fm_clubsandwich",
+    "url": "https://streams.fluxfm.de/clubsandwich/mp3-320/audio/",
+    "tags": "flux, electronic, house, techno, berlin, de"
+  },
+  {
+    "id": "flux_fm_sound_of_berlin",
+    "title": "flux_fm_sound_of_berlin",
+    "url": "https://streams.fluxfm.de/soundofberlin/mp3-320/audio/",
+    "tags": "flux, electronic, techno, berlin, de"
+  },
+  {
+    "id": "flux_fm_berlin_beach_house",
+    "title": "flux_fm_berlin_beach_house",
+    "url": "https://streams.fluxfm.de/bbeachhouse/mp3-320/audio/",
+    "tags": "flux, electronic, house, chill, berlin, de"
+  },
+  {
+    "id": "flux_fm_john_reed",
+    "title": "flux_fm_john_reed",
+    "url": "https://streams.fluxfm.de/john-reed/mp3-320/audio/",
+    "tags": "flux, electronic, hiphop, techno, berlin, de"
+  },
+  {
+    "id": "flux_fm_klubradio",
+    "title": "flux_fm_klubradio",
+    "url": "https://streams.fluxfm.de/klubradio/mp3-320/audio/",
+    "tags": "flux, dance, club, berlin, de"
+  },
+  {
+    "id": "flux_fm_chillhop",
+    "title": "flux_fm_chillhop",
+    "url": "https://streams.fluxfm.de/Chillhop/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, lofi, chillhop, beats, berlin, de"
+  },
+  {
+    "id": "flux_fm_fluxforward",
+    "title": "flux_fm_fluxforward",
+    "url": "https://streams.fluxfm.de/forward/mp3-320/audio/",
+    "tags": "flux, indie, alternative, berlin, de"
+  },
+  {
+    "id": "flux_fm_fluxkompensator",
+    "title": "flux_fm_fluxkompensator",
+    "url": "https://streams.fluxfm.de/fluxkompensator/mp3-320/audio/",
+    "tags": "flux, alternative, indie, berlin, de"
+  },
+  {
+    "id": "flux_fm_lounge",
+    "title": "flux_fm_lounge",
+    "url": "https://streams.fluxfm.de/lounge/mp3-320/audio/",
+    "tags": "flux, chill, lounge, berlin, de"
+  },
+  {
+    "id": "flux_fm_hippie_trippy_garden_pretty",
+    "title": "flux_fm_hippie_trippy_garden_pretty",
+    "url": "https://streams.fluxfm.de/event02/mp3-320/radiode/",
+    "tags": "flux, psychedelic, electronic, experimental, berlin, de"
+  },
+  {
+    "id": "flux_fm_rasta_radio",
+    "title": "flux_fm_rasta_radio",
+    "url": "https://streams.fluxfm.de/rastaradio/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, reggae, dub, berlin, de"
+  },
+  {
+    "id": "flux_fm_dub_radio",
+    "title": "flux_fm_dub_radio",
+    "url": "https://streams.fluxfm.de/dubradio/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, dub, reggae, berlin, de"
+  },
+  {
+    "id": "flux_fm_fluxrap",
+    "title": "flux_fm_fluxrap",
+    "url": "https://streams.fluxfm.de/rap/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, rap, hiphop, berlin, de"
+  },
+  {
+    "id": "flux_fm_metal",
+    "title": "flux_fm_metal",
+    "url": "https://streams.fluxfm.de/metalfm/mp3-320/radiode/",
+    "tags": "flux, metal, hardrock, berlin, de"
+  },
+  {
+    "id": "flux_fm_hard_rock",
+    "title": "flux_fm_hard_rock",
+    "url": "https://streams.fluxfm.de/hardrock/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, hardrock, rock, berlin, de"
+  },
+  {
+    "id": "flux_fm_b_funk",
+    "title": "flux_fm_b_funk",
+    "url": "https://streams.fluxfm.de/event01/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, funk, soul, berlin, de"
+  },
+  {
+    "id": "flux_fm_hot_rnb",
+    "title": "flux_fm_hot_rnb",
+    "url": "https://streams.fluxfm.de/rnb/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, rnb, soul, berlin, de"
+  },
+  {
+    "id": "flux_fm_jazzradio_schwarzenstein",
+    "title": "flux_fm_jazzradio_schwarzenstein",
+    "url": "https://streams.fluxfm.de/jazzschwarz/mp3-320/audio/",
+    "tags": "flux, jazz, berlin, de"
+  },
+  {
+    "id": "flux_fm_xjazz",
+    "title": "flux_fm_xjazz",
+    "url": "https://streams.fluxfm.de/xjazz/mp3-320/audio/",
+    "tags": "flux, jazz, berlin, de"
+  },
+  {
+    "id": "flux_fm_neofm",
+    "title": "flux_fm_neofm",
+    "url": "https://streams.fluxfm.de/neofm/mp3-320/radiode/",
+    "tags": "flux, neoclassical, berlin, de"
+  },
+  {
+    "id": "flux_fm_jaegermusic",
+    "title": "flux_fm_jaegermusic",
+    "url": "https://streams.fluxfm.de/studio56/mp3-320/audio/",
+    "tags": "flux, electronic, indie, berlin, de"
+  },
+  {
+    "id": "flux_fm_70er",
+    "title": "flux_fm_70er",
+    "url": "https://streams.fluxfm.de/70er/mp3-320/audio/",
+    "tags": "flux, 70s, classic, berlin, de"
+  },
+  {
+    "id": "flux_fm_80er",
+    "title": "flux_fm_80er",
+    "url": "https://streams.fluxfm.de/80er/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, 80s, classic, berlin, de"
+  },
+  {
+    "id": "flux_fm_60er",
+    "title": "flux_fm_60er",
+    "url": "https://streams.fluxfm.de/60er/mp3-320/streams.fluxfm.de/",
+    "tags": "flux, 60s, classic, berlin, de"
+  }
+]
