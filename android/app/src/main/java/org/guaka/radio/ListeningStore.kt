@@ -27,6 +27,11 @@ class ListeningStore(context: Context) {
         return added
     }
 
+    @Synchronized
+    internal fun replaceFavorites(ids: List<String>) {
+        check(preferences.edit().putString(KEY_FAVORITES, encodeIds(ids)).commit()) { "Could not save favorites." }
+    }
+
     fun observeChanges(onChange: () -> Unit): () -> Unit {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == KEY_FAVORITES || key == KEY_PLAYBACK) onChange()

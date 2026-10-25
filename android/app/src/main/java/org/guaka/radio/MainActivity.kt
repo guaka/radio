@@ -78,6 +78,11 @@ class MainActivity : ComponentActivity() {
 
 class MainModel(application: Application) : AndroidViewModel(application) {
     val repository = (application as RadioApp).repository
+    internal val nostr = NostrFavoritesController(repository, viewModelScope)
+    internal var nostrLaunchIntent: ((Intent) -> Unit)? = null
+    internal val nostrBridge = AndroidSignerBridge({ intent ->
+        requireNotNull(nostrLaunchIntent) { "Open the app to approve signing." }(intent)
+    })
     var entries by mutableStateOf<List<Entry>>(emptyList()); private set
     var parent by mutableStateOf("radio"); private set
     var locationTitle by mutableStateOf("Radio"); private set
@@ -112,12 +117,15 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private val pageSize = 50
     private val stopListeningObserver = repository.listening.observeChanges {
         viewModelScope.launch {
-            favorites = repository.listening.favoriteIds().toSet()
+            val updated = repository.listening.favoriteIds().toSet()
+            val changed = updated != favorites
+            favorites = updated
+            if (changed && parent == "favorites") refresh()
             refreshSaved()
         }
     }
     init { browse("radio") }
-    override fun onCleared() { stopListeningObserver(); super.onCleared() }
+    override fun onCleared() { nostr.close(); stopListeningObserver(); super.onCleared() }
     fun startStationArtworkPreload() {
         if (stationArtworkPreloadJob?.isActive == true) return
         stationArtworkPreloadJob = viewModelScope.launch { repository.preloadStationArtwork() }
@@ -228,7 +236,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     fun back() { if (history.isNotEmpty()) { val (id, title) = history.removeAt(history.lastIndex); browse(id, false, title) } }
     fun favorite(mediaId: String) = action {
-        io { repository.listening.toggleFavorite(mediaId) }
+        val starred = io { repository.listening.toggleFavorite(mediaId) }
+        nostr.favoriteChanged(mediaId, starred)
         favorites = repository.listening.favoriteIds().toSet()
         if (parent == "favorites") refresh()
     }
@@ -264,7 +273,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         loginJob?.cancel(); browseJob?.cancel(); loginUrl = null
         action {
             io { repository.savePlexToken("") }
-            favorites = repository.listening.favoriteIds().toSet()
+            val updated = repository.listening.favoriteIds().toSet()
+            val changed = updated != favorites
+            favorites = updated
+            if (changed && parent == "favorites") refresh()
             refreshSaved()
             phoneOutput(); browse("radio")
         }
@@ -389,6 +401,20 @@ private fun durationLabel(millis: Long): String {
 fun AppScreen(model: MainModel = viewModel()) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val nostrLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { model.nostrBridge.onResult(it.resultCode, it.data) }
+    DisposableEffect(nostrLauncher) {
+        model.nostrLaunchIntent = { nostrLauncher.launch(it) }
+        model.nostr.restore(model.nostrBridge)
+        onDispose { model.nostrLaunchIntent = null }
+    }
+    LaunchedEffect(model.nostr.authUrl) {
+        model.nostr.authUrl?.let { url ->
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            model.nostr.dismissAuthUrl()
+        }
+    }
     var browser by remember { mutableStateOf<MediaBrowser?>(null) }
     var current by remember { mutableStateOf<MediaItem?>(null) }
     var playing by remember { mutableStateOf(false) }
@@ -609,6 +635,8 @@ fun AppScreen(model: MainModel = viewModel()) {
                 Text("Plex works away from home when your server's Remote Access is configured.")
                 TextButton(onClick = { model.signIn(); closeSettings() }) { Text("Sign in to Plex") }
                 TextButton(onClick = model::signOut) { Text("Sign out of Plex") }
+                NostrConnections(model.nostr, model.nostrBridge)
+                HorizontalDivider()
                 Text("Music Assistant · home Wi-Fi only")
                 OutlinedTextField(assistantUrl, { assistantUrl = it }, label = { Text("Local server URL") }, placeholder = { Text("http://192.168.1.20:8095") }, singleLine = true)
                 OutlinedTextField(assistantToken, { assistantToken = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
