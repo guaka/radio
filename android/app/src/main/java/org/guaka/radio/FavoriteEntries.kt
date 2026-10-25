@@ -47,7 +47,7 @@ private fun Entry.withoutCredentials() = copy(url = "", token = "")
 
 private fun unavailableFavorite(id: String, signIn: Boolean) = Entry(
     id = id,
-    title = "Unavailable Plex track",
+    title = if (id.startsWith("youtube:")) "Unavailable YouTube audio" else "Unavailable Plex track",
     subtitle = if (signIn) "Sign in or remove this favorite" else "Reconnect or remove this favorite",
     playable = true,
 )

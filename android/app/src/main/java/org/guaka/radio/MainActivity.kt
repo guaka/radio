@@ -10,6 +10,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
@@ -162,7 +163,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         } finally { operations-- }
     }
     fun browse(id: String, remember: Boolean = true, title: String = when (id) {
-        "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; "books" -> "Books"; else -> locationTitle
+        "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; "books" -> "Books"; "youtube" -> "YouTube"; else -> locationTitle
     }) {
         if (id == "radio") {
             dismissSpeakers()
@@ -187,7 +188,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         // Radio is local; debounce remote collections while the user types.
         if (parent in setOf("radio", "books") || value.isBlank()) search()
         else filterJob = viewModelScope.launch {
-            delay(250)
+            delay(if (parent == "youtube") 700 else 250)
             applyFilter()
         }
     }
@@ -565,7 +566,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             queueIndex = player.currentMediaItemIndex
             if (player.isPlaying) {
                 model.phoneOutput(cancelSpeakerRequests = false)
-                if (player.currentMediaItem?.mediaId?.let { it.startsWith("radio:") || it.startsWith("track:") } == true)
+                if (player.currentMediaItem?.mediaId?.let { ListeningStore.isStableMediaId(it) } == true)
                     model.radioOrPlexPlaybackStarted()
             }
         }
@@ -574,8 +575,8 @@ fun AppScreen(model: MainModel = viewModel()) {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 playerFailure = PlaybackRecovery.classify(error, error.errorCode)
                 playerErrorIsPlexAuth = playerFailure == PlaybackFailure.AUTHENTICATION && current?.mediaId?.startsWith("track:") == true
-                playerError = if (playerFailure == PlaybackFailure.AUTHENTICATION && current?.mediaId?.startsWith("radio:") == true)
-                    "This station denied access. Choose another station." else PlaybackRecovery.guidance(playerFailure!!)
+                playerError = if (playerFailure == PlaybackFailure.AUTHENTICATION && current?.mediaId?.startsWith("track:") != true)
+                    "This stream denied access. Choose another item or retry." else PlaybackRecovery.guidance(playerFailure!!)
             }
         }
         future.addListener({ runCatching { future.get() }.onSuccess {
@@ -647,7 +648,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             val ids = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(currentId) }
             val index = if (player.mediaItemCount > 0) player.currentMediaItemIndex.coerceIn(ids.indices) else 0
             PlaybackSelectionRequest(ids, index,
-                if (currentId.startsWith("track:")) player.currentPosition.coerceAtLeast(0) else 0L,
+                if (!currentId.startsWith("radio:")) player.currentPosition.coerceAtLeast(0) else 0L,
                 retrySelectedOnly = true)
         }
         model.action {
@@ -702,14 +703,15 @@ fun AppScreen(model: MainModel = viewModel()) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             Icon(painterResource(R.drawable.ic_radio), contentDescription = "Radio Guaka",
                 tint = Color.Unspecified, modifier = Modifier.size(24.dp))
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             IconToggleButton(checked = model.parent == "favorites", onCheckedChange = { model.browse("favorites") },
                 modifier = Modifier.width(40.dp).background(
                     if (model.parent == "favorites") MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     shape = androidx.compose.foundation.shape.CircleShape,
                 )) { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") }
             FilterChip(selected = model.parent == "radio", onClick = { model.browse("radio") }, label = { Text("Radio") })
-            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "books", onClick = { model.browse("plex") }, label = { Text("Plex") })
-            Spacer(Modifier.weight(1f))
+            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "books" && model.parent != "youtube", onClick = { model.browse("plex") }, label = { Text("Plex") })
+            FilterChip(selected = model.parent == "youtube", onClick = { model.browse("youtube") }, label = { Text("YouTube") })
             val booksSelected = model.parent == "books"
             IconButton(onClick = { model.browse("books") }, modifier = Modifier.width(40.dp)
                 .background(
@@ -723,12 +725,13 @@ fun AppScreen(model: MainModel = viewModel()) {
                 Icon(painterResource(R.drawable.ic_books), contentDescription = null,
                     tint = if (booksSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            }
             IconButton(onClick = ::openSettings, modifier = Modifier.width(40.dp).semantics {
                 contentDescription = "Setup and connections"
                 selected = false
             }) { Icon(painterResource(R.drawable.ic_settings), contentDescription = null) }
         }
-        if (model.parent !in setOf("radio", "plex", "favorites", "books"))
+        if (model.parent !in setOf("radio", "plex", "favorites", "books", "youtube"))
             Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(model.searchTerm, model::updateFilter,
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Filter items" }.onPreviewKeyEvent { event ->
@@ -737,6 +740,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                     true
                 } else false
             },
+            placeholder = { Text(if (model.parent == "youtube") "Search YouTube or paste a video link" else "Filter") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { submitSearch() }, onDone = { submitSearch() }),
@@ -752,7 +756,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
         }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "books")
+        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "books", "youtube")
         if (model.status.isNotBlank() && !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX))
             Text(model.status, style = MaterialTheme.typography.bodySmall)
         val plexPlaybackAuthError = playerErrorIsPlexAuth ||
@@ -860,7 +864,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             if (bookOwnsPlayer && activeBookId != null) {
                 IconButton(onClick = model.bookstr::skipPrevious, modifier = Modifier.semantics { contentDescription = "Previous book page" }) { Text("‹") }
                 IconButton(onClick = model.bookstr::skipNext, modifier = Modifier.semantics { contentDescription = "Next book page" }) { Text("›") }
-            } else if (model.parent != "radio" && current?.mediaId?.startsWith("track:") == true) {
+            } else if (model.parent != "radio" && current?.mediaId?.let { !it.startsWith("radio:") } == true) {
                 IconButton(enabled = browser?.hasPreviousMediaItem() == true && model.output == "This phone",
                     onClick = { selectPlayback(queue.map { it.mediaId }, (queueIndex - 1).coerceAtLeast(0)) },
                     modifier = Modifier.semantics { contentDescription = "Previous track" }) { Text("‹") }

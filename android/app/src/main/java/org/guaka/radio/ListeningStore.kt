@@ -86,10 +86,11 @@ class ListeningStore(context: Context) {
         private const val MAX_FAVORITES = 500
         const val MAX_QUEUE = 500
         internal const val MAX_POSITION_MS = 7L * 24 * 60 * 60 * 1000
+        private val YOUTUBE_ID = Regex("youtube:[A-Za-z0-9_-]{11}")
         private val RADIO_ID = Regex("radio:[a-zA-Z0-9_-]{1,80}")
         private val TRACK_ID = Regex("track:[a-zA-Z0-9_-]{1,128}:[a-zA-Z0-9_-]{1,128}")
 
-        fun isStableMediaId(id: String): Boolean = RADIO_ID.matches(id) || TRACK_ID.matches(id)
+        fun isStableMediaId(id: String): Boolean = RADIO_ID.matches(id) || TRACK_ID.matches(id) || YOUTUBE_ID.matches(id)
 
         fun encodeIds(ids: List<String>): String = JSONArray().apply {
             ids.asSequence().filter(::isStableMediaId).distinct().take(MAX_FAVORITES).forEach { put(it) }

@@ -34,7 +34,7 @@ The same values can be supplied as `RADIO_BETA_STORE_PASSWORD` and `RADIO_BETA_K
 To build a later beta, increase the version code and set a matching version name:
 
 ```sh
-bash ./scripts/build-beta.sh -PbetaVersionCode=5 -PbetaVersionName=0.4.1
+bash ./scripts/build-beta.sh
 ```
 
 The release APK is written to `app/build/outputs/apk/release/app-release.apk`. Verify its signature and fingerprint before distributing it:
@@ -84,3 +84,5 @@ Use an environment with required reviewers if release access needs approval. Git
 ## Recorded validation
 
 On 2026-10-24, a local 0.4.0 beta (version code 4) was signed and verified, then updated in place on an API 36 emulator using a same-certificate test build with version code 5. Android retained the UID and original install time; the favorite and endpoint setting remained, and the updated app successfully authenticated to a local fake MA endpoint with the encrypted dummy token saved before the update. Missing signing inputs and a different certificate are rejected. Fifteen JVM tests and eight instrumentation tests passed. Actual Pixel/car/Plex/speaker acceptance and an encrypted off-device backup of the signing identity remain separate user tasks.
+
+APK versions default to `0.4.YYYYMMDD-HHmm` in Europe/Lisbon time (for example `0.4.20261025-1734`). The numeric Android version code defaults to Unix epoch minutes, which upgrades earlier sequential codes such as 11. Builds in the same minute share a version code. Explicit `-PbetaVersionName=...` and `-PbetaVersionCode=...` arguments still override the defaults for reproducible rebuilds.
