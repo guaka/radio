@@ -38,9 +38,7 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
         val req = Request.Builder().url(url).header("Accept", "application/json")
         if (assistant) req.header("Authorization", "Bearer $token")
         else {
-            req.header("X-Plex-Client-Identifier", clientId).header("X-Plex-Product", "Radio Guaka")
-                .header("X-Plex-Platform", "Android").header("X-Plex-Version", "0.2.0")
-            if (token.isNotBlank()) req.header("X-Plex-Token", token)
+            req.plexHeaders(token)
         }
         if (body != null) req.post(body)
         return suspendCancellableCoroutine { continuation ->
@@ -69,10 +67,7 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
     /** Fetch a bounded image body. The caller supplies an already-validated HTTPS URL. */
     suspend fun imageBytes(url: String, token: String, maxBytes: Int): ByteArray =
         suspendCancellableCoroutine { continuation ->
-            val request = Request.Builder().url(url).header("Accept", "image/*")
-                .header("X-Plex-Client-Identifier", clientId).header("X-Plex-Product", "Radio Guaka")
-                .header("X-Plex-Platform", "Android").header("X-Plex-Version", "0.2.0")
-                .header("X-Plex-Token", token).build()
+            val request = Request.Builder().url(url).header("Accept", "image/*").plexHeaders(token).build()
             val call = http.newCall(request)
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
@@ -107,6 +102,12 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
                 }
             })
         }
+
+    private fun Request.Builder.plexHeaders(token: String): Request.Builder = apply {
+        header("X-Plex-Client-Identifier", clientId).header("X-Plex-Product", "Radio Guaka")
+            .header("X-Plex-Platform", "Android").header("X-Plex-Version", BuildConfig.VERSION_NAME)
+        if (token.isNotBlank()) header("X-Plex-Token", token)
+    }
 
     suspend fun createPin(): Pin {
         val response = request("https://plex.tv/api/v2/pins", body = FormBody.Builder().add("strong", "true").build()) as JSONObject

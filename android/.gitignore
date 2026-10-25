@@ -4,6 +4,15 @@
 local.properties
 *.jks
 *.keystore
+*.p12
+*.pfx
+key.properties
+beta-secrets.env
+*.password
+*.passphrase
+*-password
+*-passphrase
+*.base64
 .idea/
 
 # The repository ignores assets/ globally; bundle this audited station snapshot.

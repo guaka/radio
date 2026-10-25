@@ -2,9 +2,6 @@ package org.guaka.radio
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import java.io.ByteArrayOutputStream
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -52,7 +49,6 @@ class PlaybackService : MediaLibraryService() {
     private var hasSeenTimeline = false
     private var destroying = false
     private var purgingCredentials = false
-    private val maxSavedQueueSize = 500
     private var artworkJob: kotlinx.coroutines.Job? = null
     private var stopCredentialObserver: (() -> Unit)? = null
     private var requestedArtworkTarget: Pair<String, Int>? = null
@@ -153,7 +149,7 @@ class PlaybackService : MediaLibraryService() {
         if (entry.artwork.isBlank()) return
         artworkJob = scope.launch {
             val bytes = repository.artwork(entry) ?: return@launch
-            val thumbnail = kotlinx.coroutines.withContext(Dispatchers.IO) { makeArtworkThumbnail(bytes) } ?: return@launch
+            val thumbnail = kotlinx.coroutines.withContext(Dispatchers.IO) { Artwork.thumbnail(bytes) } ?: return@launch
             val currentPlayer = session.player as? ExoPlayer ?: return@launch
             if (currentPlayer.currentMediaItemIndex != index || currentPlayer.currentMediaItem?.mediaId != id) return@launch
             val currentItem = currentPlayer.getMediaItemAt(index)
@@ -161,30 +157,6 @@ class PlaybackService : MediaLibraryService() {
                 .setArtworkData(thumbnail, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()
             currentPlayer.replaceMediaItem(index, currentItem.buildUpon().setMediaMetadata(metadata).build())
         }
-    }
-
-    private fun makeArtworkThumbnail(bytes: ByteArray): ByteArray? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 256) sample *= 2
-        var bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
-            ?: return null
-        try {
-            while (true) {
-                for (quality in intArrayOf(85, 70, 55, 40)) {
-                    val output = ByteArrayOutputStream()
-                    if (bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output) && output.size() <= 32 * 1024) {
-                        return output.toByteArray()
-                    }
-                }
-                if (bitmap.width <= 32 || bitmap.height <= 32) return null
-                val smaller = Bitmap.createScaledBitmap(bitmap, maxOf(32, bitmap.width / 2), maxOf(32, bitmap.height / 2), true)
-                if (smaller !== bitmap) bitmap.recycle()
-                bitmap = smaller
-            }
-        } finally { bitmap.recycle() }
     }
 
     /** Saves identifiers only. The fresh-service empty timeline must not erase a pending Resume choice. */
@@ -203,9 +175,9 @@ class PlaybackService : MediaLibraryService() {
         val plexAvailable = repository.credentials.get("plexToken").isNotBlank()
         val currentIndex = player.currentMediaItemIndex.coerceIn(0, player.mediaItemCount - 1)
         // Keep a window that always includes the current item when a controller queues over 500 entries.
-        val windowStart = if (player.mediaItemCount <= maxSavedQueueSize) 0
-            else (currentIndex - maxSavedQueueSize + 1).coerceIn(0, player.mediaItemCount - maxSavedQueueSize)
-        val windowEnd = minOf(player.mediaItemCount, windowStart + maxSavedQueueSize)
+        val windowStart = if (player.mediaItemCount <= ListeningStore.MAX_QUEUE) 0
+            else (currentIndex - ListeningStore.MAX_QUEUE + 1).coerceIn(0, player.mediaItemCount - ListeningStore.MAX_QUEUE)
+        val windowEnd = minOf(player.mediaItemCount, windowStart + ListeningStore.MAX_QUEUE)
         val indexed = (windowStart until windowEnd).mapNotNull { index ->
             val id = player.getMediaItemAt(index).mediaId
             val entry = player.getMediaItemAt(index).localConfiguration?.tag as? Entry
@@ -242,10 +214,7 @@ class PlaybackService : MediaLibraryService() {
             check(!entry.id.startsWith("track:") || entry.credentialGeneration == listening.plexGeneration()) {
                 "Plex sign-in changed. Choose the track again."
             }
-            val http = OkHttpDataSource.Factory(repository.api.http.newBuilder()
-                .followRedirects(entry.token.isBlank()).followSslRedirects(false)
-                .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS).build())
-                .setDefaultRequestProperties(if (entry.token.isBlank()) emptyMap() else mapOf("X-Plex-Token" to entry.token))
+            val http = OkHttpDataSource.Factory(PlaybackHttpClient.forEntry(repository.api.http, entry))
             val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlaybackService, http))
             drm?.let { factory.setDrmSessionManagerProvider(it) }
             factory.setLoadErrorHandlingPolicy(policy ?: PlaybackRecovery.loadErrorPolicy())
@@ -268,10 +237,7 @@ class PlaybackService : MediaLibraryService() {
                 val entries = repository.browse(parentId, page, pageSize)
                 LibraryResult.ofItemList(entries.map { it.asMediaItem() }, params)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) {
-                LibraryResult.ofError(if (parentId == "plex") androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED
-                    else androidx.media3.session.SessionError.ERROR_IO, params)
-            }
+            catch (e: Exception) { LibraryResult.ofError(LibraryErrors.code(e), params) }
         }
         override fun onGetItem(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String): ListenableFuture<LibraryResult<MediaItem>> = future {
             try {
@@ -279,22 +245,28 @@ class PlaybackService : MediaLibraryService() {
                 else LibraryResult.ofItem(repository.item(mediaId).asMediaItem(), null)
             }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) { LibraryResult.ofError(androidx.media3.session.SessionError.ERROR_BAD_VALUE, null) }
+            catch (e: Exception) { LibraryResult.ofError(LibraryErrors.code(e), null) }
         }
         override fun onAddMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: List<MediaItem>): ListenableFuture<List<MediaItem>> = future {
-            // Controllers supply IDs, never trusted URLs or tokens. Resolve each request locally.
-            val generation = listening.plexGeneration()
-            val resolved = coroutineScope {
-                val semaphore = Semaphore(4)
-                mediaItems.map { requested -> async {
-                    semaphore.withPermit {
-                        val entry = repository.playable(requested.mediaId)
-                        entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build()
-                    }
-                } }.awaitAll()
+            try {
+                // Controllers supply IDs, never trusted URLs or tokens. Resolve each request locally.
+                val generation = listening.plexGeneration()
+                val resolved = coroutineScope {
+                    val semaphore = Semaphore(4)
+                    mediaItems.map { requested -> async {
+                        semaphore.withPermit {
+                            val entry = repository.playable(requested.mediaId)
+                            entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build()
+                        }
+                    } }.awaitAll()
+                }
+                check(generation == listening.plexGeneration()) { "Plex sign-in changed. Choose your queue again." }
+                resolved
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                mediaSession.sendError(controller, androidx.media3.session.SessionError(LibraryErrors.code(e), LibraryErrors.message(e)))
+                throw e
             }
-            check(generation == listening.plexGeneration()) { "Plex sign-in changed. Choose your queue again." }
-            resolved
         }
 
         override fun onPlaybackResumption(
@@ -312,26 +284,20 @@ class PlaybackService : MediaLibraryService() {
                 val selected = retained.firstOrNull { it.first == saved.index } ?: retained.first()
                 val id = selected.second
                 val entry = repository.stations.firstOrNull { it.id == id } ?: Entry(id, "Saved Plex track", playable = true)
+                if (generation != listening.plexGeneration())
+                    return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
                 return@future MediaSession.MediaItemsWithStartPosition(listOf(entry.asMediaItem()), 0,
                     if (selected.first == saved.index && !id.startsWith("radio:")) saved.positionMs else 0L)
             }
-            val resolved = coroutineScope {
-                val semaphore = Semaphore(4)
-                retained.map { (originalIndex, id) -> async {
-                    semaphore.withPermit {
-                        try { originalIndex to repository.playable(id) }
-                        catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                        catch (_: Exception) { null }
-                    }
-                } }.awaitAll().filterNotNull().sortedBy { it.first }
-            }
-            if (resolved.isEmpty()) return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
-            val items = resolved.map { (_, entry) -> entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build() }
-            val index = resolved.indexOfFirst { it.first == saved.index }
-                .takeIf { it >= 0 } ?: resolved.indexOfFirst { it.first > saved.index }.takeIf { it >= 0 } ?: resolved.lastIndex
-            val position = if (resolved[index].first != saved.index || items[index].mediaId.startsWith("radio:")) 0L else saved.positionMs
-            if (generation != listening.plexGeneration()) MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
-            else MediaSession.MediaItemsWithStartPosition(items, index, position)
+            val restored = PlaybackResumption.resolve(
+                saved = saved,
+                tokenAvailable = tokenAvailable,
+                startingGeneration = generation,
+                currentGeneration = listening::plexGeneration,
+                resolver = repository::playable,
+            ) ?: return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
+            val items = restored.entries.map { entry -> entry.asMediaItem().buildUpon().setUri(entry.url).setTag(entry).build() }
+            MediaSession.MediaItemsWithStartPosition(items, restored.index, restored.positionMs)
         }
     }
 }

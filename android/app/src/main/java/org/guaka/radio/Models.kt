@@ -126,13 +126,16 @@ object IntegrationParser {
             "Use a local Music Assistant address without credentials or query parameters."
         }
         val host = url.host.lowercase()
-        val octets = host.split('.').mapNotNull { it.toIntOrNull() }
-        val privateV4 = octets.size == 4 && octets.all { it in 0..255 } &&
+        val labels = host.split('.')
+        val octets = labels.takeIf { it.size == 4 }?.mapNotNull { label ->
+            label.toIntOrNull()?.takeIf { it in 0..255 }
+        }.orEmpty()
+        val privateV4 = labels.size == 4 && octets.size == 4 &&
             (octets[0] == 10 || (octets[0] == 192 && octets[1] == 168) ||
                 (octets[0] == 172 && octets[1] in 16..31))
         val localV6 = host.contains(':') && (host.startsWith("fc") || host.startsWith("fd"))
         require(privateV4 || localV6 || host.endsWith(".local") || (!host.contains('.') && !host.contains(':'))) {
-            "Music Assistant must use a home-network IP or hostname, such as http://192.168.1.20:8095."
+            "Use a home-network IP or hostname for Music Assistant."
         }
         return url.toString().trimEnd('/')
     }

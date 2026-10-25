@@ -17,6 +17,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class RadioApp : Application() {
+    override fun onCreate() { super.onCreate(); SettingsMigration.migrate(this) }
     val repository by lazy { MusicRepository(this) }
 }
 
@@ -28,8 +29,7 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("clientId", it).apply()
     }
     val api = ApiClient(clientId)
-    private val serverCache = ConcurrentHashMap<String, PlexServer>()
-    private val endpointCache = ConcurrentHashMap<String, String>()
+    private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
     val stations: List<Entry> by lazy {
         val rows = JSONArray(context.assets.open("stations.json").bufferedReader().use { it.readText() })
@@ -49,22 +49,15 @@ class MusicRepository(private val context: Context) {
             parent == "favorites" -> favoriteEntries(start, size)
             parent == "plex" -> {
                 val token = credentials.get("plexToken")
-                if (token.isBlank()) throw IOException("Sign in to Plex on your phone first.")
-                val servers = api.servers(token)
-                servers.forEach { serverCache[it.id] = it }
+                if (token.isBlank()) throw ApiRequestException(401)
+                val servers = discoverServers()
                 servers.map { Entry("server:${it.id}", it.name, "Music libraries") }.drop(start).take(size).also(::cache)
             }
             parent.startsWith("server:") -> {
                 val id = parent.removePrefix("server:")
                 val payload = plexRequest(id, "/library/sections")
-                val rows = payload.optJSONObject("MediaContainer")?.optJSONArray("Directory") ?: JSONArray()
-                (0 until rows.length()).mapNotNull { i ->
-                    val row = rows.getJSONObject(i)
-                    if (row.optString("type") != "artist") null
-                    else {
-                        val section = row.optString("key")
-                        if (!validPathKey(section)) null else Entry("library:$id:$section", row.optString("title", "Music"), "Artists, albums and tracks")
-                    }
+                artistSections(payload).map { (section, title) ->
+                    Entry("library:$id:$section", title, "Artists, albums and tracks")
                 }.drop(start).take(size).also(::cache)
             }
             parent.startsWith("library:") -> {
@@ -86,10 +79,19 @@ class MusicRepository(private val context: Context) {
         entries[id]?.copy(url = "", token = "") ?: when {
             id == "root" -> Entry("root", "Radio Guaka")
             id in listOf("radio", "plex", "favorites") -> browse("root").first { it.id == id }
-            id.startsWith("server:") -> browse("plex").first { it.id == id }
+            id.startsWith("server:") -> {
+                val serverId = id.removePrefix("server:")
+                if (!validPathKey(serverId)) throw IOException("Unknown media item.")
+                val server = server(serverId)
+                Entry(id, server.name, "Music libraries")
+            }
             id.startsWith("library:") -> {
                 val parts = id.split(':', limit = 3)
-                browse("server:${parts[1]}").first { it.id == id }
+                if (parts.size != 3 || !validPathKey(parts[1]) || !validPathKey(parts[2])) throw IOException("Unknown media item.")
+                val payload = plexRequest(parts[1], "/library/sections")
+                val section = artistSections(payload).firstOrNull { it.first == parts[2] }
+                    ?: throw IOException("Unknown media item.")
+                Entry(id, section.second, "Artists, albums and tracks")
             }
             id.startsWith("catalog:") -> {
                 val parts = id.split(':', limit = 4)
@@ -129,7 +131,8 @@ class MusicRepository(private val context: Context) {
         scopes.forEach { (serverId, sectionId, requestedKind) ->
             val types = requestedKind?.let { listOf(kindType(it)) } ?: listOf(8, 9, 10)
             for (type in types) {
-                val url = plexCollectionUrl(serverId, sectionId, type, 0, start + size, text)
+                val searchLimit = (start.toLong() + size).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                val url = plexCollectionUrl(serverId, sectionId, type, 0, searchLimit, text)
                 val payload = plexRequest(serverId, url)
                 val found = IntegrationParser.mediaEntries(payload, serverId, sectionId)
                 matches += found
@@ -143,6 +146,15 @@ class MusicRepository(private val context: Context) {
     private fun pageStart(page: Int, pageSize: Int): Int =
         (page.coerceAtLeast(0).toLong() * safePageSize(pageSize)).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     private fun validPathKey(value: String) = value.matches(Regex("[A-Za-z0-9_-]{1,128}"))
+    private fun artistSections(payload: JSONObject): List<Pair<String, String>> {
+        val rows = payload.optJSONObject("MediaContainer")?.optJSONArray("Directory") ?: JSONArray()
+        return (0 until rows.length()).mapNotNull { i ->
+            val row = rows.optJSONObject(i) ?: return@mapNotNull null
+            val section = row.optString("key")
+            if (row.optString("type") != "artist" || !validPathKey(section)) null
+            else section to row.optString("title", "Music")
+        }
+    }
     private fun cache(items: List<Entry>) { items.forEach { entries[it.id] = it } }
     private fun searchable(entry: Entry, query: String) =
         (entry.title + " " + entry.subtitle).contains(query, ignoreCase = true)
@@ -180,45 +192,31 @@ class MusicRepository(private val context: Context) {
         val parts = id.split(':', limit = 3)
         require(parts.size == 3 && parts[0] in listOf("track", "artist", "album") && validPathKey(parts[1]) && validPathKey(parts[2]))
         val payload = plexRequest(parts[1], "/library/metadata/${parts[2]}")
-        val row = IntegrationParser.metadata(payload).optJSONObject(0) ?: throw IOException("Media item is no longer available.")
+        val row = IntegrationParser.metadata(payload).optJSONObject(0)
+            ?: throw ApiRequestException(404)
         if (row.optString("type").isBlank()) row.put("type", parts[0])
         return IntegrationParser.mediaEntry(row, parts[1], "")?.takeIf { it.id == id }?.also { entries[id] = it }
-            ?: throw IOException("Plex returned unsupported media metadata.")
+            ?: throw ApiRequestException(422)
     }
 
-    private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> {
-        val unavailableServers = mutableSetOf<String>()
-        return listening.favoriteIds().drop(start).take(size).map { id ->
-            val serverId = if (id.startsWith("track:")) id.split(':')[1] else null
-            val cached = entries[id]
-            if (cached != null) cached.copy(url = "", token = "")
-            else if (serverId != null && (serverId in unavailableServers || credentials.get("plexToken").isBlank()))
-                Entry(id, "Unavailable Plex track", "Sign in or remove this favorite", playable = true)
-            else try { item(id).copy(url = "", token = "") }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) {
-                serverId?.let { unavailableServers += it }
-                Entry(id, "Unavailable Plex track", "Reconnect or remove this favorite", playable = true)
-            }
-        }
-    }
+    private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> =
+        resolveFavoriteEntries(
+            ids = listening.favoriteIds().drop(start).take(size),
+            tokenAvailable = credentials.get("plexToken").isNotBlank(),
+            cachedEntry = { entries[it] },
+            resolveEntry = { item(it) },
+        )
 
     private suspend fun plexScopes(parent: String): List<Triple<String, String, String?>> {
         suspend fun sections(serverId: String): List<Triple<String, String, String?>> {
             val payload = plexRequest(serverId, "/library/sections")
-            val rows = payload.optJSONObject("MediaContainer")?.optJSONArray("Directory") ?: JSONArray()
-            return (0 until rows.length()).mapNotNull { i ->
-                val row = rows.optJSONObject(i) ?: return@mapNotNull null
-                val section = row.optString("key")
-                if (row.optString("type") != "artist" || !validPathKey(section)) null else Triple(serverId, section, null)
-            }
+            return artistSections(payload).map { (section, _) -> Triple(serverId, section, null) }
         }
         return when {
             parent == "root" || parent == "plex" -> {
                 val token = credentials.get("plexToken")
                 if (token.isBlank()) return emptyList()
-                val servers = api.servers(token)
-                servers.forEach { serverCache[it.id] = it }
+                val servers = discoverServers()
                 servers.flatMap { sections(it.id) }
             }
             parent.startsWith("server:") -> sections(parent.removePrefix("server:"))
@@ -227,12 +225,6 @@ class MusicRepository(private val context: Context) {
             }
             parent.startsWith("catalog:") -> parent.split(':', limit = 4).let { parts ->
                 if (parts.size == 4 && validPathKey(parts[2])) listOf(Triple(parts[1], parts[2], parts[3])) else emptyList()
-            }
-            parent.startsWith("artist:") || parent.startsWith("album:") -> {
-                val media = entries[parent] ?: plexMetadata(parent)
-                if (!validPathKey(media.plexSection)) emptyList()
-                else listOf(Triple(parent.split(':', limit = 3)[1], media.plexSection,
-                    if (parent.startsWith("album:")) "tracks" else null))
             }
             else -> emptyList()
         }
@@ -243,16 +235,22 @@ class MusicRepository(private val context: Context) {
         return IntegrationParser.collectionUrl(endpoint(server(serverId)), sectionId, type, start, size, title).toHttpUrl()
     }
 
-    private suspend fun server(id: String): PlexServer {
-        check(credentials.get("plexToken").isNotBlank()) { "Sign in to Plex on your phone first." }
-        return serverCache[id] ?: run {
-            api.servers(credentials.get("plexToken")).forEach { serverCache[it.id] = it }
-            serverCache[id] ?: throw IOException("Plex server is unavailable. Refresh the server list.")
-        }
+    private suspend fun discoverServers(): List<PlexServer> {
+        val snapshot = discovery.snapshot()
+        val token = credentials.get("plexToken")
+        if (token.isBlank()) throw ApiRequestException(401)
+        return api.servers(token).also { discovery.storeServers(snapshot, it) }
+    }
+
+    private suspend fun server(id: String): PlexServer = discovery.server(id) ?: run {
+        discoverServers()
+        discovery.server(id) ?: throw IOException("Plex server is unavailable. Refresh the server list.")
     }
 
     private suspend fun endpoint(server: PlexServer): String = coroutineScope {
-        endpointCache[server.id]?.let { return@coroutineScope it }
+        val snapshot = discovery.snapshot()
+        discovery.requireServer(snapshot, server)
+        discovery.endpoint(server)?.let { return@coroutineScope it }
         // Probe concurrently so an unreachable LAN address cannot block remote playback.
         val results = Channel<Result<String>>(Channel.UNLIMITED)
         val probes = server.connections.map { connection -> launch {
@@ -265,7 +263,7 @@ class MusicRepository(private val context: Context) {
             var authenticationFailure: ApiRequestException? = null
             repeat(probes.size) {
                 val result = results.receive()
-                result.getOrNull()?.let { endpointCache[server.id] = it; return@coroutineScope it }
+                result.getOrNull()?.let { discovery.storeEndpoint(snapshot, server, it); return@coroutineScope it }
                 (result.exceptionOrNull() as? ApiRequestException)?.takeIf { it.statusCode in listOf(401, 403) }
                     ?.let { authenticationFailure = it }
             }
@@ -276,16 +274,18 @@ class MusicRepository(private val context: Context) {
 
     private suspend fun plexRequest(id: String, path: String): JSONObject {
         val server = server(id)
-        return try { api.request(endpoint(server) + path, server.token) as JSONObject }
+        val snapshot = discovery.snapshot()
+        val result = try { api.request(endpoint(server) + path, server.token) as JSONObject }
         catch (error: IOException) {
-            if (error is ApiRequestException && error.statusCode !in listOf(408, 429) && error.statusCode !in 500..599) throw error
-            endpointCache.remove(id)
+            if (!PlaybackRecovery.isRetryable(PlaybackRecovery.classify(error))) throw error
+            discovery.removeEndpoint(server)
             api.request(endpoint(server) + path, server.token) as JSONObject
         }
+        discovery.requireServer(snapshot, server)
+        return result
     }
 
     private suspend fun plexRequest(id: String, url: okhttp3.HttpUrl): JSONObject {
-        val server = server(id)
         val pathAndQuery = url.encodedPath + (url.encodedQuery?.let { "?$it" } ?: "")
         return plexRequest(id, pathAndQuery)
     }
@@ -335,12 +335,14 @@ class MusicRepository(private val context: Context) {
     }
 
     /** Explicit user retry re-discovers endpoints after a Wi-Fi/mobile or Plex server change. */
-    fun invalidatePlexConnections() { serverCache.clear(); endpointCache.clear() }
+    fun invalidatePlexConnections() { discovery.reset() }
 
+    @Synchronized
     fun savePlexToken(token: String) {
         val previous = credentials.get("plexToken")
+        discovery.reset()
         credentials.set("plexToken", token)
-        serverCache.clear(); endpointCache.clear()
+        discovery.reset()
         if (previous != token) listening.clearPlex()
         entries.keys.filter { it.startsWith("track:") || it.startsWith("album:") || it.startsWith("artist:") || it.startsWith("library:") || it.startsWith("catalog:") || it.startsWith("server:") }
             .forEach { entries.remove(it) }
