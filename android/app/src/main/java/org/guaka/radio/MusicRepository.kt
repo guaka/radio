@@ -51,8 +51,8 @@ class MusicRepository(private val context: Context) {
         val start = pageStart(page, pageSize)
         val size = safePageSize(pageSize)
         when {
-            parent == "root" -> listOf(Entry("radio", "Radio", "Stations"), Entry("plex", "Plex", "Your music servers"),
-                Entry("favorites", "Favorites", "Saved radio and Plex tracks")).drop(start).take(size)
+            parent == "root" -> listOf(Entry("favorites", "Favorites", "Saved radio and Plex tracks"),
+                Entry("radio", "Radio", "Stations"), Entry("plex", "Plex", "Your music servers")).drop(start).take(size)
             parent == "radio" -> stations.drop(start).take(size)
             parent == "favorites" -> favoriteEntries(start, size)
             parent == "plex" -> {

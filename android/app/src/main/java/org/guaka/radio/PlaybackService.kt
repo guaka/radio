@@ -41,7 +41,7 @@ import kotlin.coroutines.resume
 import java.io.IOException
 
 fun Entry.asMediaItem(): MediaItem = MediaItem.Builder().setMediaId(id).setMediaMetadata(
-    MediaMetadata.Builder().setTitle(title).setArtist(subtitle).setIsBrowsable(!playable).setIsPlayable(playable)
+    MediaMetadata.Builder().setTitle(title).setArtist(subtitle.takeUnless { id.startsWith("radio:") }).setIsBrowsable(!playable).setIsPlayable(playable)
         .setMediaType(if (!playable) MediaMetadata.MEDIA_TYPE_FOLDER_MIXED else if (id.startsWith("radio:")) MediaMetadata.MEDIA_TYPE_RADIO_STATION else MediaMetadata.MEDIA_TYPE_MUSIC)
         .build()).build()
 
