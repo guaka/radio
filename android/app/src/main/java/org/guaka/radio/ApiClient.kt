@@ -20,6 +20,17 @@ import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
+class ApiRequestException(val statusCode: Int, val assistant: Boolean = false) : IOException(
+    when (statusCode) {
+        401, 403 -> if (assistant) "Music Assistant access denied. Check its access token in Setup."
+            else "Plex access expired or was removed. Sign in again."
+        404, 410 -> "This item is no longer available. Refresh and choose another item."
+        408, 429 -> "The server is busy. Wait briefly and try again."
+        in 500..599 -> "The server is temporarily unavailable. Try again later."
+        else -> "Server returned HTTP $statusCode. Try again."
+    }
+)
+
 class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(5, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).callTimeout(18, TimeUnit.SECONDS)
     .followRedirects(false).followSslRedirects(false).build()) {
@@ -42,8 +53,7 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         try {
-                            if (response.code == 401 || response.code == 403) throw IOException("Access denied. Check your sign-in or Music Assistant token.")
-                            if (!response.isSuccessful) throw IOException("Server returned HTTP ${response.code}. Try again.")
+                            if (!response.isSuccessful) throw ApiRequestException(response.code, assistant)
                             val text = response.body?.string() ?: throw IOException("Server returned an empty response.")
                             val result = JSONTokener(text).nextValue()
                             if (continuation.isActive) continuation.resume(result)

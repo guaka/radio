@@ -65,6 +65,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var operations by mutableIntStateOf(0)
     val busy get() = operations > 0
     var loginUrl by mutableStateOf<String?>(null); private set
+    var plexAuthRequired by mutableStateOf(false); private set
     var speakers by mutableStateOf<List<Speaker>?>(null); private set
     var speakerTracks by mutableStateOf<List<SpeakerTrack>?>(null); private set
     var selectedSpeaker by mutableStateOf<Speaker?>(null); private set
@@ -89,7 +90,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun action(block: suspend () -> Unit) = viewModelScope.launch {
         operations++
         try { block() } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { status = when (e) {
+        catch (e: Exception) {
+            plexAuthRequired = e is ApiRequestException && !e.assistant && e.statusCode in listOf(401, 403)
+            status = when (e) {
             is java.net.UnknownHostException, is java.net.ConnectException, is java.net.SocketTimeoutException -> "Cannot connect. Check your network and server address."
             is javax.net.ssl.SSLException -> "Secure connection failed. Check the server certificate and address."
             else -> e.message?.takeIf { !it.contains("http") } ?: "Request failed. Check the connection and try again."
@@ -144,6 +147,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
                     favorites = repository.listening.favoriteIds().toSet()
                     refreshSaved()
                     loginUrl = null
+                    plexAuthRequired = false
                     browse("plex")
                     return@action
                 }
@@ -230,6 +234,8 @@ fun AppScreen(model: MainModel = viewModel()) {
     var seekable by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf<Float?>(null) }
     var playerError by remember { mutableStateOf("") }
+    var playerFailure by remember { mutableStateOf<PlaybackFailure?>(null) }
+    var buffering by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     LaunchedEffect(model.listEpoch) { listState.scrollToItem(0) }
@@ -237,11 +243,15 @@ fun AppScreen(model: MainModel = viewModel()) {
         val future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
             .setListener(object : MediaBrowser.Listener {
                 override fun onError(controller: androidx.media3.session.MediaController, sessionError: androidx.media3.session.SessionError) {
-                    playerError = "Playback request failed. Check your connection and Plex sign-in, then try again."
+                    playerFailure = if (sessionError.code == androidx.media3.session.SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
+                        PlaybackFailure.AUTHENTICATION else PlaybackFailure.UNKNOWN
+                    playerError = PlaybackRecovery.guidance(playerFailure!!)
                 }
             }).buildAsync()
         fun sync(player: Player) {
             current = player.currentMediaItem; playing = player.isPlaying
+            buffering = player.playbackState == Player.STATE_BUFFERING
+            if (player.playerError == null && player.playbackState == Player.STATE_READY) { playerError = ""; playerFailure = null }
             queue = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
             queueIndex = player.currentMediaItemIndex
             if (player.isPlaying) model.phoneOutput()
@@ -249,7 +259,9 @@ fun AppScreen(model: MainModel = viewModel()) {
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) = sync(player)
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                playerError = "Playback failed. Check your connection, then try the track or station again."
+                playerFailure = PlaybackRecovery.classify(error, error.errorCode)
+                playerError = if (playerFailure == PlaybackFailure.AUTHENTICATION && current?.mediaId?.startsWith("radio:") == true)
+                    "This station denied access. Choose another station." else PlaybackRecovery.guidance(playerFailure!!)
             }
         }
         future.addListener({ runCatching { future.get() }.onSuccess {
@@ -274,10 +286,25 @@ fun AppScreen(model: MainModel = viewModel()) {
         if (queue.size + items.size > 500) { playerError = "The phone queue can hold up to 500 items."; return }
         browser?.addMediaItems(items)
     }
+    fun retryPlayback() {
+        val player = browser ?: return
+        val ids = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
+        val index = player.currentMediaItemIndex.coerceAtLeast(0)
+        val resumePosition = if (player.currentMediaItem?.mediaId?.startsWith("track:") == true) player.currentPosition.coerceAtLeast(0) else 0L
+        model.action {
+            withContext(Dispatchers.IO) { model.repository.invalidatePlexConnections() }
+            playerError = ""; playerFailure = null; model.phoneOutput()
+            if (ids.isEmpty()) player.play()
+            else {
+                player.setMediaItems(ids.map { MediaItem.Builder().setMediaId(it).build() }, index, resumePosition)
+                player.prepare(); player.play()
+            }
+        }
+    }
     fun play(items: List<MediaItem>) {
         if (items.isEmpty()) return
         if (items.size > 500) { playerError = "Choose up to 500 items for the phone queue."; return }
-        playerError = ""; model.phoneOutput()
+        playerError = ""; playerFailure = null; model.phoneOutput()
         browser?.setMediaItems(items); browser?.prepare(); browser?.play()
     }
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -301,7 +328,15 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (model.status.isNotBlank()) Text(model.status, style = MaterialTheme.typography.bodySmall)
-        if (playerError.isNotBlank()) Text(playerError, color = MaterialTheme.colorScheme.error)
+        if (model.plexAuthRequired) TextButton(onClick = model::signIn) { Text("Sign in to Plex again") }
+        if (playerError.isNotBlank()) {
+            Text(playerError, color = MaterialTheme.colorScheme.error)
+            if (playerFailure == PlaybackFailure.AUTHENTICATION && current?.mediaId?.startsWith("track:") == true)
+                TextButton(onClick = { browser?.pause(); model.signIn() }) { Text("Sign in to Plex again") }
+            else if (playerFailure?.let { PlaybackRecovery.isRetryable(it) || it == PlaybackFailure.UNKNOWN } == true)
+                TextButton(onClick = ::retryPlayback, enabled = !model.busy && browser != null) { Text("Retry playback") }
+        }
+        if (buffering) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("Buffering audio…", style = MaterialTheme.typography.bodySmall) }
         val playable = model.entries.filter { it.playable }.map { it.asMediaItem() }
         if (playable.isNotEmpty()) Row {
             TextButton(onClick = { play(playable) }, enabled = browser != null) { Text("Play listed") }
@@ -346,10 +381,10 @@ fun AppScreen(model: MainModel = viewModel()) {
             TextButton(onClick = { model.speakerPicker(current) }, enabled = current != null) { Text("Speakers") }
         }
         if (current == null && model.savedPlayback != null) TextButton(enabled = browser != null, onClick = {
-            val saved = model.repository.listening.loadPlayback() ?: return@TextButton
-            playerError = ""; model.phoneOutput()
-            browser?.setMediaItems(saved.ids.map { MediaItem.Builder().setMediaId(it).build() }, saved.index, saved.positionMs)
-            browser?.prepare(); browser?.play()
+            if (model.repository.listening.loadPlayback() == null) return@TextButton
+            playerError = ""; playerFailure = null; model.phoneOutput()
+            // Media3 resolves the saved queue and omits stale items through the service callback.
+            browser?.play()
         }) { Text("Resume saved queue") }
     }
     if (showQueue) AlertDialog(onDismissRequest = { showQueue = false }, title = { Text("Phone queue") }, text = {

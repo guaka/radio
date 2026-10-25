@@ -129,7 +129,7 @@ class PlaybackServiceTest {
         }
     }
     // Opt in explicitly: this checks a live public stream, so it is not a hermetic CI test.
-    @Test fun liveRadioSurvivesBackgroundPlayback() {
+    @Test fun liveRadioSurvivesBackgroundAndRespectsFocusLoss() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveRadio") == "true")
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -151,9 +151,10 @@ class PlaybackServiceTest {
         }
         try {
             instrumentation.runOnMainSync {
-                browser.setMediaItem(androidx.media3.common.MediaItem.Builder().setMediaId("radio:7soul").build())
-                browser.prepare()
-                browser.play()
+                assertEquals(0, browser.mediaItemCount)
+                (context.applicationContext as RadioApp).repository.listening.savePlayback(
+                    SavedPlayback(listOf("radio:7soul"), 0, 0L))
+                browser.play() // Exercise the service's explicit saved-queue resumption path.
             }
             val deadline = android.os.SystemClock.elapsedRealtime() + 45_000
             while (!snapshot().first && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(250)
@@ -166,9 +167,29 @@ class PlaybackServiceTest {
             val background = snapshot()
             assertTrue("Playback stopped in the background", background.first)
             assertTrue("Playback position did not advance", background.second > started.second + 25_000)
+            val audio = context.getSystemService(android.media.AudioManager::class.java)
+            val interruption = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION).build())
+                .setOnAudioFocusChangeListener({ }, android.os.Handler(android.os.Looper.getMainLooper())).build()
+            try {
+                assertEquals(android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(interruption))
+                val focusDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+                while (snapshot().first && android.os.SystemClock.elapsedRealtime() < focusDeadline) Thread.sleep(50)
+                assertFalse("Player ignored transient audio focus loss", snapshot().first)
+                instrumentation.runOnMainSync { browser.pause() }
+            } finally { audio.abandonAudioFocusRequest(interruption) }
+            Thread.sleep(500)
+            assertFalse("User pause must prevent resume when focus returns", snapshot().first)
+
         } finally {
             instrumentation.uiAutomation.executeShellCommand("input keyevent 224").close()
-            instrumentation.runOnMainSync { browser.stop(); browser.release(); activity.finish() }
+            instrumentation.runOnMainSync { browser.stop(); browser.clearMediaItems() }
+            val store = (context.applicationContext as RadioApp).repository.listening
+            val cleanupDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            while (store.loadPlayback() != null && android.os.SystemClock.elapsedRealtime() < cleanupDeadline) Thread.sleep(25)
+            instrumentation.runOnMainSync { browser.release(); activity.finish() }
+            instrumentation.waitForIdleSync()
         }
     }
 
