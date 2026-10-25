@@ -99,6 +99,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var selectedEntry: Entry? = null
     var output by mutableStateOf("This phone"); private set
     private var browseJob: Job? = null
+    private var filterJob: Job? = null
     private var loginJob: Job? = null
     private var speakerJob: Job? = null
     private var stationArtworkPreloadJob: Job? = null
@@ -158,12 +159,32 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (remember && id != parent) history.add(parent to locationTitle)
         parent = id
         locationTitle = title
+        filterJob?.cancel()
         searchTerm = ""
         appliedQuery = ""
         load(reset = true)
     }
     fun refresh() = load(reset = true)
-    fun search() { appliedQuery = searchTerm.trim(); load(reset = true) }
+    fun updateFilter(value: String) {
+        searchTerm = value
+        filterJob?.cancel()
+        // Radio is local; debounce remote collections while the user types.
+        if (parent == "radio" || value.isBlank()) search()
+        else filterJob = viewModelScope.launch {
+            delay(250)
+            applyFilter()
+        }
+    }
+    fun search() {
+        filterJob?.cancel()
+        applyFilter()
+    }
+    private fun applyFilter() {
+        val query = searchTerm.trim()
+        if (query == appliedQuery) return
+        appliedQuery = query
+        load(reset = true)
+    }
     fun loadMore() {
         if (hasMore && !busy && !loadingMore && !paginationFailed) {
             loadingMore = true
@@ -626,14 +647,14 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         if (model.parent !in setOf("radio", "plex", "favorites"))
             Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(model.searchTerm, { model.searchTerm = it },
-            modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+        OutlinedTextField(model.searchTerm, model::updateFilter,
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Filter items" }.onPreviewKeyEvent { event ->
                 if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
                     if (event.type == KeyEventType.KeyUp) submitSearch()
                     true
                 } else false
             },
-            label = { Text("Search this source") }, singleLine = true,
+            singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { submitSearch() }, onDone = { submitSearch() }),
             trailingIcon = {
@@ -642,28 +663,22 @@ fun AppScreen(model: MainModel = viewModel()) {
                 }
             })
         if (model.parent != "radio") Row {
-            TextButton(onClick = model::back) { Text("Back") }
-            TextButton(onClick = model::refresh) { Text("Refresh") }
-            if (model.parent == "plex") TextButton(onClick = model::signIn) { Text("Sign in") }
             if (model.parent != "radio" && (model.parent != "favorites" ||
                     model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })) {
                 TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
             }
         }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        val radioSurface = model.parent == "radio" && !settings
-        val showPlexAuthPrompts = !radioSurface
-        if (model.status.isNotBlank() && !(radioSurface && model.statusScope == StatusScope.PLEX))
+        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites")
+        if (model.status.isNotBlank() && !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX))
             Text(model.status, style = MaterialTheme.typography.bodySmall)
-        if (model.plexAuthRequired && showPlexAuthPrompts)
-            TextButton(onClick = model::signIn) { Text("Sign in to Plex again") }
         val plexPlaybackAuthError = playerErrorIsPlexAuth ||
             (playerFailure == PlaybackFailure.AUTHENTICATION && model.plexAuthRequired)
-        if (playerError.isNotBlank() && (!radioSurface || !plexPlaybackAuthError)) {
+        if (showPlexAuthPrompts && (model.parent == "plex" || model.plexAuthRequired || plexPlaybackAuthError))
+            TextButton(onClick = model::signIn) { Text("Sign in to Plex") }
+        if (playerError.isNotBlank() && (showPlexAuthPrompts || !plexPlaybackAuthError)) {
             Text(playerError, color = MaterialTheme.colorScheme.error)
-            if (playerFailure == PlaybackFailure.AUTHENTICATION && current?.mediaId?.startsWith("track:") == true && showPlexAuthPrompts)
-                TextButton(onClick = { browser?.pause(); model.signIn() }) { Text("Sign in to Plex again") }
-            else if (playerFailure?.let { PlaybackRecovery.isRetryable(it) || it == PlaybackFailure.UNKNOWN } == true)
+            if (playerFailure?.let { PlaybackRecovery.isRetryable(it) || it == PlaybackFailure.UNKNOWN } == true)
                 TextButton(onClick = ::retryPlayback, enabled = !model.busy && browser != null) { Text("Retry playback") }
         }
         val playable = model.entries.filter { it.playable && !it.id.startsWith("radio:") }.map { it.asMediaItem() }
@@ -673,7 +688,7 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         LazyColumn(Modifier.weight(1f), state = listState) {
             items(model.entries, key = { it.id }) { entry ->
-                ListItem(headlineContent = { Text(entry.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                ListItem(headlineContent = { Text(entry.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = if (entry.id.startsWith("radio:")) null else ({ Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
                     leadingContent = { EntryArtwork(entry, model) },
                     trailingContent = {
                         if (entry.playable) Row {
@@ -690,10 +705,12 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
         }
         HorizontalDivider()
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            val title = current?.mediaMetadata?.title?.toString() ?: "Choose a station or track"
-            Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            current?.let { FavoriteButton(it.mediaId, title, model) }
+        current?.let { item ->
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                val title = item.mediaMetadata.title?.toString().orEmpty()
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                FavoriteButton(item.mediaId, title, model)
+            }
         }
         if (seekable && duration > 0 && model.output == "This phone") {
             Slider(value = dragging ?: position.toFloat().coerceIn(0f, duration.toFloat()),
@@ -735,12 +752,6 @@ fun AppScreen(model: MainModel = viewModel()) {
                 }
             }
         }
-        if (current == null && model.savedPlayback != null) TextButton(enabled = browser != null, onClick = {
-            if (model.repository.listening.loadPlayback() == null) return@TextButton
-            playerError = ""; playerFailure = null; model.phoneOutput()
-            // Media3 resolves the saved queue and omits stale items through the service callback.
-            browser?.play()
-        }) { Text("Resume saved queue") }
         }
     }
     if (showQueue) AlertDialog(onDismissRequest = { showQueue = false }, title = { Text("Phone queue") }, text = {

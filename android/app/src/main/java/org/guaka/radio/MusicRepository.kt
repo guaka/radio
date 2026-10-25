@@ -40,7 +40,7 @@ class MusicRepository(private val context: Context) {
         val rows = JSONArray(context.assets.open("stations.json").bufferedReader().use { it.readText() })
         (0 until rows.length()).map { i ->
             val row = rows.getJSONObject(i)
-            Entry("radio:${row.getString("id")}", row.getString("title"), row.optString("tags"), true,
+            Entry("radio:${row.getString("id")}", row.getString("title").replace('_', ' '), row.optString("tags"), true,
                 row.getString("url"), artwork = row.optString("artwork"))
         }.also { items -> items.forEach { entries[it.id] = it } }
     }
