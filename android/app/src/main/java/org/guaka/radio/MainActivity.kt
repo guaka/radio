@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -78,6 +80,7 @@ class MainActivity : ComponentActivity() {
 
 class MainModel(application: Application) : AndroidViewModel(application) {
     val repository = (application as RadioApp).repository
+    internal val bookstr = BookstrController(application)
     internal val nostr = NostrFavoritesController(repository, viewModelScope)
     internal var nostrLaunchIntent: ((Intent) -> Unit)? = null
     internal val nostrBridge = AndroidSignerBridge({ intent ->
@@ -91,6 +94,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     var paginationFailed by mutableStateOf(false); private set
     var listEpoch by mutableIntStateOf(0); private set
     var favorites by mutableStateOf(repository.listening.favoriteIds().toSet()); private set
+    var booksPlaybackSelected by mutableStateOf(false); private set
     var savedPlayback by mutableStateOf(repository.listening.loadPlayback()); private set
     var status by mutableStateOf(""); private set
     internal var statusScope by mutableStateOf(StatusScope.GENERAL); private set
@@ -125,7 +129,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         }
     }
     init { browse("radio") }
-    override fun onCleared() { nostr.close(); stopListeningObserver(); super.onCleared() }
+    override fun onCleared() { bookstr.close(); nostr.close(); stopListeningObserver(); super.onCleared() }
     fun startStationArtworkPreload() {
         if (stationArtworkPreloadJob?.isActive == true) return
         stationArtworkPreloadJob = viewModelScope.launch { repository.preloadStationArtwork() }
@@ -158,7 +162,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         } finally { operations-- }
     }
     fun browse(id: String, remember: Boolean = true, title: String = when (id) {
-        "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; else -> locationTitle
+        "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; "books" -> "Books"; else -> locationTitle
     }) {
         if (id == "radio") {
             dismissSpeakers()
@@ -170,14 +174,18 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         filterJob?.cancel()
         searchTerm = ""
         appliedQuery = ""
+        if (id == "books") refreshBooks()
         load(reset = true)
+    }
+    fun refreshBooks() {
+        if (bookstr.state.connected) bookstr.refreshCatalog() else bookstr.connect()
     }
     fun refresh() = load(reset = true)
     fun updateFilter(value: String) {
         searchTerm = value
         filterJob?.cancel()
         // Radio is local; debounce remote collections while the user types.
-        if (parent == "radio" || value.isBlank()) search()
+        if (parent in setOf("radio", "books") || value.isBlank()) search()
         else filterJob = viewModelScope.launch {
             delay(250)
             applyFilter()
@@ -191,6 +199,11 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val query = searchTerm.trim()
         if (query == appliedQuery) return
         appliedQuery = query
+        if (parent == "books") {
+            listEpoch++
+            status = ""
+            return
+        }
         load(reset = true)
     }
     fun loadMore() {
@@ -216,6 +229,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             entries = emptyList(); nextPage = 0; hasMore = false; listEpoch++
         }
         val folder = parent
+        if (folder == "books") {
+            status = ""
+            return
+        }
         val query = appliedQuery
         val page = nextPage
         browseJob = action(onFailure = { if (!reset) paginationFailed = true }) {
@@ -350,6 +367,22 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (cancelSpeakerRequests) dismissSpeakers()
         output = "This phone"
     }
+    fun openBook(mediaId: String): Boolean {
+        val book = bookstr.state.books.firstOrNull { it.id == mediaId } ?: return false
+        if (!book.playable) return false
+        if (!bookstr.play(mediaId)) return false
+        booksPlaybackSelected = true
+        return true
+    }
+    fun radioOrPlexPlaybackStarted() {
+        if (booksPlaybackSelected || bookstr.state.playing) {
+            booksPlaybackSelected = false
+            bookstr.pause()
+        }
+    }
+    fun bookstrPlaybackStarted() {
+        booksPlaybackSelected = bookstr.state.hasActiveBook
+    }
     fun dismissSpeakers() {
         speakerJob?.cancel(); speakerJob = null
         speakerEpoch.next()
@@ -463,6 +496,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                     model.startStationArtworkPreload()
                     routeObserver.start()
                 }
+                Lifecycle.Event.ON_RESUME -> if (model.parent == "books") model.refreshBooks()
                 Lifecycle.Event.ON_STOP -> {
                     model.stopStationArtworkPreload()
                     routeObserver.close()
@@ -529,7 +563,11 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
             queue = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
             queueIndex = player.currentMediaItemIndex
-            if (player.isPlaying) model.phoneOutput(cancelSpeakerRequests = false)
+            if (player.isPlaying) {
+                model.phoneOutput(cancelSpeakerRequests = false)
+                if (player.currentMediaItem?.mediaId?.let { it.startsWith("radio:") || it.startsWith("track:") } == true)
+                    model.radioOrPlexPlaybackStarted()
+            }
         }
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) = sync(player)
@@ -555,6 +593,12 @@ fun AppScreen(model: MainModel = viewModel()) {
         model.loginUrl?.let {
             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) }
                 .onFailure { playerError = "No browser is available for Plex sign-in." }
+        }
+    }
+    LaunchedEffect(model.bookstr.state.playing) {
+        if (model.bookstr.state.playing) {
+            model.bookstrPlaybackStarted()
+            browser?.pause()
         }
     }
     BackHandler(enabled = settings || model.canGoBack) { if (settings) closeSettings() else model.back() }
@@ -655,25 +699,36 @@ fun AppScreen(model: MainModel = viewModel()) {
                 }) { Text("Save Music Assistant") }
             }
         } else {
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(
-                painterResource(R.drawable.ic_radio),
-                contentDescription = "Radio Guaka",
-                tint = androidx.compose.ui.graphics.Color.Unspecified,
-                modifier = Modifier.size(28.dp),
-            )
-            FilterChip(selected = model.parent == "favorites", onClick = { model.browse("favorites") },
-                label = { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") },
-                modifier = Modifier.semantics { contentDescription = "Favorites" })
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Icon(painterResource(R.drawable.ic_radio), contentDescription = "Radio Guaka",
+                tint = Color.Unspecified, modifier = Modifier.size(24.dp))
+            IconToggleButton(checked = model.parent == "favorites", onCheckedChange = { model.browse("favorites") },
+                modifier = Modifier.width(40.dp).background(
+                    if (model.parent == "favorites") MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                )) { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") }
             FilterChip(selected = model.parent == "radio", onClick = { model.browse("radio") }, label = { Text("Radio") })
-            FilterChip(selected = model.parent != "radio" && model.parent != "favorites", onClick = { model.browse("plex") }, label = { Text("Plex") })
+            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "books", onClick = { model.browse("plex") }, label = { Text("Plex") })
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = ::openSettings, modifier = Modifier.semantics {
+            val booksSelected = model.parent == "books"
+            IconButton(onClick = { model.browse("books") }, modifier = Modifier.width(40.dp)
+                .background(
+                    if (booksSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                )
+                .semantics {
+                    contentDescription = "Books"
+                    selected = booksSelected
+                }) {
+                Icon(painterResource(R.drawable.ic_books), contentDescription = null,
+                    tint = if (booksSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = ::openSettings, modifier = Modifier.width(40.dp).semantics {
                 contentDescription = "Setup and connections"
                 selected = false
             }) { Icon(painterResource(R.drawable.ic_settings), contentDescription = null) }
         }
-        if (model.parent !in setOf("radio", "plex", "favorites"))
+        if (model.parent !in setOf("radio", "plex", "favorites", "books"))
             Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(model.searchTerm, model::updateFilter,
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Filter items" }.onPreviewKeyEvent { event ->
@@ -690,57 +745,102 @@ fun AppScreen(model: MainModel = viewModel()) {
                     Icon(painterResource(R.drawable.ic_search), contentDescription = "Search")
                 }
             })
-        if (model.parent != "radio") Row {
+        if (model.parent !in setOf("radio", "books")) Row {
             if (model.parent != "radio" && (model.parent != "favorites" ||
                     model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })) {
                 TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
             }
         }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites")
+        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "books")
         if (model.status.isNotBlank() && !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX))
             Text(model.status, style = MaterialTheme.typography.bodySmall)
         val plexPlaybackAuthError = playerErrorIsPlexAuth ||
             (playerFailure == PlaybackFailure.AUTHENTICATION && model.plexAuthRequired)
         if (showPlexAuthPrompts && (model.parent == "plex" || model.plexAuthRequired || plexPlaybackAuthError))
             TextButton(onClick = model::signIn) { Text("Sign in to Plex") }
-        if (playerError.isNotBlank() && (showPlexAuthPrompts || !plexPlaybackAuthError)) {
+        if (model.parent != "books" && playerError.isNotBlank() && (showPlexAuthPrompts || !plexPlaybackAuthError)) {
             Text(playerError, color = MaterialTheme.colorScheme.error)
             if (playerFailure?.let { PlaybackRecovery.isRetryable(it) || it == PlaybackFailure.UNKNOWN } == true)
                 TextButton(onClick = ::retryPlayback, enabled = !model.busy && browser != null) { Text("Retry playback") }
         }
         val playable = model.entries.filter { it.playable && !it.id.startsWith("radio:") }.map { it.asMediaItem() }
-        if (model.parent != "radio" && playable.isNotEmpty()) Row {
+        if (model.parent !in setOf("radio", "books") && playable.isNotEmpty()) Row {
             TextButton(onClick = { play(playable) }, enabled = browser != null) { Text("Play listed") }
             TextButton(onClick = { enqueue(playable) }, enabled = browser != null) { Text("Queue listed") }
         }
+        val bookstrState = model.bookstr.state
+        val visibleBooks = BooksLibrary.filter(bookstrState.books, model.searchTerm)
+        val bookOwnsPlayer = BooksLibrary.ownsPlayerControls(bookstrState, model.booksPlaybackSelected)
+        val activeBookId = BooksLibrary.activeBookId(bookstrState)
+        if (model.parent == "books" && bookstrState.error != null) {
+            Text(bookstrState.error!!, color = MaterialTheme.colorScheme.error)
+            if (!bookstrState.connected || bookstrState.error != null) TextButton(onClick = model::refreshBooks, enabled = !bookstrState.connecting) { Text("Retry") }
+        }
+        if (model.parent == "books" && bookstrState.connecting) LinearProgressIndicator(Modifier.fillMaxWidth())
         LazyColumn(Modifier.weight(1f), state = listState) {
-            items(model.entries, key = { it.id }) { entry ->
-                ListItem(headlineContent = { Text(entry.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = if (entry.id.startsWith("radio:")) null else ({ Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
-                    leadingContent = { EntryArtwork(entry, model) },
-                    trailingContent = {
-                        if (entry.playable) Row {
-                            FavoriteButton(entry.id, entry.title, model)
-                            if (!entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
-                                modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
-                        }
-                    }, modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
-                        if (entry.playable) play(listOf(entry.asMediaItem())) else model.browse(entry.id, title = entry.title)
-                    })
+            if (model.parent == "books") {
+                items(visibleBooks, key = { it.id }) { book ->
+                    ListItem(
+                        headlineContent = { Text(book.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        supportingContent = {
+                            Text(if (book.author.isBlank()) book.format.uppercase() else "${book.author} · ${book.format.uppercase()}",
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        },
+                        leadingContent = { Icon(painterResource(R.drawable.ic_books), contentDescription = null,
+                            modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailingContent = {
+                            if (book.playable) IconButton(onClick = {
+                                model.openBook(book.id)
+                            }, modifier = Modifier.semantics { contentDescription = "Open ${book.title} in Bookstr" }) {
+                                Icon(painterResource(R.drawable.ic_play), contentDescription = null)
+                            } else Text("Unavailable", style = MaterialTheme.typography.labelSmall)
+                        },
+                        modifier = Modifier.clickable(enabled = book.playable) {
+                            model.openBook(book.id)
+                        },
+                    )
+                }
+                if (bookstrState.connected && visibleBooks.isEmpty()) item {
+                    Text(if (bookstrState.books.isEmpty()) "No downloaded books in Bookstr." else "No books match this search.",
+                        style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
+                }
+            } else {
+                items(model.entries, key = { it.id }) { entry ->
+                    ListItem(headlineContent = { Text(entry.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = if (entry.id.startsWith("radio:")) null else ({ Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
+                        leadingContent = { EntryArtwork(entry, model) },
+                        trailingContent = {
+                            if (entry.playable) Row {
+                                FavoriteButton(entry.id, entry.title, model)
+                                if (!entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
+                                    modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
+                            }
+                        }, modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
+                            if (entry.playable) play(listOf(entry.asMediaItem())) else model.browse(entry.id, title = entry.title)
+                        })
+                }
             }
             if (model.hasMore && model.paginationFailed) item {
                 TextButton(onClick = model::retryLoadMore, enabled = !model.busy) { Text("Could not load more. Retry") }
             }
         }
         HorizontalDivider()
-        current?.let { item ->
+        if (bookOwnsPlayer) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                val title = bookstrState.currentTitle
+                    ?: bookstrState.books.firstOrNull { it.id == activeBookId }?.title
+                    ?: "Bookstr"
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text("Bookstr", style = MaterialTheme.typography.labelSmall)
+            }
+        } else current?.let { item ->
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 val title = item.mediaMetadata.title?.toString().orEmpty()
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 FavoriteButton(item.mediaId, title, model)
             }
         }
-        if (seekable && duration > 0 && model.output == "This phone") {
+        if (!bookOwnsPlayer && seekable && duration > 0 && model.output == "This phone") {
             Slider(value = dragging ?: position.toFloat().coerceIn(0f, duration.toFloat()),
                 onValueChange = { dragging = it }, valueRange = 0f..duration.toFloat(),
                 onValueChangeFinished = { dragging?.let { browser?.seekTo(it.toLong()) }; dragging = null },
@@ -748,13 +848,19 @@ fun AppScreen(model: MainModel = viewModel()) {
             Text("${durationLabel(position)} / ${durationLabel(duration)}", style = MaterialTheme.typography.labelSmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            FilledIconButton(enabled = current != null && model.output == "This phone", onClick = {
-                if (playing) browser?.pause() else { browser?.prepare(); browser?.play() }
+            FilledIconButton(enabled = if (bookOwnsPlayer) bookstrState.connected && activeBookId != null
+                else current != null && model.output == "This phone", onClick = {
+                if (bookOwnsPlayer) model.bookstr.togglePlayPause()
+                else if (playing) browser?.pause() else { browser?.prepare(); browser?.play() }
             }) {
-                Icon(painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play),
-                    contentDescription = if (playing) "Pause" else "Play")
+                val isPlaying = if (bookOwnsPlayer) bookstrState.playing else playing
+                Icon(painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
+                    contentDescription = if (isPlaying) "Pause" else "Play")
             }
-            if (model.parent != "radio" && current?.mediaId?.startsWith("track:") == true) {
+            if (bookOwnsPlayer && activeBookId != null) {
+                IconButton(onClick = model.bookstr::skipPrevious, modifier = Modifier.semantics { contentDescription = "Previous book page" }) { Text("‹") }
+                IconButton(onClick = model.bookstr::skipNext, modifier = Modifier.semantics { contentDescription = "Next book page" }) { Text("›") }
+            } else if (model.parent != "radio" && current?.mediaId?.startsWith("track:") == true) {
                 IconButton(enabled = browser?.hasPreviousMediaItem() == true && model.output == "This phone",
                     onClick = { selectPlayback(queue.map { it.mediaId }, (queueIndex - 1).coerceAtLeast(0)) },
                     modifier = Modifier.semantics { contentDescription = "Previous track" }) { Text("‹") }
@@ -763,18 +869,19 @@ fun AppScreen(model: MainModel = viewModel()) {
                     modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
             }
             TextButton(
-                onClick = { model.speakerPicker(current) },
-                enabled = current != null,
+                onClick = { if (!bookOwnsPlayer) model.speakerPicker(current) },
+                enabled = !bookOwnsPlayer && current != null,
                 modifier = Modifier.weight(1f).semantics {
-                    val outputName = if (model.output == "This phone") routeDisplayName else model.output
-                    contentDescription = "Playback output: $outputName${if (buffering || pendingSelection) ", buffering" else ""}. Change output"
+                    val outputName = if (bookOwnsPlayer) routeDisplayName else if (model.output == "This phone") routeDisplayName else model.output
+                    contentDescription = if (bookOwnsPlayer) "Playback output: $outputName. Android controls Bookstr audio routing."
+                    else "Playback output: $outputName${if (buffering || pendingSelection) ", buffering" else ""}. Change output"
                 },
             ) {
-                Text(if (model.output == "This phone") routeDisplayName else model.output,
+                Text(if (bookOwnsPlayer) routeDisplayName else if (model.output == "This phone") routeDisplayName else model.output,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.width(6.dp))
                 Box(Modifier.size(18.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    if (buffering || pendingSelection) CircularProgressIndicator(
+                    if (buffering || pendingSelection || (bookOwnsPlayer && bookstrState.buffering)) CircularProgressIndicator(
                         Modifier.size(12.dp), strokeWidth = 1.5.dp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     ) else Spacer(Modifier.size(12.dp))
                 }
