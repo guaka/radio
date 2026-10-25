@@ -214,10 +214,7 @@ class PlaybackService : MediaLibraryService() {
             check(!entry.id.startsWith("track:") || entry.credentialGeneration == listening.plexGeneration()) {
                 "Plex sign-in changed. Choose the track again."
             }
-            val http = OkHttpDataSource.Factory(repository.api.http.newBuilder()
-                .followRedirects(entry.token.isBlank()).followSslRedirects(false)
-                .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS).build())
-                .setDefaultRequestProperties(if (entry.token.isBlank()) emptyMap() else mapOf("X-Plex-Token" to entry.token))
+            val http = OkHttpDataSource.Factory(PlaybackHttpClient.forEntry(repository.api.http, entry))
             val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlaybackService, http))
             drm?.let { factory.setDrmSessionManagerProvider(it) }
             factory.setLoadErrorHandlingPolicy(policy ?: PlaybackRecovery.loadErrorPolicy())

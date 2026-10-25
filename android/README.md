@@ -30,7 +30,7 @@ Stations are bundled for cold startup/offline browsing; streams need a network. 
 
 ## Security and network boundaries
 
-Plex tokens are kept in Android Keystore-encrypted preferences and sent as headers over HTTPS. A fresh data source is used per item; redirects on credential-bearing playback requests are refused. Browser/Auto clients supply media IDs; the service resolves them itself and does not accept arbitrary controller stream URLs. MA tokens are bearer headers and endpoints are restricted to private IPs/local hostnames over Wi-Fi/Ethernet. Cleartext is enabled for legacy radio and local MA HTTP; only use a trusted home network. App backup is disabled. No analytics, credential logs or bundled secrets.
+Plex tokens are kept in Android Keystore-encrypted preferences and sent as headers over HTTPS. A fresh data source is used per item; every credential-bearing HTTP request, including HLS child playlists, keys and segments, must match the original Plex scheme, host and port. Redirects on those requests are refused. Tokenless radio can follow redirects across HTTP/HTTPS. Browser/Auto clients supply media IDs; the service resolves them itself and does not accept arbitrary controller stream URLs. MA tokens are bearer headers and endpoints are restricted to private IPs/local hostnames over Wi-Fi/Ethernet. Cleartext is enabled for legacy radio and local MA HTTP; only use a trusted home network. App backup is disabled. No analytics, credential logs or bundled secrets.
 
 ## Validation
 
@@ -61,6 +61,8 @@ The combined implementation was reviewed across all four stacked milestones, rat
 This review fixed an MA URL validation bypass involving private-looking numeric hostname labels, Plex sign-out clearing radio playback, misleading/silent controller errors, sequential Favorites lookups, and the loss of entered MA settings after validation failure. Production resume and Favorites resolution now have hermetic tests for their asynchronous behavior. No private credentials or real accounts were used.
 
 The combined suite passed 31 JVM tests and 12 API 36 emulator tests, including the opt-in live screen-off radio check. Debug and signed release builds pass; lint passes with warnings. The final CI run is recorded in the PR. None of the four milestones is claimed fully accepted until the remaining account and hardware checks are completed.
+
+A further adversarial review fixed cross-origin Plex token forwarding through HLS child resources, Retry failing on unrelated unavailable queue entries, and stale speaker requests publishing after dismissal, sign-out or switching back to phone playback. Retry now re-resolves only the current item while preserving the queue. Speaker requests use cancellation plus a shared publication guard; routine player events do not cancel an active picker. The latest review passed 37 JVM tests and 13 API 36 emulator tests, including live radio and controller replacement, plus lint and debug builds. The earlier signed APK has not been republished with these changes.
 
 The following acceptance checks require actual accounts/devices and must be recorded separately:
 

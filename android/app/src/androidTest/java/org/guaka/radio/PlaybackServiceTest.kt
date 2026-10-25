@@ -88,6 +88,51 @@ class PlaybackServiceTest {
         }
     }
 
+    @Test fun retryReplacementPreservesTheSelectedItemAndOtherQueueEntries() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var future: com.google.common.util.concurrent.ListenableFuture<MediaBrowser>
+        instrumentation.runOnMainSync {
+            future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
+        }
+        val browser = future.get(15, TimeUnit.SECONDS)
+        val ids = listOf("radio:7soul", "radio:beatblender")
+        fun awaitResolved() {
+            val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            var resolved = false
+            do {
+                instrumentation.runOnMainSync {
+                    resolved = browser.mediaItemCount == 2 &&
+                        browser.currentMediaItemIndex == 1 &&
+                        !browser.getMediaItemAt(1).mediaMetadata.title.isNullOrBlank() &&
+                        browser.getMediaItemAt(1).mediaMetadata.title != "Pending retry"
+                }
+                if (resolved) break
+                Thread.sleep(25)
+            } while (android.os.SystemClock.elapsedRealtime() < deadline)
+            assertTrue("Queue replacement did not resolve", resolved)
+        }
+        try {
+            instrumentation.runOnMainSync {
+                browser.setMediaItems(ids.map { androidx.media3.common.MediaItem.Builder().setMediaId(it).build() }, 1, 0L)
+            }
+            awaitResolved()
+            instrumentation.runOnMainSync {
+                browser.replaceMediaItem(1, androidx.media3.common.MediaItem.Builder().setMediaId(ids[1])
+                    .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("Pending retry").build()).build())
+                browser.seekTo(1, 0L)
+            }
+            awaitResolved()
+            instrumentation.runOnMainSync {
+                assertEquals(ids, (0 until browser.mediaItemCount).map { browser.getMediaItemAt(it).mediaId })
+                assertEquals(1, browser.currentMediaItemIndex)
+            }
+        } finally {
+            instrumentation.runOnMainSync { browser.clearMediaItems(); browser.release() }
+            context.stopService(android.content.Intent(context, PlaybackService::class.java))
+        }
+    }
+
     @Test fun favoritesAreBrowsableFromTheColdService() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
