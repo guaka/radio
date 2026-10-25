@@ -3,6 +3,7 @@ package org.guaka.radio
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -38,6 +39,36 @@ class IntegrationTest {
         assertTrue(item.playable)
         assertTrue(item.url.isEmpty())
     }
+    @Test fun plexBrowsingBuildsPagedTypedRoutesAndEscapesSearchText() {
+        val url = IntegrationParser.collectionUrl("https://plex.example:32400", "7", 9, 120, 50, "Miles Davis & John")
+            .toHttpUrl()
+        assertEquals("/library/sections/7/all", url.encodedPath)
+        assertEquals("9", url.queryParameter("type"))
+        assertEquals("120", url.queryParameter("X-Plex-Container-Start"))
+        assertEquals("50", url.queryParameter("X-Plex-Container-Size"))
+        assertEquals("Miles Davis & John", url.queryParameter("title"))
+        val children = IntegrationParser.childrenUrl("https://plex.example:32400", "42", 50, 50).toHttpUrl()
+        assertEquals("/library/metadata/42/children", children.encodedPath)
+        assertEquals("50", children.queryParameter("X-Plex-Container-Start"))
+    }
+    @Test fun plexParsesArtistsAlbumsAndTracksWithHierarchyAndArtwork() {
+        val payload = JSONObject("""{"MediaContainer":{"Metadata":[
+          {"type":"artist","ratingKey":"1","title":"Miles Davis","thumb":"/library/metadata/1/thumb/2"},
+          {"type":"album","ratingKey":"2","title":"Kind of Blue","parentTitle":"Miles Davis"},
+          {"type":"track","ratingKey":"3","title":"So What","parentTitle":"Kind of Blue","grandparentTitle":"Miles Davis","parentRatingKey":"2","grandparentRatingKey":"1"}]}}""")
+        val rows = IntegrationParser.mediaEntries(payload, "server-a", "7")
+        assertEquals(listOf("artist:server-a:1", "album:server-a:2", "track:server-a:3"), rows.map { it.id })
+        assertEquals("Miles Davis", rows[1].subtitle)
+        assertEquals("Miles Davis · Kind of Blue", rows[2].subtitle)
+        assertEquals("7", rows[2].plexSection)
+        assertEquals("2", rows[2].plexParentKey)
+        assertEquals("/library/metadata/1/thumb/2", rows[0].artwork)
+        assertFalse(rows[1].playable)
+        assertTrue(rows[2].playable)
+        val unsafeArt = IntegrationParser.mediaEntries(JSONObject("""{"MediaContainer":{"Metadata":[
+          {"type":"album","ratingKey":"9","title":"Unsafe","thumb":"/thumb?X-Plex-Token=secret"}]}}"""), "server-a", "7").single()
+        assertEquals("", unsafeArt.artwork)
+    }
     @Test fun unavailableSpeakersAreFiltered() {
         val speakers = IntegrationParser.speakers(JSONArray("""[
           {"player_id":"living","display_name":"Living room","available":true},
@@ -57,6 +88,18 @@ class IntegrationTest {
             server.enqueue(MockResponse().setResponseCode(302).addHeader("Location", "https://example.org"))
             assertTrue(runCatching { api.request(server.url("/redirect").toString(), "private-token") }.isFailure)
             assertEquals(2, server.requestCount)
+        } finally { server.shutdown() }
+    }
+    @Test fun artworkUsesPlexHeaderAndRejectsBodiesOverLimit() = runBlocking {
+        val server = MockWebServer(); server.start()
+        try {
+            val image = byteArrayOf(1, 2, 3, 4)
+            server.enqueue(MockResponse().setHeader("Content-Type", "image/jpeg").setBody(okio.Buffer().write(image)))
+            val result = ApiClient("test-client").imageBytes(server.url("/thumb").toString(), "private-token", 4)
+            assertArrayEquals(image, result)
+            assertEquals("private-token", server.takeRequest().getHeader("X-Plex-Token"))
+            server.enqueue(MockResponse().setHeader("Content-Type", "image/png").setBody(okio.Buffer().write(ByteArray(5))))
+            assertTrue(runCatching { ApiClient("test-client").imageBytes(server.url("/large").toString(), "private-token", 4) }.isFailure)
         } finally { server.shutdown() }
     }
     @Test fun assistantCommandsCarryBearerAndExpectedEnvelope() = runBlocking {

@@ -39,12 +39,101 @@ class PlaybackServiceTest {
             assertTrue(items.all { it.localConfiguration == null })
         } finally { instrumentation.runOnMainSync { browser.release() } }
     }
+
+    @Test fun favoritesAreBrowsableFromTheColdService() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val listening = (context.applicationContext as RadioApp).repository.listening
+        val wasFavorite = listening.isFavorite("radio:7soul")
+        if (!wasFavorite) listening.toggleFavorite("radio:7soul")
+        lateinit var future: com.google.common.util.concurrent.ListenableFuture<MediaBrowser>
+        instrumentation.runOnMainSync {
+            future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
+        }
+        val browser = future.get(15, TimeUnit.SECONDS)
+        try {
+            lateinit var folder: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<androidx.media3.common.MediaItem>>
+            instrumentation.runOnMainSync { folder = browser.getItem("favorites") }
+            assertEquals(true, folder.get(10, TimeUnit.SECONDS).value?.mediaMetadata?.isBrowsable)
+            lateinit var children: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<com.google.common.collect.ImmutableList<androidx.media3.common.MediaItem>>>
+            instrumentation.runOnMainSync { children = browser.getChildren("favorites", 0, 10, null) }
+            val items = children.get(10, TimeUnit.SECONDS).value!!
+            assertTrue(items.any { it.mediaId == "radio:7soul" && it.mediaMetadata.isPlayable == true })
+        } finally {
+            instrumentation.runOnMainSync { browser.release() }
+            if (!wasFavorite) listening.toggleFavorite("radio:7soul")
+        }
+    }
+
+    @Test fun queueStateTracksEditsAndSurvivesAnEmptyColdService() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val listening = (context.applicationContext as RadioApp).repository.listening
+        listening.savePlayback(null)
+        fun stopAndAwaitService() {
+            context.stopService(android.content.Intent(context, PlaybackService::class.java))
+            val manager = context.getSystemService(android.app.ActivityManager::class.java)
+            fun running() = manager.getRunningServices(Int.MAX_VALUE).any { it.service.className == PlaybackService::class.java.name }
+            val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            while (running() && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(25)
+            assertFalse("Playback service did not stop", running())
+        }
+        stopAndAwaitService()
+
+        fun connect(): MediaBrowser {
+            lateinit var future: com.google.common.util.concurrent.ListenableFuture<MediaBrowser>
+            instrumentation.runOnMainSync {
+                future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
+            }
+            return future.get(15, TimeUnit.SECONDS)
+        }
+        fun awaitSaved(expected: SavedPlayback?) {
+            val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            while (listening.loadPlayback() != expected && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(25)
+            assertEquals(expected, listening.loadPlayback())
+        }
+        fun setRoot(browser: MediaBrowser) {
+            lateinit var root: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<androidx.media3.common.MediaItem>>
+            instrumentation.runOnMainSync { root = browser.getLibraryRoot(null) }
+            assertEquals("root", root.get(10, TimeUnit.SECONDS).value?.mediaId)
+        }
+
+        var browser: MediaBrowser? = null
+        try {
+            browser = connect()
+            val items = listOf("radio:7soul", "radio:beatblender").map { androidx.media3.common.MediaItem.Builder().setMediaId(it).build() }
+            instrumentation.runOnMainSync { browser!!.setMediaItems(items) }
+            awaitSaved(SavedPlayback(listOf("radio:7soul", "radio:beatblender"), 0, 0L))
+
+            instrumentation.runOnMainSync { browser!!.moveMediaItem(1, 0) }
+            awaitSaved(SavedPlayback(listOf("radio:beatblender", "radio:7soul"), 1, 0L))
+
+            instrumentation.runOnMainSync { browser!!.removeMediaItem(1) }
+            awaitSaved(SavedPlayback(listOf("radio:beatblender"), 0, 0L))
+
+            instrumentation.runOnMainSync { browser!!.clearMediaItems() }
+            awaitSaved(null)
+            instrumentation.runOnMainSync { browser!!.release() }
+            browser = null
+            stopAndAwaitService()
+
+            val pending = SavedPlayback(listOf("radio:7soul", "radio:beatblender"), 1, 0L)
+            listening.savePlayback(pending)
+            browser = connect()
+            setRoot(browser!!)
+            awaitSaved(pending)
+        } finally {
+            browser?.let { instrumentation.runOnMainSync { it.release() } }
+            stopAndAwaitService()
+            listening.savePlayback(null)
+        }
+    }
     // Opt in explicitly: this checks a live public stream, so it is not a hermetic CI test.
     @Test fun liveRadioSurvivesBackgroundPlayback() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveRadio") == "true")
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        context.startActivity(android.content.Intent(context, MainActivity::class.java)
+        val activity = instrumentation.startActivitySync(android.content.Intent(context, MainActivity::class.java)
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         instrumentation.waitForIdleSync()
         lateinit var future: com.google.common.util.concurrent.ListenableFuture<MediaBrowser>
@@ -79,7 +168,7 @@ class PlaybackServiceTest {
             assertTrue("Playback position did not advance", background.second > started.second + 25_000)
         } finally {
             instrumentation.uiAutomation.executeShellCommand("input keyevent 224").close()
-            instrumentation.runOnMainSync { browser.stop(); browser.release() }
+            instrumentation.runOnMainSync { browser.stop(); browser.release(); activity.finish() }
         }
     }
 

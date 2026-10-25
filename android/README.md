@@ -1,4 +1,4 @@
-# Radio Guaka for Android — milestone 1 prototype
+# Radio Guaka for Android — listening experience (milestone 2)
 
 Tracks [issue #86](https://github.com/guaka/radio/issues/86). Target acceptance device: Pixel 8a. This is a native Kotlin/Compose app, independent of the web/Go server. Media3 owns phone/background playback; Android Auto browses the same MediaLibraryService. Music Assistant owns speaker playback.
 
@@ -16,10 +16,13 @@ The CI workflow uploads a debug-signed APK. Debug builds are for development: di
 
 Stations are bundled for cold startup/offline browsing; streams need a network. After changing the web catalogue, run `node android/scripts/sync-stations.mjs` from the repository root. CI verifies that the snapshot is current.
 
-## Prototype flows
+## Listening flows
 
 - **Radio:** tap a station, lock the phone, use notification/lock-screen controls. Background service owns the player, not the activity.
-- **Plex:** tap Plex → Sign in to Plex, complete the Plex browser flow, return, choose a server and music library, then a track. The prototype shows the first 100 tracks. Discovery uses each resource's access token and probes HTTPS connections concurrently. Remote playback requires working Plex Remote Access and supported direct-play audio; transcoding is deferred.
+- **Plex:** tap Plex → Sign in to Plex, complete the Plex browser flow, return, choose a server and music library, then Artists, Albums or Tracks. Artists open albums; albums open tracks. Lists load 50 items at a time; use Load more to continue beyond the original 100-track limit. Search filters the current source or Plex collection. Discovery uses each resource's access token and probes HTTPS connections concurrently. Remote playback requires working Plex Remote Access and supported direct-play audio; transcoding is deferred.
+- **Favorites:** use the star beside a station or track, then open Favorites. Up to 500 favorites are available to the phone and Android Auto. Missing or inaccessible Plex favorites stay visible as unavailable so they can be removed; signing out or changing Plex credentials clears Plex listening data.
+- **Phone queue:** use +Q beside an item, Queue listed for the currently loaded playable results, or Play listed to replace the queue and play those results. Open Queue to select, reorder, remove or clear items. The phone UI permits up to 500 items. Queue changes and the current seekable Plex position are saved periodically and on pause; radio resumes live. On reopening, tap Resume saved queue to resume explicitly. Starting the app alone does not start playback. Emptying the queue removes the saved resume choice.
+- **Artwork:** Plex artwork loads on visible phone rows and on the current notification/session item. It uses authenticated HTTPS requests and small embedded session thumbnails; credentials never appear in artwork URLs exposed to controllers.
 - **Speakers:** Setup → enter the local Music Assistant URL and access token (MA Settings → Profile). While on home Wi-Fi, choose a track/station, then Speakers and a player. For Plex, explicitly confirm the corresponding Music Assistant search result. No fragile assumption is made that Plex rating keys equal MA library IDs. On successful remote start the phone pauses. There is no seamless handoff or remote speaker queue/control UI yet; use Music Assistant to control/stop speakers.
 - **Android Auto:** enable Android Auto developer mode and its “Unknown sources” setting for a sideloaded media app. Connect to the car or Desktop Head Unit and choose Radio Guaka. Radio and Plex expose browse trees; Plex sign-in happens on the phone while parked. Test cold startup before opening the phone activity. Voice search is deferred. Wired/wireless car setup is not yet specified.
 
@@ -36,7 +39,9 @@ ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest # use your own 
 ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.liveRadio=true
 ```
 
-Unit tests cover resource discovery, HTTPS/token routing, local endpoint validation and response parsing. Instrumentation checks the cold service browse tree without launching an activity. The optional live-radio test starts the phone activity, plays a bundled station, backgrounds the activity and turns the screen off, then verifies playback continues and advances for 35 seconds. It is skipped unless `liveRadio=true` is supplied. Recorded on 2026-10-24: the debug APK and instrumentation APK built successfully, all six unit tests passed, and lint reported no errors. On a dedicated Android 16/API 36 ARM64 emulator, both the cold-service browse test and live SomaFM background/screen-off test passed. These short emulator checks do not establish long-session or physical-device reliability.
+Unit tests cover resource discovery, HTTPS/token routing, local endpoint validation and response parsing. Instrumentation checks the cold service browse tree without launching an activity. The optional live-radio test starts the phone activity, plays a bundled station, backgrounds the activity and turns the screen off, then verifies playback continues and advances for 35 seconds. It is skipped unless `liveRadio=true` is supplied. Milestone-1 baseline recorded on 2026-10-24: the debug APK and instrumentation APK built successfully, all six unit tests passed, and lint reported no errors. On a dedicated Android 16/API 36 ARM64 emulator, both the cold-service browse test and live SomaFM background/screen-off test passed. These short emulator checks do not establish long-session or physical-device reliability.
+
+Milestone 2 validated on 2026-10-24: 11 JVM tests and six API 36 emulator instrumentation tests passed, with zero lint errors. Coverage includes favorites persistence/limits, Plex account-data clearing, queue reordering/removal/clearing, preservation across an empty service restart, and the live screen-off radio test. A manual phone UI smoke check covered favorite selection, adding/clearing stations in the queue, and an explicit Resume choice after restarting the process. Real Plex browsing/search/artwork and seek/resume still need an account-backed acceptance run.
 
 The following acceptance checks require actual accounts/devices and must be recorded separately:
 
@@ -46,6 +51,6 @@ The following acceptance checks require actual accounts/devices and must be reco
 - [ ] Home MA: list actual speakers, play one station and one Plex track, confirm phone pauses.
 - [ ] Away from home: speakers are unavailable, while radio/Plex remain usable.
 
-Remaining milestones add full browsing/search/favorites/queues, playback-state persistence, resilient network/credential recovery, and signed beta delivery. This PR is the working foundation, not a claim that those later features or hardware acceptance are complete.
+Remaining milestones add resilient network/credential recovery, process/network transition hardening, and signed beta delivery. Voice search remains deferred. These changes build on the milestone-1 foundation in PR #87; hardware acceptance remains separate from emulator checks.
 
 References: [Media3 background playback](https://developer.android.com/media/media3/session/background-playback), [MediaLibraryService](https://developer.android.com/media/media3/session/serve-content), [Android Auto testing](https://developer.android.com/training/cars/testing), [Plex sign-in](https://forums.plex.tv/t/authenticating-with-plex/609370), [Music Assistant API](https://www.music-assistant.io/api/).
