@@ -135,7 +135,7 @@ object IntegrationParser {
                 (octets[0] == 172 && octets[1] in 16..31))
         val localV6 = host.contains(':') && (host.startsWith("fc") || host.startsWith("fd"))
         require(privateV4 || localV6 || host.endsWith(".local") || (!host.contains('.') && !host.contains(':'))) {
-            "Music Assistant must use a home-network IP or hostname, such as http://192.168.1.20:8095."
+            "Use a home-network IP or hostname for Music Assistant."
         }
         return url.toString().trimEnd('/')
     }
