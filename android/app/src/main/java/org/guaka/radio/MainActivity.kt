@@ -700,10 +700,14 @@ fun AppScreen(model: MainModel = viewModel()) {
                 }) { Text("Save Music Assistant") }
             }
         } else {
+        val sourceScroll = rememberScrollState()
+        LaunchedEffect(model.parent) {
+            sourceScroll.animateScrollTo(if (model.parent in setOf("youtube", "books")) sourceScroll.maxValue else 0)
+        }
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             Icon(painterResource(R.drawable.ic_radio), contentDescription = "Radio Guaka",
                 tint = Color.Unspecified, modifier = Modifier.size(24.dp))
-            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.weight(1f).horizontalScroll(sourceScroll), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             IconToggleButton(checked = model.parent == "favorites", onCheckedChange = { model.browse("favorites") },
                 modifier = Modifier.width(40.dp).background(
                     if (model.parent == "favorites") MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
@@ -740,7 +744,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                     true
                 } else false
             },
-            placeholder = { Text(if (model.parent == "youtube") "Search YouTube or paste a video link" else "Filter") },
+            placeholder = { Text(if (model.parent == "youtube") "Search or paste a link" else "Filter") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { submitSearch() }, onDone = { submitSearch() }),
