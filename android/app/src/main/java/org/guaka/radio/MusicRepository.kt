@@ -410,18 +410,25 @@ class MusicRepository(private val context: Context) {
             .forEach { entries.remove(it) }
     }
 
-    fun assistantAvailable(): Boolean {
+    fun assistantAvailable(url: String = assistantUrl()): Boolean {
         val manager = context.getSystemService(ConnectivityManager::class.java)
         val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-        return assistantNetworkAllowed(assistantUrl(), true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+        return assistantNetworkAllowed(url, true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
     }
     private fun requireAssistantNetwork() { check(assistantAvailable()) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." } }
     fun assistantUrl() = preferences.getString("assistantUrl", "").orEmpty()
-    fun saveAssistant(url: String, token: String) {
+    fun hasAssistantToken(url: String): Boolean =
+        runCatching { IntegrationParser.localAssistantUrl(url) == assistantUrl() }.getOrDefault(false) &&
+            credentials.get("assistantToken").isNotBlank()
+
+    suspend fun saveAssistant(url: String, token: String) {
         val normalized = IntegrationParser.localAssistantUrl(url)
-        require(token.isNotBlank()) { "Enter a Music Assistant access token." }
-        credentials.set("assistantToken", token.trim())
+        val selectedToken = assistantTokenForServer(normalized, token, assistantUrl(), credentials.get("assistantToken"))
+        check(assistantAvailable(normalized)) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." }
+        api.checkAssistantConnection(normalized, selectedToken)
+        currentCoroutineContext().ensureActive()
+        credentials.set("assistantToken", selectedToken)
         preferences.edit().putString("assistantUrl", normalized).apply()
     }
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
@@ -451,3 +458,9 @@ class MusicRepository(private val context: Context) {
 
 internal fun assistantNetworkAllowed(url: String, connected: Boolean, localNetwork: Boolean): Boolean =
     connected && (localNetwork || runCatching { url.toHttpUrl().isHttps }.getOrDefault(false))
+
+internal fun assistantTokenForServer(url: String, entered: String, savedUrl: String, savedToken: String): String {
+    val token = entered.trim().ifBlank { if (url == savedUrl) savedToken else "" }
+    require(token.isNotBlank()) { "Enter a Music Assistant access token for this server." }
+    return token
+}

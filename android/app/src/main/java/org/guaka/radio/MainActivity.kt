@@ -393,9 +393,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun saveAssistant(url: String, token: String, onSaved: () -> Unit) {
         dismissSpeakers()
         action {
-            setStatus("")
+            setStatus("Connecting to Music Assistant…")
             io { repository.saveAssistant(url, token) }
-            setStatus("Music Assistant saved. Choose a speaker when the server is reachable.")
+            setStatus("Connected to Music Assistant. Settings saved.")
             onSaved()
         }
     }
@@ -686,6 +686,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 Text("Music Assistant")
                 OutlinedTextField(assistantUrl, { assistantUrl = it }, label = { Text("Server URL") }, placeholder = { Text("http://192.168.1.20:8095") }, singleLine = true)
                 OutlinedTextField(assistantToken, { assistantToken = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+                if (model.repository.hasAssistantToken(assistantUrl)) Text("Token saved securely. Leave blank to use it, or enter a replacement.")
                 Text("Create an access token in Music Assistant → Settings → Profile. Use HTTPS for remote or VPN access.")
                 if (saveAttempted && model.status.isNotBlank()) Text(model.status, color = MaterialTheme.colorScheme.error)
             }
@@ -698,7 +699,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                         saveAttempted = false
                         assistantToken = ""
                     }
-                }) { Text("Save Music Assistant") }
+                }) { Text(if (model.busy) "Checking connection…" else "Connect and save") }
             }
         } else {
         val sourceScroll = rememberScrollState()
