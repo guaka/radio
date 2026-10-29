@@ -400,9 +400,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun saveAssistant(url: String, token: String, onSaved: () -> Unit) {
         dismissSpeakers()
         action {
-            setStatus("")
+            setStatus("Connecting to Music Assistant…")
             io { repository.saveAssistant(url, token) }
-            setStatus("Music Assistant saved. Choose a speaker when the server is reachable.")
+            setStatus("Connected to Music Assistant. Settings saved.")
             onSaved()
         }
     }
@@ -477,7 +477,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     var settings by remember { mutableStateOf(false) }
     var routeDisplayName by remember { mutableStateOf("This phone") }
     val routeObserver = remember(context) { AudioOutputRouteObserver(context) { routeDisplayName = it.displayName } }
-    var assistantUrl by remember { mutableStateOf(model.repository.assistantUrl()) }
+    var assistantRemoteId by remember { mutableStateOf(model.repository.assistantRemoteId()) }
     var assistantToken by remember { mutableStateOf("") }
     var saveAttempted by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -691,21 +691,22 @@ fun AppScreen(model: MainModel = viewModel()) {
                 NostrConnections(model.nostr, model.nostrBridge)
                 HorizontalDivider()
                 Text("Music Assistant")
-                OutlinedTextField(assistantUrl, { assistantUrl = it }, label = { Text("Server URL") }, placeholder = { Text("http://192.168.1.20:8095") }, singleLine = true)
+                OutlinedTextField(assistantRemoteId, { assistantRemoteId = it }, label = { Text("Remote ID") }, placeholder = { Text("From Music Assistant → Settings → Remote Access") }, singleLine = true)
                 OutlinedTextField(assistantToken, { assistantToken = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                Text("Create an access token in Music Assistant → Settings → Profile. Use HTTPS for remote or VPN access.")
+                if (model.repository.hasAssistantToken(assistantRemoteId)) Text("Token saved securely. Leave blank to use it, or enter a replacement.")
+                Text("Enable Music Assistant → Settings → Remote Access and copy its Remote ID. Create an access token in Settings → Profile.")
                 if (saveAttempted && model.status.isNotBlank()) Text(model.status, color = MaterialTheme.colorScheme.error)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = ::closeSettings) { Text("Close") }
                 TextButton(enabled = !model.busy, onClick = {
                     saveAttempted = true
-                    model.saveAssistant(assistantUrl, assistantToken) {
+                    model.saveAssistant(assistantRemoteId, assistantToken) {
                         settings = false
                         saveAttempted = false
                         assistantToken = ""
                     }
-                }) { Text("Save Music Assistant") }
+                }) { Text(if (model.busy) "Checking connection…" else "Connect and save") }
             }
         } else {
         val sourceScroll = rememberScrollState()
