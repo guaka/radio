@@ -3,6 +3,9 @@ package org.guaka.radio
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.vitorpamplona.quartz.nip01Core.core.hexToByteArray
+import com.vitorpamplona.quartz.nip19Bech32.toNpub
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -23,7 +26,8 @@ internal fun NostrConnections(nostr: NostrFavoritesController, bridge: AndroidSi
                 Text("Connect remote signer (NIP-46)")
             }
         } else {
-            Text("Connected: ${nostr.pubkey.take(12)}…${nostr.pubkey.takeLast(8)}")
+            val npub = remember(nostr.pubkey) { nostr.pubkey.hexToByteArray().toNpub() }
+            SelectionContainer { Text("Connected: $npub") }
             Row {
                 TextButton(enabled = !nostr.busy, onClick = nostr::sync) { Text("Sync favorites") }
                 TextButton(onClick = nostr::disconnect) { Text("Disconnect") }

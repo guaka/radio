@@ -412,12 +412,22 @@ class MusicRepository(private val context: Context) {
         val previous = credentials.get("plexToken")
         discovery.reset()
         credentials.set("plexToken", token)
+        if (previous != token) preferences.edit().remove("plexAccountName").apply()
         discovery.reset()
         if (previous != token) listening.clearPlex()
         entries.keys.filter { it.startsWith("track:") || it.startsWith("album:") || it.startsWith("artist:") || it.startsWith("library:") || it.startsWith("catalog:") || it.startsWith("server:") }
             .forEach { entries.remove(it) }
     }
 
+    fun plexAccountName() = preferences.getString("plexAccountName", "").orEmpty()
+    suspend fun refreshPlexAccountName(): String {
+        val token = credentials.get("plexToken")
+        if (token.isBlank()) return ""
+        val name = api.plexAccountName(token)
+        if (token != credentials.get("plexToken")) return ""
+        preferences.edit().putString("plexAccountName", name).apply()
+        return name
+    }
     fun assistantRemoteId() = preferences.getString("assistantRemoteId", "").orEmpty()
     fun hasAssistantToken(id: String): Boolean =
         runCatching { AssistantRemoteIdentity.normalize(id) == assistantRemoteId() }.getOrDefault(false) &&
@@ -438,9 +448,40 @@ class MusicRepository(private val context: Context) {
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
         IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
     }
+    suspend fun speakerStream(entry: Entry): String = withContext(Dispatchers.IO) {
+        when {
+            entry.id.startsWith("radio:") -> stations.first { it.id == entry.id }.url
+            entry.id.startsWith("youtube:") -> runInterruptible { youtube.playable(entry.id) }.url.also {
+                require(YouTubeIds.isAudioHost(it)) { "YouTube returned an unsupported speaker stream." }
+            }
+            else -> throw IOException("Choose a matching Music Assistant library track for Plex.")
+        }
+    }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle}").put("media_types", JSONArray().put("track")).put("limit", 10)
+        val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle.substringBefore(" · ")}").put("media_types", JSONArray().put("track")).put("library_only", true).put("limit", 10)
         IntegrationParser.speakerTracks(assistantCommand("music/search", args) as JSONObject)
+    }
+    internal suspend fun speakerProgress(speaker: Speaker): SpeakerProgress? = withContext(Dispatchers.IO) {
+        val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
+        queue?.let(SpeakerProgress::parse)
+    }
+    suspend fun controlSpeakers(speakers: List<Speaker>, command: String, positionMs: Long? = null) = withContext(Dispatchers.IO) {
+        val queues = mutableSetOf<String>()
+        val failures = mutableListOf<String>()
+        for (speaker in speakers.distinctBy { it.id }) {
+            try {
+                val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
+                    ?: throw IOException("The speaker has no active Music Assistant queue.")
+                val id = queue.getString("queue_id")
+                if (id in queues) continue
+                val args = JSONObject().put("queue_id", id)
+                positionMs?.let { args.put("position", (it.coerceAtLeast(0) / 1000).toInt()) }
+                assistantCommand("player_queues/$command", args)
+                queues.add(id)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { failures.add(speaker.name) }
+        }
+        check(failures.isEmpty()) { "Could not update: ${failures.joinToString()}. Other speakers were still attempted." }
     }
     suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
         assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))

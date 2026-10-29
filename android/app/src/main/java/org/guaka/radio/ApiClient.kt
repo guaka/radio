@@ -162,6 +162,10 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
         if (token.isNotBlank()) header("X-Plex-Token", token)
     }
 
+    suspend fun plexAccountName(token: String): String {
+        val user = request("https://plex.tv/api/v2/user", token) as JSONObject
+        return user.optString("username").ifBlank { user.optString("title") }
+    }
     suspend fun createPin(): Pin {
         val response = request("https://plex.tv/api/v2/pins", body = FormBody.Builder().add("strong", "true").build()) as JSONObject
         return Pin(response.getInt("id"), response.getString("code"))
