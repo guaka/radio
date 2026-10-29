@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/guaka/radio-guaka/internal/appledevtoken"
 	"github.com/guaka/radio-guaka/internal/config"
 	"github.com/guaka/radio-guaka/internal/httpapi"
 	nostrsvc "github.com/guaka/radio-guaka/internal/nostr"
@@ -36,11 +37,21 @@ func main() {
 	auth := nostrsvc.NewAuthService(sessionSecret)
 	contacts := nostrsvc.NewContactsService(cfg.OwnerPubKey, cfg.NostrRelays, cfg.NostrCacheTTL)
 	pol := policy.New(contacts)
-	px := plex.NewClient(cfg.PlexBaseURL, cfg.PlexToken, cfg.PlexClientID)
+	px := plex.NewClient(cfg.PlexBaseURL, cfg.PlexToken, cfg.PlexClientID, cfg.WrapsterMediaURL, cfg.WrapsterMediaKey)
 	pin := plex.NewPINClient(cfg.PlexClientID)
 	shares := share.New(st, cfg.ShareTokenBytes)
 
-	h := httpapi.New(cfg, st, auth, contacts, pol, px, pin, shares)
+	var appleDev *appledevtoken.Generator
+	if cfg.AppleMusicTeamID != "" && cfg.AppleMusicKeyID != "" && cfg.AppleMusicPrivateKeyPath != "" {
+		g, err := appledevtoken.NewFromP8File(cfg.AppleMusicTeamID, cfg.AppleMusicKeyID, cfg.AppleMusicPrivateKeyPath)
+		if err != nil {
+			log.Printf("Music export: Apple MusicKit disabled (check APPLE_MUSIC_* env): %v", err)
+		} else {
+			appleDev = g
+		}
+	}
+
+	h := httpapi.New(cfg, st, auth, contacts, pol, px, pin, shares, appleDev)
 
 	mux := http.NewServeMux()
 	h.Register(mux)

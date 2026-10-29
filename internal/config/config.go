@@ -16,8 +16,18 @@ type Config struct {
 	PlexBaseURL       string
 	PlexToken         string
 	PlexClientID      string
+	WrapsterMediaURL  string
+	WrapsterMediaKey  string
 	ShareTokenBytes   int
 	SessionCookieName string
+	// Optional: music export (export.html) — no per-user Spotify dashboard / Apple JWT paste when set.
+	SpotifyClientID          string
+	AppleMusicTeamID         string
+	AppleMusicKeyID          string
+	AppleMusicPrivateKeyPath string
+	// Optional: Music Assistant integration (quick exploration path).
+	MusicAssistantBaseURL string
+	MusicAssistantToken   string
 }
 
 func Load() Config {
@@ -36,16 +46,24 @@ func Load() Config {
 	}
 
 	return Config{
-		Addr:              envDefault("ADDR", ":3030"),
-		SessionSecret:     strings.TrimSpace(os.Getenv("SESSION_SECRET")),
-		OwnerPubKey:       strings.TrimSpace(os.Getenv("OWNER_PUBKEY")),
-		NostrRelays:       relays,
-		NostrCacheTTL:     ttl,
-		PlexBaseURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("PLEX_BASE_URL")), "/"),
-		PlexToken:         strings.TrimSpace(os.Getenv("PLEX_TOKEN")),
-		PlexClientID:      envDefault("PLEX_CLIENT_ID", "plextr-go-gateway"),
-		ShareTokenBytes:   shareBytes,
-		SessionCookieName: envDefault("SESSION_COOKIE_NAME", "plextr_session"),
+		Addr:                     envDefault("ADDR", ":3030"),
+		SessionSecret:            strings.TrimSpace(os.Getenv("SESSION_SECRET")),
+		OwnerPubKey:              strings.TrimSpace(os.Getenv("OWNER_PUBKEY")),
+		NostrRelays:              relays,
+		NostrCacheTTL:            ttl,
+		PlexBaseURL:              strings.TrimRight(strings.TrimSpace(os.Getenv("PLEX_BASE_URL")), "/"),
+		PlexToken:                strings.TrimSpace(os.Getenv("PLEX_TOKEN")),
+		PlexClientID:             envDefault("PLEX_CLIENT_ID", "plextr-go-gateway"),
+		WrapsterMediaURL:         strings.TrimRight(strings.TrimSpace(os.Getenv("WRAPSTER_MEDIA_URL")), "/"),
+		WrapsterMediaKey:         strings.TrimSpace(os.Getenv("WRAPSTER_MEDIA_NSEC")),
+		ShareTokenBytes:          shareBytes,
+		SessionCookieName:        envDefault("SESSION_COOKIE_NAME", "plextr_session"),
+		SpotifyClientID:          strings.TrimSpace(os.Getenv("SPOTIFY_CLIENT_ID")),
+		AppleMusicTeamID:         strings.TrimSpace(os.Getenv("APPLE_MUSIC_TEAM_ID")),
+		AppleMusicKeyID:          strings.TrimSpace(os.Getenv("APPLE_MUSIC_KEY_ID")),
+		AppleMusicPrivateKeyPath: strings.TrimSpace(os.Getenv("APPLE_MUSIC_PRIVATE_KEY_PATH")),
+		MusicAssistantBaseURL:    strings.TrimRight(strings.TrimSpace(os.Getenv("MUSIC_ASSISTANT_BASE_URL")), "/"),
+		MusicAssistantToken:      strings.TrimSpace(os.Getenv("MUSIC_ASSISTANT_TOKEN")),
 	}
 }
 
