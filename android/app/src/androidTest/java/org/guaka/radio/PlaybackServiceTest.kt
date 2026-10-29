@@ -213,6 +213,26 @@ class PlaybackServiceTest {
             assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS, switched.resultCode)
             assertEquals("radio:beatblender", currentId())
             assertTrue("The old station should remain active for the entire preload window", sawOldWhileBuffering)
+            // A speaker handoff pauses local playback. Returning to phone must resolve and
+            // prepare a fresh stream, rather than resume a stale paused live connection.
+            instrumentation.runOnMainSync { browser.pause() }
+            val pauseDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            var paused = false
+            while (!paused && android.os.SystemClock.elapsedRealtime() < pauseDeadline) {
+                instrumentation.runOnMainSync { paused = !browser.isPlaying }
+                Thread.sleep(25)
+            }
+            assertTrue("Phone must pause for speaker handoff", paused)
+            assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS,
+                start(listOf("radio:beatblender")).get(60, TimeUnit.SECONDS).resultCode)
+            val resumeDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
+            var resumed = false
+            while (!resumed && android.os.SystemClock.elapsedRealtime() < resumeDeadline) {
+                instrumentation.runOnMainSync { resumed = browser.isPlaying }
+                Thread.sleep(25)
+            }
+            assertTrue("Fresh phone playback must resume after speaker handoff", resumed)
+
         } finally {
             instrumentation.runOnMainSync { browser.stop(); browser.clearMediaItems(); browser.release() }
             context.stopService(android.content.Intent(context, PlaybackService::class.java))

@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -102,10 +103,15 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var operations by mutableIntStateOf(0)
     val busy get() = operations > 0
     var loginUrl by mutableStateOf<String?>(null); private set
+    var plexSignedIn by mutableStateOf(repository.credentials.get("plexToken").isNotBlank()); private set
+    var plexAccountName by mutableStateOf(repository.plexAccountName()); private set
+    internal var speakerProgress by mutableStateOf<SpeakerProgress?>(null); private set
+    private var activeSpeakers = emptyList<Speaker>()
+    private var speakerControlGeneration = 0L
     var plexAuthRequired by mutableStateOf(false); private set
     var speakers by mutableStateOf<List<Speaker>?>(null); private set
     var speakerTracks by mutableStateOf<List<SpeakerTrack>?>(null); private set
-    var selectedSpeaker by mutableStateOf<Speaker?>(null); private set
+    private var selectedSpeakers = emptyList<Speaker>()
     private var selectedEntry: Entry? = null
     var output by mutableStateOf("This phone"); private set
     private var browseJob: Job? = null
@@ -135,7 +141,37 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             refreshSaved()
         }
     }
-    init { browse("radio") }
+    init { browse("radio"); refreshPlexIdentity() }
+    private fun refreshPlexIdentity() = viewModelScope.launch {
+        try { plexAccountName = io { repository.refreshPlexAccountName() } }
+        catch (e: CancellationException) { throw e } catch (_: Exception) { }
+    }
+    suspend fun refreshSpeakerProgress() {
+        val snapshot = activeSpeakers
+        val generation = speakerControlGeneration
+        val first = snapshot.firstOrNull() ?: return
+        try {
+            val updated = repository.speakerProgress(first)
+            if (snapshot == activeSpeakers && generation == speakerControlGeneration) speakerProgress = updated
+        } catch (e: CancellationException) { throw e } catch (_: Exception) {
+            if (snapshot == activeSpeakers && generation == speakerControlGeneration) speakerProgress = null
+        }
+    }
+    fun seekSpeakers(positionMs: Long) = action {
+        val targets = activeSpeakers
+        val state = speakerProgress ?: return@action
+        val target = positionMs.coerceIn(0, state.durationMs)
+        speakerControlGeneration++
+        repository.controlSpeakers(targets, "seek", target)
+        if (targets == activeSpeakers) speakerProgress = state.copy(positionMs = target, sampledAtMs = System.nanoTime() / 1_000_000)
+    }
+    fun toggleSpeakers() = action {
+        val targets = activeSpeakers
+        speakerControlGeneration++
+        repository.controlSpeakers(targets, if (speakerProgress?.playing == true) "pause" else "play")
+        refreshSpeakerProgress()
+    }
+
     override fun onCleared() { bookstr.close(); nostr.close(); stopListeningObserver(); super.onCleared() }
     fun startStationArtworkPreload() {
         if (stationArtworkPreloadJob?.isActive == true) return
@@ -280,6 +316,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
                 val token = io { repository.api.pinToken(pin) }
                 if (token.isNotEmpty()) {
                     io { repository.savePlexToken(token) }
+                    plexSignedIn = true
+                    refreshPlexIdentity()
                     favorites = repository.listening.favoriteIds().toSet()
                     refreshSaved()
                     loginUrl = null
@@ -298,6 +336,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         loginJob?.cancel(); browseJob?.cancel(); loginUrl = null
         action {
             io { repository.savePlexToken("") }
+            plexSignedIn = false
+            plexAccountName = ""
             val updated = repository.listening.favoriteIds().toSet()
             val changed = updated != favorites
             favorites = updated
@@ -311,7 +351,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val request = beginSpeakerOperation()
         speakerJob = action {
             try {
-                val entry = repository.playable(item.mediaId)
+                val entry = repository.item(item.mediaId)
                 if (!speakerEpoch.publishIfCurrent(request) { selectedEntry = entry }) return@action
                 val available = repository.speakers()
                 if (!speakerEpoch.publishIfCurrent(request) {
@@ -325,42 +365,53 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun selectSpeaker(speaker: Speaker, pausePhone: () -> Unit) {
-        val request = beginSpeakerOperation()
-        selectedSpeaker = speaker; speakers = null; speakerTracks = null
+    fun selectSpeakers(chosen: List<Speaker>, pausePhone: () -> Unit) {
+        if (chosen.isEmpty()) return
         val entry = selectedEntry ?: return
-        if (entry.id.startsWith("radio:")) startSpeakerPlayback(entry.url, speaker, pausePhone, request)
-        else speakerJob = action {
-            try {
-                val tracks = repository.speakerTracks(entry)
-                if (!speakerEpoch.publishIfCurrent(request) {
-                    speakerTracks = tracks
-                    setStatus("Confirm the matching track from Music Assistant.")
-                }) return@action
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (speakerEpoch.isCurrent(request)) throw e
+        val request = beginSpeakerOperation()
+        selectedSpeakers = chosen.distinctBy { it.id }
+        if (entry.id.startsWith("radio:") || entry.id.startsWith("youtube:")) {
+            speakerJob = action {
+                val uri = repository.speakerStream(entry)
+                if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(uri, selectedSpeakers, pausePhone, request)
+            }
+        } else speakerJob = action {
+            val tracks = repository.speakerTracks(entry)
+            speakerEpoch.publishIfCurrent(request) {
+                speakerTracks = tracks
+                setStatus(if (tracks.isEmpty()) "No matching tracks. Add your Plex server as a Music Assistant music provider, then sync its library."
+                    else "Confirm the matching track from Music Assistant.")
             }
         }
     }
     fun playOnSpeaker(uri: String, pausePhone: () -> Unit) {
-        val speaker = selectedSpeaker ?: return
+        val chosen = selectedSpeakers
+        if (chosen.isEmpty()) return
         val request = beginSpeakerOperation()
-        startSpeakerPlayback(uri, speaker, pausePhone, request)
+        startSpeakerPlayback(uri, chosen, pausePhone, request)
     }
-    private fun startSpeakerPlayback(uri: String, speaker: Speaker, pausePhone: () -> Unit, request: Long) {
+    private fun startSpeakerPlayback(uri: String, chosen: List<Speaker>, pausePhone: () -> Unit, request: Long) {
         speakerJob = action {
-            try {
+            var paused = false
+            val result = playOnSpeakers(chosen, play = { speaker ->
+                setStatus("Sending to ${speaker.name}…")
                 repository.playSpeaker(speaker, uri)
-                if (!speakerEpoch.publishIfCurrent(request) {
-                    pausePhone(); output = speaker.name; speakerTracks = null
-                    setStatus("Started on ${speaker.name}. Music Assistant owns speaker playback.")
-                }) return@action
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (speakerEpoch.isCurrent(request)) throw e
+            }, onStarted = { started ->
+                speakerEpoch.publishIfCurrent(request) {
+                    if (!paused) { pausePhone(); paused = true }
+                    speakerControlGeneration++
+                    activeSpeakers = started
+                    speakerProgress = null
+                    output = started.joinToString { it.name }
+                    speakerTracks = null
+                }
+            })
+            speakerEpoch.publishIfCurrent(request) {
+                setStatus(when {
+                    result.started.isEmpty() -> "Music Assistant could not play this item on the selected speakers. Check its player and provider settings. Phone playback was kept."
+                    result.failed.isNotEmpty() -> "Sent to ${result.started.joinToString { it.name }}. Failed: ${result.failed.joinToString { it.name }}."
+                    else -> "Sent to ${result.started.joinToString { it.name }}. Music Assistant owns speaker playback."
+                })
             }
         }
     }
@@ -373,6 +424,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     fun phoneOutput(cancelSpeakerRequests: Boolean = true) {
         if (cancelSpeakerRequests) dismissSpeakers()
+        speakerControlGeneration++
+        activeSpeakers = emptyList()
+        speakerProgress = null
         output = "This phone"
     }
     fun openBook(mediaId: String): Boolean {
@@ -395,7 +449,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         speakerJob?.cancel(); speakerJob = null
         speakerEpoch.next()
         speakers = null; speakerTracks = null
-        selectedEntry = null; selectedSpeaker = null
+        selectedEntry = null; selectedSpeakers = emptyList()
     }
     fun saveAssistant(url: String, token: String, onSaved: () -> Unit) {
         dismissSpeakers()
@@ -465,6 +519,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var seekable by remember { mutableStateOf(false) }
+    var playbackClockMs by remember { mutableStateOf(System.nanoTime() / 1_000_000) }
     var dragging by remember { mutableStateOf<Float?>(null) }
     var playerError by remember { mutableStateOf("") }
     var playerFailure by remember { mutableStateOf<PlaybackFailure?>(null) }
@@ -477,6 +532,8 @@ fun AppScreen(model: MainModel = viewModel()) {
     var settings by remember { mutableStateOf(false) }
     var routeDisplayName by remember { mutableStateOf("This phone") }
     val routeObserver = remember(context) { AudioOutputRouteObserver(context) { routeDisplayName = it.displayName } }
+    var showOutputPicker by remember { mutableStateOf(false) }
+    var chosenSpeakerIds by remember { mutableStateOf(setOf<String>()) }
     var assistantRemoteId by remember { mutableStateOf(model.repository.assistantRemoteId()) }
     var assistantToken by remember { mutableStateOf("") }
     var saveAttempted by remember { mutableStateOf(false) }
@@ -572,7 +629,6 @@ fun AppScreen(model: MainModel = viewModel()) {
             queue = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
             queueIndex = player.currentMediaItemIndex
             if (player.isPlaying) {
-                model.phoneOutput(cancelSpeakerRequests = false)
                 if (player.currentMediaItem?.mediaId?.let { ListeningStore.isStableMediaId(it) } == true)
                     model.radioOrPlexPlaybackStarted()
             }
@@ -593,8 +649,16 @@ fun AppScreen(model: MainModel = viewModel()) {
     }
     LaunchedEffect(browser, current?.mediaId) {
         while (true) {
+            playbackClockMs = System.nanoTime() / 1_000_000
             browser?.let { position = it.currentPosition.coerceAtLeast(0); duration = it.duration; seekable = it.isCurrentMediaItemSeekable }
             delay(1000)
+        }
+    }
+    LaunchedEffect(model.output) {
+        dragging = null
+        if (model.output != "This phone") while (true) {
+            model.refreshSpeakerProgress()
+            delay(8_000)
         }
     }
     LaunchedEffect(model.loginUrl) {
@@ -686,8 +750,12 @@ fun AppScreen(model: MainModel = viewModel()) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Build: ${BuildConfig.BUILD_TIME} (Lisbon)", style = MaterialTheme.typography.bodySmall)
                 Text("Plex works away from home when your server's Remote Access is configured.")
-                TextButton(onClick = { model.signIn(); closeSettings() }) { Text("Sign in to Plex") }
-                TextButton(onClick = model::signOut) { Text("Sign out of Plex") }
+                if (!model.plexSignedIn)
+                    TextButton(onClick = { model.signIn(); closeSettings() }) { Text("Sign in to Plex") }
+                if (model.plexSignedIn) {
+                    Text(if (model.plexAccountName.isBlank()) "Signed in to Plex" else "Plex: ${model.plexAccountName}")
+                    TextButton(onClick = model::signOut) { Text("Sign out of Plex") }
+                }
                 NostrConnections(model.nostr, model.nostrBridge)
                 HorizontalDivider()
                 Text("Music Assistant")
@@ -777,7 +845,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             Text(model.status, style = MaterialTheme.typography.bodySmall)
         val plexPlaybackAuthError = playerErrorIsPlexAuth ||
             (playerFailure == PlaybackFailure.AUTHENTICATION && model.plexAuthRequired)
-        if (showPlexAuthPrompts && (model.parent == "plex" || model.plexAuthRequired || plexPlaybackAuthError))
+        if (showPlexAuthPrompts && (!model.plexSignedIn || model.plexAuthRequired || plexPlaybackAuthError))
             TextButton(onClick = model::signIn) { Text("Sign in to Plex") }
         if (model.parent != "books" && playerError.isNotBlank() && (showPlexAuthPrompts || !plexPlaybackAuthError)) {
             Text(playerError, color = MaterialTheme.colorScheme.error)
@@ -860,20 +928,30 @@ fun AppScreen(model: MainModel = viewModel()) {
                 FavoriteButton(item.mediaId, title, model)
             }
         }
-        if (!bookOwnsPlayer && seekable && duration > 0 && model.output == "This phone") {
-            Slider(value = dragging ?: position.toFloat().coerceIn(0f, duration.toFloat()),
-                onValueChange = { dragging = it }, valueRange = 0f..duration.toFloat(),
-                onValueChangeFinished = { dragging?.let { browser?.seekTo(it.toLong()) }; dragging = null },
-                modifier = Modifier.semantics { contentDescription = "Playback position" })
-            Text("${durationLabel(position)} / ${durationLabel(duration)}", style = MaterialTheme.typography.labelSmall)
+        val remoteOutput = model.output != "This phone"
+        val progress = model.speakerProgress
+        val sliderDuration = if (remoteOutput) progress?.durationMs ?: 0L else duration
+        val sliderPosition = if (remoteOutput) progress?.positionAt(playbackClockMs) ?: 0L else position
+        if (!bookOwnsPlayer && sliderDuration > 0 && (remoteOutput || seekable)) {
+            Slider(value = dragging ?: sliderPosition.toFloat().coerceIn(0f, sliderDuration.toFloat()),
+                onValueChange = { dragging = it }, valueRange = 0f..sliderDuration.toFloat(),
+                enabled = !model.busy && !pendingSelection,
+                onValueChangeFinished = {
+                    dragging?.toLong()?.let { target ->
+                        if (remoteOutput) model.seekSpeakers(target) else { browser?.seekTo(target); position = target }
+                    }
+                    dragging = null
+                }, modifier = Modifier.semantics { contentDescription = "Playback position" })
+            Text("${durationLabel(dragging?.toLong() ?: sliderPosition)} / ${durationLabel(sliderDuration)}", style = MaterialTheme.typography.labelSmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FilledIconButton(enabled = if (bookOwnsPlayer) bookstrState.connected && activeBookId != null
-                else current != null && model.output == "This phone", onClick = {
+                else current != null && (!remoteOutput || progress != null) && !model.busy, onClick = {
                 if (bookOwnsPlayer) model.bookstr.togglePlayPause()
+                else if (remoteOutput) model.toggleSpeakers()
                 else if (playing) browser?.pause() else { browser?.prepare(); browser?.play() }
             }) {
-                val isPlaying = if (bookOwnsPlayer) bookstrState.playing else playing
+                val isPlaying = if (bookOwnsPlayer) bookstrState.playing else if (remoteOutput) progress?.playing == true else playing
                 Icon(painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
                     contentDescription = if (isPlaying) "Pause" else "Play")
             }
@@ -889,7 +967,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                     modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
             }
             TextButton(
-                onClick = { if (!bookOwnsPlayer) model.speakerPicker(current) },
+                onClick = { if (!bookOwnsPlayer) { chosenSpeakerIds = emptySet(); showOutputPicker = true; model.speakerPicker(current) } },
                 enabled = !bookOwnsPlayer && current != null,
                 modifier = Modifier.weight(1f).semantics {
                     val outputName = if (bookOwnsPlayer) routeDisplayName else if (model.output == "This phone") routeDisplayName else model.output
@@ -927,17 +1005,47 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
     }, confirmButton = { TextButton(onClick = { showQueue = false }) { Text("Done") } },
         dismissButton = { TextButton(onClick = { browser?.clearMediaItems(); model.repository.listening.savePlayback(null); model.refreshSaved() }) { Text("Clear") } })
-    model.speakers?.let { speakers ->
-        AlertDialog(onDismissRequest = model::dismissSpeakers, title = { Text("Play on a speaker") }, text = {
-            LazyColumn {
-                item { TextButton(onClick = { model.phoneOutput(); browser?.prepare(); browser?.play() }) { Text("This phone") } }
-                items(speakers) { speaker -> TextButton(onClick = { model.selectSpeaker(speaker) { browser?.pause() } }) { Text(speaker.name) } }
+    if (showOutputPicker) {
+        val speakers = model.speakers.orEmpty()
+        fun closeOutputs() { showOutputPicker = false; model.dismissSpeakers() }
+        AlertDialog(onDismissRequest = ::closeOutputs, title = { Text("Playback output") }, text = {
+            Column {
+                TextButton(onClick = {
+                    closeOutputs()
+                    val player = browser
+                    val id = player?.currentMediaItem?.mediaId
+                    if (player != null && id != null) {
+                        val ids = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(id) }
+                        val index = player.currentMediaItemIndex.coerceIn(ids.indices)
+                        val resumePosition = if (player.isCurrentMediaItemSeekable && !id.startsWith("radio:")) player.currentPosition.coerceAtLeast(0) else 0L
+                        selectPlayback(ids, index, resumePosition)
+                    } else playerError = "Choose something to play on the phone."
+                }) { Text("This phone") }
+                Text("Select speakers. For synchronized audio, use a Music Assistant speaker group.")
+                if (model.busy) Text("Loading speakers…")
+                if (speakers.isEmpty() && !model.busy) Text(model.status.ifBlank { "No speakers available." })
+                LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    items(speakers) { speaker ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = speaker.id in chosenSpeakerIds, onCheckedChange = { checked ->
+                                chosenSpeakerIds = if (checked) chosenSpeakerIds + speaker.id else chosenSpeakerIds - speaker.id
+                            })
+                            Text(speaker.name)
+                        }
+                    }
+                }
             }
-        }, confirmButton = { TextButton(onClick = model::dismissSpeakers) { Text("Cancel") } })
+        }, confirmButton = {
+            TextButton(enabled = chosenSpeakerIds.isNotEmpty() && !model.busy, onClick = {
+                val selected = speakers.filter { it.id in chosenSpeakerIds }
+                showOutputPicker = false
+                model.selectSpeakers(selected) { browser?.pause() }
+            }) { Text("Play on selected") }
+        }, dismissButton = { TextButton(onClick = ::closeOutputs) { Text("Cancel") } })
     }
     model.speakerTracks?.let { tracks ->
         AlertDialog(onDismissRequest = model::dismissSpeakers, title = { Text("Confirm Music Assistant track") }, text = {
-            if (tracks.isEmpty()) Text("No matching tracks found. Check Music Assistant's Plex library.")
+            if (tracks.isEmpty()) Text("No matching tracks. Add Plex as a music provider in Music Assistant and sync its library.")
             else LazyColumn { items(tracks) { track -> TextButton(onClick = { model.playOnSpeaker(track.uri) { browser?.pause() } }) { Text("${track.name} — ${track.artist}") } } }
         }, confirmButton = { TextButton(onClick = model::dismissSpeakers) { Text("Cancel") } })
     }
