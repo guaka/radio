@@ -9,6 +9,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,11 +34,14 @@ class MusicRepository(private val context: Context) {
     val api = ApiClient(clientId)
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
+    private val somaArtworkCache = SomaArtworkCache()
+    private val stationArtworkCache = StationArtworkCache()
     val stations: List<Entry> by lazy {
         val rows = JSONArray(context.assets.open("stations.json").bufferedReader().use { it.readText() })
         (0 until rows.length()).map { i ->
             val row = rows.getJSONObject(i)
-            Entry("radio:${row.getString("id")}", row.getString("title"), row.optString("tags"), true, row.getString("url"))
+            Entry("radio:${row.getString("id")}", row.getString("title").replace('_', ' '), row.optString("tags"), true,
+                row.getString("url"), artwork = row.optString("artwork"))
         }.also { items -> items.forEach { entries[it.id] = it } }
     }
 
@@ -292,7 +298,10 @@ class MusicRepository(private val context: Context) {
 
     suspend fun artwork(entry: Entry): ByteArray? = withContext(Dispatchers.IO) {
         try {
-            if (entry.artwork.isBlank() || entry.id.startsWith("radio:")) return@withContext null
+            if (entry.id.startsWith("radio:")) {
+                return@withContext stationArtworkCache.get(entry.id) { fetchStationArtwork(entry.id) }
+            }
+            if (entry.artwork.isBlank()) return@withContext null
             val parts = entry.id.split(':', limit = 3)
             if (parts.size != 3 || parts[0] !in listOf("artist", "album", "track") || !validPathKey(parts[2])) return@withContext null
             val server = server(parts[1])
@@ -308,6 +317,44 @@ class MusicRepository(private val context: Context) {
             null
         }
     }
+
+    /** Gradually warms public station artwork while the owning UI remains in the foreground. */
+    suspend fun preloadStationArtwork() {
+        delay(ARTWORK_PRELOAD_INITIAL_DELAY_MS)
+        for (station in stations) {
+            currentCoroutineContext().ensureActive()
+            artwork(station)
+            delay(ARTWORK_PRELOAD_INTERVAL_MS)
+        }
+    }
+
+    private suspend fun fetchStationArtwork(mediaId: String): ByteArray? {
+        val station = stations.firstOrNull { it.id == mediaId } ?: return null
+        val stationId = mediaId.removePrefix("radio:")
+        val imageUrl = if (station.subtitle.split(',').any { it.trim() == "soma" }) {
+            somaArtworkUrl(stationId) ?: station.artwork
+        } else station.artwork
+        if (imageUrl.isBlank()) return null
+        val image = safeStationArtworkUrl(imageUrl) ?: return null
+        return api.publicImageBytes(image.toString(), MAX_ARTWORK_BYTES)
+    }
+
+    private suspend fun somaArtworkUrl(id: String): String? {
+        if (!id.matches(Regex("[A-Za-z0-9_-]{1,80}"))) return null
+        return somaArtworkCache.artwork(id) {
+            SomaArtwork.parse(api.publicJson(SOMA_CHANNELS_URL, SOMA_ARTWORK_HOST, MAX_SOMA_METADATA_BYTES))
+        }
+    }
+
+    private fun safeStationArtworkUrl(raw: String): okhttp3.HttpUrl? {
+        val parsed = runCatching { raw.toHttpUrl() }.getOrNull() ?: return null
+        if (!parsed.isHttps || parsed.port != 443 || parsed.username.isNotEmpty() || parsed.password.isNotEmpty() || parsed.fragment != null) return null
+        val allowedHosts = stations.mapNotNull { station ->
+            station.artwork.takeIf { it.isNotBlank() }?.let { runCatching { it.toHttpUrl().host }.getOrNull() }
+        }.toSet() + SOMA_ARTWORK_HOST
+        return parsed.takeIf { it.host in allowedHosts }
+    }
+
 
     suspend fun playable(id: String): Entry = withContext(Dispatchers.IO) {
         if (id.startsWith("radio:")) return@withContext stations.first { it.id == id }
@@ -376,5 +423,12 @@ class MusicRepository(private val context: Context) {
             JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
     }
 
-    companion object { private const val MAX_ARTWORK_BYTES = 1024 * 1024 }
+    companion object {
+        private const val MAX_ARTWORK_BYTES = 1024 * 1024
+        private const val ARTWORK_PRELOAD_INITIAL_DELAY_MS = 1_000L
+        private const val ARTWORK_PRELOAD_INTERVAL_MS = 750L
+        private const val MAX_SOMA_METADATA_BYTES = 512 * 1024
+        private const val SOMA_CHANNELS_URL = "https://api.somafm.com/channels.json"
+        private const val SOMA_ARTWORK_HOST = "api.somafm.com"
+    }
 }
