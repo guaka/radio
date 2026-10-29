@@ -67,7 +67,7 @@ The first beta registers preference schema 1 without renaming or rewriting proto
 
 ## Obtainium updates
 
-Add `https://github.com/guaka/radio` as a GitHub source in Obtainium. Enable prereleases and, if needed, filter tags with `^android-v` and select `radio-guaka-beta.apk`. Each Android beta release includes the signed APK and its SHA-256 checksum. Allow Obtainium to install apps when Android prompts you.
+[Add Radio Guaka to Obtainium](obtainium://app/%7B%22id%22%3A%22org.guaka.radio%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fguaka%2Fradio%22%2C%22author%22%3A%22guaka%22%2C%22name%22%3A%22Radio%20Guaka%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Atrue%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5EAndroid%20beta%20%5C%22%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Eradio-guaka-beta%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D) and confirm the import. The link configures GitHub prereleases, the Android beta release filter, and the APK filter. If the link does not open, add `https://github.com/guaka/radio` in Obtainium and enable prereleases. Each Android beta release includes the signed APK and its SHA-256 checksum. Allow Obtainium to install apps when Android prompts you.
 
 The Android beta release workflow runs on relevant pushes to `main` and can be run manually from GitHub Actions. It uses the repository's beta signing secrets and verifies the pinned certificate before publishing. Version codes use Unix epoch seconds and must increase for each update; this scheme must be replaced before Android's 2,100,000,000 limit is reached in 2036. Releases use Lisbon timestamps in their names.
 
