@@ -6,7 +6,7 @@ For signed beta installation, stable-key updates and backup instructions, see [B
 
 ## Build and install
 
-Use Android Studio or JDK 17+, Android SDK platform 36 and `ANDROID_HOME` (or an untracked `local.properties` containing `sdk.dir=...`).
+Use Android Studio with JDK 21+, Android SDK platform 36 and `ANDROID_HOME` (or an untracked `local.properties` containing `sdk.dir=...`). The Nostr dependency requires Java 21 for JVM unit tests.
 
 ```sh
 cd android
