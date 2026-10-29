@@ -395,7 +395,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         action {
             setStatus("")
             io { repository.saveAssistant(url, token) }
-            setStatus("Music Assistant saved. Connect to home Wi-Fi to choose speakers.")
+            setStatus("Music Assistant saved. Choose a speaker when the server is reachable.")
             onSaved()
         }
     }
@@ -683,10 +683,10 @@ fun AppScreen(model: MainModel = viewModel()) {
                 TextButton(onClick = model::signOut) { Text("Sign out of Plex") }
                 NostrConnections(model.nostr, model.nostrBridge)
                 HorizontalDivider()
-                Text("Music Assistant · home Wi-Fi only")
-                OutlinedTextField(assistantUrl, { assistantUrl = it }, label = { Text("Local server URL") }, placeholder = { Text("http://192.168.1.20:8095") }, singleLine = true)
+                Text("Music Assistant")
+                OutlinedTextField(assistantUrl, { assistantUrl = it }, label = { Text("Server URL") }, placeholder = { Text("http://192.168.1.20:8095") }, singleLine = true)
                 OutlinedTextField(assistantToken, { assistantToken = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                Text("Create an access token in Music Assistant → Settings → Profile.")
+                Text("Create an access token in Music Assistant → Settings → Profile. Use HTTPS for remote or VPN access.")
                 if (saveAttempted && model.status.isNotBlank()) Text(model.status, color = MaterialTheme.colorScheme.error)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

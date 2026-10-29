@@ -413,9 +413,10 @@ class MusicRepository(private val context: Context) {
     fun assistantAvailable(): Boolean {
         val manager = context.getSystemService(ConnectivityManager::class.java)
         val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        return assistantNetworkAllowed(assistantUrl(), true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
     }
-    private fun requireHomeNetwork() { check(assistantAvailable()) { "Connect to your home Wi-Fi to use speakers." } }
+    private fun requireAssistantNetwork() { check(assistantAvailable()) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." } }
     fun assistantUrl() = preferences.getString("assistantUrl", "").orEmpty()
     fun saveAssistant(url: String, token: String) {
         val normalized = IntegrationParser.localAssistantUrl(url)
@@ -424,16 +425,16 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("assistantUrl", normalized).apply()
     }
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
-        requireHomeNetwork()
+        requireAssistantNetwork()
         IntegrationParser.speakers(api.command(assistantUrl(), credentials.get("assistantToken"), "players/all") as JSONArray)
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        requireHomeNetwork()
+        requireAssistantNetwork()
         val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle}").put("media_types", JSONArray().put("track")).put("limit", 10)
         IntegrationParser.speakerTracks(api.command(assistantUrl(), credentials.get("assistantToken"), "music/search", args) as JSONObject)
     }
     suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
-        requireHomeNetwork()
+        requireAssistantNetwork()
         api.command(assistantUrl(), credentials.get("assistantToken"), "player_queues/play_media",
             JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
     }
@@ -447,3 +448,6 @@ class MusicRepository(private val context: Context) {
         private const val SOMA_ARTWORK_HOST = "api.somafm.com"
     }
 }
+
+internal fun assistantNetworkAllowed(url: String, connected: Boolean, localNetwork: Boolean): Boolean =
+    connected && (localNetwork || runCatching { url.toHttpUrl().isHttps }.getOrDefault(false))
