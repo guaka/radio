@@ -14,7 +14,7 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The CI workflow uploads a debug-signed APK for development. Beta builds use a stable signing identity and can update one another while preserving app data. Follow [BETA.md](BETA.md) to create and protect the key, build a signed beta APK, install updates, and troubleshoot signing errors. Debug and beta APKs use different keys; switching between them requires uninstalling first and removes the app's local data. Never commit signing keys, password files, `local.properties` or access tokens.
+The CI workflow uploads a debug-signed APK for development. Beta builds use a stable signing identity and can update one another while preserving app data. Follow [BETA.md](BETA.md) to protect the key, build and publish signed beta APKs, set up Obtainium updates, and troubleshoot signing errors. Debug and beta APKs use different keys; switching between them requires uninstalling first and removes the app's local data. Never commit signing keys, password files, `local.properties` or access tokens.
 
 Stations are bundled for cold startup/offline browsing; streams need a network. After changing the web catalogue, run `node android/scripts/sync-stations.mjs` from the repository root. CI verifies that the snapshot is current.
 

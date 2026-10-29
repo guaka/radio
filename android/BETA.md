@@ -65,21 +65,20 @@ The debug CI APK is signed with a development key, so it cannot update an instal
 
 The first beta registers preference schema 1 without renaming or rewriting prototype settings, favorites, saved queues, or encrypted credentials. It preserves the Android Keystore alias. Later in-place beta updates keep this data; a schema marker from a newer app is never downgraded. Migration is tested for idempotence and data preservation. This cannot transfer data across a debug/beta signature change or an uninstall.
 
-## Optional future signed CI
+## GitHub releases and Obtainium
 
-A signed CI workflow is **not included**. The current GitHub workflow continues to produce debug APKs. Do not configure signing secrets until a reviewed signed-artifact workflow and its destination have been explicitly authorized.
+The **Android beta release** workflow is manually triggered from Actions. It runs unit tests, builds with the pinned beta certificate, verifies the APK signature, and publishes a GitHub prerelease with an APK and SHA-256 checksum. Select the intended branch when triggering it. Each run uses a Lisbon timestamp for the release tag and version name and Unix epoch minutes for the Android version code; wait at least one minute between builds. Never reuse or replace an existing release tag. Build and publish newer versions in chronological order so Android accepts updates.
 
-Proposed CI secret names
+Before the first run, configure these repository secrets (or protect the workflow with an environment and required reviewers):
 
-For a manually triggered signed CI build, configure these repository or environment secrets only after choosing who can trigger the workflow and download its artifacts:
-
-- `RADIO_BETA_KEYSTORE_BASE64`: base64 encoding of the JKS keystore.
+- `RADIO_BETA_KEYSTORE_BASE64`: base64-encoded established JKS keystore.
 - `RADIO_BETA_STORE_PASSWORD`: keystore password.
-- `RADIO_BETA_KEY_ALIAS`: `radio-guaka-beta`.
+- `RADIO_BETA_KEY_ALIAS`: signing key alias.
 - `RADIO_BETA_KEY_PASSWORD`: private key password.
 
-Use an environment with required reviewers if release access needs approval. GitHub secrets are separate from the local signing files, and setting them does not create or back up the signing identity. The workflow must write the decoded keystore only to a temporary runner directory, restrict its file permissions, avoid caching it, remove it after the job, and publish only the signed APK and public certificate fingerprint.
+The workflow writes the keystore to a temporary runner file with restricted permissions and removes it after the build. The Gradle build checks the certificate against `beta-certificate.sha256`; a missing secret or different key fails the release. Protect the signing secrets and retain an independent encrypted backup of the keystore.
 
+In Obtainium, add `https://github.com/guaka/radio` as a GitHub source, enable prereleases, and filter release tags to `^android-v` if the repository has other releases. Select `radio-guaka-beta.apk` if prompted. The first installation is available only after a beta release has been published. Future updates must use the same certificate and a higher version code. GitHub Actions artifacts from the debug workflow are not the Obtainium release channel.
 
 ## Recorded validation
 
