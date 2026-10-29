@@ -146,3 +146,5 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 ## Android prototype
 
 A native Android companion is being developed for Radio, Plex, Android Auto and local Music Assistant speakers. See [android/README.md](android/README.md) for build/install instructions, scope and the device acceptance checklist; progress is tracked in [issue #86](https://github.com/guaka/radio/issues/86).
+
+[Add Radio Guaka to Obtainium](obtainium://app/%7B%22id%22%3A%22org.guaka.radio%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fguaka%2Fradio%22%2C%22author%22%3A%22guaka%22%2C%22name%22%3A%22Radio%20Guaka%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Atrue%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5EAndroid%20beta%20%5C%22%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Eradio-guaka-beta%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D) to follow signed Android beta updates. Confirm the import in Obtainium. You can also download the APK from [GitHub Releases](https://github.com/guaka/radio/releases).
