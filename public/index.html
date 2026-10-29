@@ -3544,6 +3544,7 @@
       localStorage.setItem(LS.starredStations, JSON.stringify([...stSet]));
       refreshAllStarButtonsFromStorage();
       updateFilterState();
+      if (navView === 'favorites') renderLibraryView();
     } catch (err) {
       console.warn('applyNostrFavoritesToLocalStorage', err);
       setNostrStatus('Could not sync favorites from Nostr: ' + (err && err.message ? err.message : String(err)), 'error');
@@ -8364,17 +8365,22 @@
     document.title = station.title + ' | pleXtr';
   }
 
-  function playRadioIndex(i) {
+  function playRadioIndex(i, options) {
+    const opts = options || {};
     const station = radioStations[i];
     if (!station || !station.url) return;
     clearNowPlayingNoteSchedule();
     currentRadioIdx = i;
     isRadioMode = true;
     const audio = $('audio');
+    audio._pendingRestoreTime = null;
     setAudioElementSource(audio, station.url);
-    audio.play().catch((err) => {
-      showError('Could not start this stream: ' + (err && err.message ? err.message : 'Playback blocked'));
-    });
+    if (opts.autoplay !== false) {
+      audio.play().catch((err) => {
+        showError('Could not start this stream: ' + (err && err.message ? err.message : 'Playback blocked'));
+      });
+    }
+    savePlaybackState({ type: 'radio', stationId: station.id });
     setRadioNowPlaying(station);
     updateMediaSessionNowPlaying({
       title: station.title || 'Radio',
@@ -9505,6 +9511,11 @@
   }
 
   function persistCurrentPlaybackState(overrides) {
+    if (isRadioMode) {
+      const station = radioStations[currentRadioIdx];
+      if (station) savePlaybackState({ type: 'radio', stationId: station.id });
+      return;
+    }
     const track = currentTracks[playingIdx];
     const partKeyPersist = getFirstPlayablePartKey(track);
     if (!track || !partKeyPersist) return;
@@ -9535,7 +9546,7 @@
       trackRatingKey: track.ratingKey ? String(track.ratingKey) : '',
       trackTitle: track.title ? String(track.title) : '',
       partKey: partKeyPersist,
-      currentTime: Number(audio.currentTime) || 0,
+      currentTime: audio._pendingRestoreTime != null ? audio._pendingRestoreTime : (Number(audio.currentTime) || 0),
       wasPlaying: !audio.paused && !audio.ended,
       savedAt: now,
       updatedAt: now
@@ -9835,12 +9846,15 @@
       saveRecentTracks(recent);
       scheduleNotifyNowPlaying(t, null);
       setAudioElementSource(audio, newUrl);
+      audio._pendingRestoreTime = Number.isFinite(seekTime) && seekTime > 0 ? seekTime : null;
       if (Number.isFinite(seekTime) && seekTime > 0) {
         const applySeek = () => {
+          if (audio._pendingRestoreTime !== seekTime) return;
           try {
             const d = Number(audio.duration);
             if (Number.isFinite(d) && d > 0) {
-              if (seekTime <= d - 0.25) audio.currentTime = seekTime;
+              audio.currentTime = Math.min(seekTime, Math.max(0, d - 0.25));
+              audio._pendingRestoreTime = null;
               return;
             }
             if (audio.seekable && audio.seekable.length > 0) {
@@ -9851,6 +9865,7 @@
               }
               if (Number.isFinite(end) && end > 0 && seekTime <= end - 0.25) {
                 audio.currentTime = seekTime;
+                audio._pendingRestoreTime = null;
               }
             }
           } catch (_) {}
@@ -9861,7 +9876,7 @@
       if (opts.autoplay === false) {
         audio.pause();
         audio.volume = targetVolume;
-        persistCurrentPlaybackState();
+        persistCurrentPlaybackState({ currentTime: Number.isFinite(seekTime) ? seekTime : 0 });
       } else {
         audio.volume = 0;
         audio.play().catch(() => {});
@@ -10220,7 +10235,13 @@
   });
 
   async function restorePlaybackFromState() {
-    const localSaved = normalizeProgressState(loadPlaybackState(), 'local', null);
+    const rawSaved = loadPlaybackState();
+    if (rawSaved && rawSaved.type === 'radio') {
+      const idx = radioStations.findIndex((station) => station.id === rawSaved.stationId);
+      if (idx >= 0) playRadioIndex(idx, { autoplay: false });
+      return;
+    }
+    const localSaved = normalizeProgressState(rawSaved, 'local', null);
     const activeSection = $('inSection').value || cfg().sectionKey || '';
     const localAllowed = localSaved && (!localSaved.sectionKey || !activeSection || String(localSaved.sectionKey) === String(activeSection))
       ? localSaved
@@ -10247,13 +10268,12 @@
       parentTitle: saved.albumParentTitle || ''
     };
     await openAlbum(album);
-    let index = Number(saved.trackIndex);
-    if (!Number.isInteger(index) || index < 0 || index >= currentTracks.length) {
-      index = currentTracks.findIndex((t) => String(t.ratingKey || '') === String(saved.trackRatingKey || ''));
-    }
+    let index = saved.trackRatingKey
+      ? currentTracks.findIndex((t) => String(t.ratingKey || '') === String(saved.trackRatingKey))
+      : Number(saved.trackIndex);
     if (index < 0 || index >= currentTracks.length) return;
     playIndex(index, {
-      autoplay: !!saved.wasPlaying,
+      autoplay: false,
       seekTime: Number(saved.currentTime) || 0
     });
   }
@@ -10626,6 +10646,8 @@
     const c = cfg();
     $('inToken').value = c.token;
     probeSameOriginBackend().catch(() => {});
+    const initialHash = (location.hash || '').trim();
+    if (initialHash === '#favorites' || initialHash === '#recent') applyHashRoute();
     if (c.server && c.token) {
       loadSections().then(() => {
         const hash = (location.hash || '').trim();
@@ -10635,7 +10657,14 @@
         const isArtistRoute = /^#artist\/[^/]+$/.test(hash);
         const isDirectoryRoute = isDirectoryRouteHash(hash);
         if (isViewRoute || isAlbumRoute || isArtistRoute || isDirectoryRoute) {
-          applyHashRoute();
+          const saved = loadPlaybackState();
+          if (isRadioRouteHash(hash) && saved?.type === 'radio' && hash === radioHash(saved.stationId)) {
+            restorePlaybackFromState();
+          } else if (isAlbumRoute && saved?.albumRatingKey && hash === albumHash(saved.albumRatingKey)) {
+            restorePlaybackFromState().catch(() => applyHashRoute());
+          } else {
+            applyHashRoute();
+          }
         } else if (!$('inSection').value) {
           if (!isRadioRouteHash(location.hash)) location.hash = '#albums';
           applyHashRoute();
@@ -10646,13 +10675,19 @@
         }
       }).catch(() => {
         setSettingsStatus('Could not load libraries. Open Settings to check connection.', 'error');
+        if (location.hash === '#favorites' || location.hash === '#recent') return;
         if (!isRadioRouteHash(location.hash)) location.hash = '#radio';
         applyHashRoute();
       });
     } else {
       const h = (location.hash || '').trim();
       if (h === '#albums') location.hash = '#radio';
-      applyHashRoute();
+      const saved = loadPlaybackState();
+      if (saved?.type === 'radio' && location.hash === radioHash(saved.stationId)) {
+        restorePlaybackFromState();
+      } else {
+        applyHashRoute();
+      }
     }
     updateFilterState();
   })();
