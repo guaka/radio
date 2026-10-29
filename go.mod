@@ -3,6 +3,7 @@ module github.com/guaka/radio-guaka
 go 1.25.0
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/nbd-wtf/go-nostr v0.52.0
 	modernc.org/sqlite v1.47.0

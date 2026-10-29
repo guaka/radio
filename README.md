@@ -126,6 +126,12 @@ Run `go test -race ./...` and `go vet ./...` to validate the backend.
 
 Set `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` to route friend-gated `/libraries`, `/tracks`, and `/stream/:id` through Wrapster's NIP-98 protected Plex gateway. The same-origin `/api/plex/*` proxy still requires `PLEX_BASE_URL` for arbitrary Plex browsing. That proxy accepts the caller's `X-Plex-Token` query parameter or header. Only authenticated friends can use the server's Plex token when no caller token is supplied.
 
+## Optional music integrations
+
+Spotify and Apple Music API proxies accept caller tokens. Configure `SPOTIFY_CLIENT_ID` for client configuration and `APPLE_MUSIC_TEAM_ID`, `APPLE_MUSIC_KEY_ID`, and `APPLE_MUSIC_PRIVATE_KEY_PATH` to issue MusicKit developer tokens to authenticated friends. Mount the Apple `.p8` key read-only when running in Docker.
+
+Music Assistant proxy/probe routes require an authenticated Nostr friend session and use `MUSIC_ASSISTANT_BASE_URL` with optional `MUSIC_ASSISTANT_TOKEN`. The public quick-map route returns static examples; validate them against your own instance. See [MUSIC-ASSISTANT-QUICKSTART.md](MUSIC-ASSISTANT-QUICKSTART.md).
+
 ## Android prototype
 
 A native Android companion is being developed for Radio, Plex, Android Auto and local Music Assistant speakers. See [android/README.md](android/README.md) for build/install instructions, scope and the device acceptance checklist; progress is tracked in [issue #86](https://github.com/guaka/radio/issues/86).
