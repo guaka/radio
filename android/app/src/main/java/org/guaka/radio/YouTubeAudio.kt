@@ -118,8 +118,14 @@ internal class YouTubeAudio {
                     }
                     val body = request.dataToSend()?.toRequestBody()
                         ?: if (request.httpMethod() in setOf("POST", "PUT", "PATCH")) ByteArray(0).toRequestBody() else null
-                    return client.newCall(builder.method(request.httpMethod(), body).build()).execute().use {
-                        Response(it.code, it.message, it.headers.toMultimap(), it.body.string(), it.request.url.toString())
+                    val call = builder.method(request.httpMethod(), body).build()
+                    return try {
+                        client.newCall(call).execute().use {
+                            Response(it.code, it.message, it.headers.toMultimap(), it.body.string(), it.request.url.toString())
+                        }
+                    } catch (error: IOException) {
+                        android.util.Log.w("YouTubeAudio", "Network failure for ${call.url.host}: ${error.javaClass.simpleName}; cause: ${error.cause?.javaClass?.simpleName ?: "none"}")
+                        throw error
                     }
                 }
             })
