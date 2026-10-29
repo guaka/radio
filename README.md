@@ -131,3 +131,7 @@ Set `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` to route friend-gated `/libra
 Spotify and Apple Music API proxies accept caller tokens. Configure `SPOTIFY_CLIENT_ID` for client configuration and `APPLE_MUSIC_TEAM_ID`, `APPLE_MUSIC_KEY_ID`, and `APPLE_MUSIC_PRIVATE_KEY_PATH` to issue MusicKit developer tokens to authenticated friends. Mount the Apple `.p8` key read-only when running in Docker.
 
 Music Assistant proxy/probe routes require an authenticated Nostr friend session and use `MUSIC_ASSISTANT_BASE_URL` with optional `MUSIC_ASSISTANT_TOKEN`. The public quick-map route returns static examples; validate them against your own instance. See [MUSIC-ASSISTANT-QUICKSTART.md](MUSIC-ASSISTANT-QUICKSTART.md).
+
+## Android prototype
+
+A native Android companion is being developed for Radio, Plex, Android Auto and local Music Assistant speakers. See [android/README.md](android/README.md) for build/install instructions, scope and the device acceptance checklist; progress is tracked in [issue #86](https://github.com/guaka/radio/issues/86).
