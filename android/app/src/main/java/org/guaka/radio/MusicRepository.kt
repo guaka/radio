@@ -34,6 +34,7 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("clientId", it).apply()
     }
     val api = ApiClient(clientId)
+    private val assistantRemote = AssistantRemote(context)
     private val youtube = YouTubeAudio()
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -410,40 +411,32 @@ class MusicRepository(private val context: Context) {
             .forEach { entries.remove(it) }
     }
 
-    fun assistantAvailable(url: String = assistantUrl()): Boolean {
-        val manager = context.getSystemService(ConnectivityManager::class.java)
-        val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-        return assistantNetworkAllowed(url, true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
-    }
-    private fun requireAssistantNetwork() { check(assistantAvailable()) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." } }
-    fun assistantUrl() = preferences.getString("assistantUrl", "").orEmpty()
-    fun hasAssistantToken(url: String): Boolean =
-        runCatching { IntegrationParser.localAssistantUrl(url) == assistantUrl() }.getOrDefault(false) &&
-            credentials.get("assistantToken").isNotBlank()
+    fun assistantRemoteId() = preferences.getString("assistantRemoteId", "").orEmpty()
+    fun hasAssistantToken(id: String): Boolean =
+        runCatching { AssistantRemoteIdentity.normalize(id) == assistantRemoteId() }.getOrDefault(false) &&
+            credentials.get("assistantRemoteToken").isNotBlank()
 
-    suspend fun saveAssistant(url: String, token: String) {
-        val normalized = IntegrationParser.localAssistantUrl(url)
-        val selectedToken = assistantTokenForServer(normalized, token, assistantUrl(), credentials.get("assistantToken"))
-        check(assistantAvailable(normalized)) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." }
-        api.checkAssistantConnection(normalized, selectedToken)
+    suspend fun saveAssistant(id: String, token: String) {
+        val normalized = AssistantRemoteIdentity.normalize(id)
+        val selectedToken = assistantTokenForServer(normalized, token, assistantRemoteId(), credentials.get("assistantRemoteToken"))
+        val players = assistantRemote.command(normalized, selectedToken, "players/all")
+        check(players is JSONArray) { "Music Assistant did not return a player list." }
         currentCoroutineContext().ensureActive()
-        credentials.set("assistantToken", selectedToken)
-        preferences.edit().putString("assistantUrl", normalized).apply()
+        credentials.set("assistantRemoteToken", selectedToken)
+        preferences.edit().putString("assistantRemoteId", normalized).remove("assistantUrl").apply()
+        credentials.set("assistantToken", "")
     }
+    private suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
+        assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
-        requireAssistantNetwork()
-        IntegrationParser.speakers(api.command(assistantUrl(), credentials.get("assistantToken"), "players/all") as JSONArray)
+        IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        requireAssistantNetwork()
         val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle}").put("media_types", JSONArray().put("track")).put("limit", 10)
-        IntegrationParser.speakerTracks(api.command(assistantUrl(), credentials.get("assistantToken"), "music/search", args) as JSONObject)
+        IntegrationParser.speakerTracks(assistantCommand("music/search", args) as JSONObject)
     }
     suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
-        requireAssistantNetwork()
-        api.command(assistantUrl(), credentials.get("assistantToken"), "player_queues/play_media",
-            JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
+        assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
     }
 
     companion object {
