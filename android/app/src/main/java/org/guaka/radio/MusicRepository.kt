@@ -35,7 +35,9 @@ class MusicRepository(private val context: Context) {
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
     private val somaArtworkCache = SomaArtworkCache()
-    private val stationArtworkCache = StationArtworkCache()
+    private val stationArtworkCache = StationArtworkCache(
+        diskDirectory = java.io.File(context.cacheDir, "station-artwork-v1")
+    )
     val stations: List<Entry> by lazy {
         val rows = JSONArray(context.assets.open("stations.json").bufferedReader().use { it.readText() })
         (0 until rows.length()).map { i ->
