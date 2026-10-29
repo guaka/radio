@@ -23,17 +23,25 @@ class IntegrationTest {
         assertEquals("https://local.plex.direct:32400", servers.single().connections.first().uri)
         assertEquals(2, servers.single().connections.size)
     }
-    @Test fun assistantRejectsPublicOrCredentialBearingUrls() {
-        listOf("https://example.org", "https://user:password@192.168.1.3:8095", "http://192.168.1.3:8095?token=secret",
+    @Test fun assistantValidatesUrls() {
+        listOf("http://example.org", "https://user:password@192.168.1.3:8095", "http://192.168.1.3:8095?token=secret",
             "http://192.168.999.3", "http://8.8.8.8", "http://192.168.1.20.attacker.example:8095",
             "http://music.192.168.1.20:8095", "http://192.168.music.1.20:8095").forEach { value ->
             assertTrue(value, runCatching { IntegrationParser.localAssistantUrl(value) }.isFailure)
         }
+        assertEquals("https://music.nebula.example:8095", IntegrationParser.localAssistantUrl("https://music.nebula.example:8095/"))
         assertEquals("http://192.168.1.20:8095", IntegrationParser.localAssistantUrl("http://192.168.1.20:8095/"))
         assertEquals("http://10.0.0.8:8095", IntegrationParser.localAssistantUrl("http://10.0.0.8:8095"))
         assertEquals("http://172.31.255.254:8095", IntegrationParser.localAssistantUrl("http://172.31.255.254:8095"))
         assertEquals("http://music-assistant.local:8095", IntegrationParser.localAssistantUrl("http://music-assistant.local:8095"))
         assertEquals("http://music-assistant:8095", IntegrationParser.localAssistantUrl("http://music-assistant:8095"))
+    }
+    @Test fun assistantNetworkPolicyAllowsHttpsOverVpnAndRequiresNetwork() {
+        assertTrue(assistantNetworkAllowed("https://music.nebula.example", true, false))
+        assertTrue(assistantNetworkAllowed("http://music.local", true, true))
+        assertFalse(assistantNetworkAllowed("http://music.local", true, false))
+        assertFalse(assistantNetworkAllowed("https://music.nebula.example", false, true))
+        assertFalse(assistantNetworkAllowed("invalid", true, false))
     }
     @Test fun tracksHaveStableServerScopedIds() {
         val payload = JSONObject("""{"MediaContainer":{"Metadata":[{"ratingKey":"42","title":"Test","grandparentTitle":"Artist"}]}}""")
@@ -121,6 +129,11 @@ class IntegrationTest {
             assertEquals("player_queues/play_media", body.getString("command"))
             assertEquals("living", body.getJSONObject("args").getString("queue_id"))
             assertEquals("library://track/42", body.getJSONObject("args").getJSONArray("media").getString(0))
+            server.enqueue(MockResponse().setResponseCode(302).addHeader("Location", server.url("/redirected")))
+            assertTrue(runCatching { ApiClient("test-client").command("http://localhost:${server.port}", "ma-token", "players/all") }.isFailure)
+            val redirectRequest = server.takeRequest()
+            assertEquals("Bearer ma-token", redirectRequest.getHeader("Authorization"))
+            assertEquals(2, server.requestCount)
         } finally { server.shutdown() }
     }
     @Test fun authenticationErrorsRetainServiceAndStatusWithoutRetrying() = runBlocking {
