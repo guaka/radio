@@ -65,6 +65,12 @@ The debug CI APK is signed with a development key, so it cannot update an instal
 
 The first beta registers preference schema 1 without renaming or rewriting prototype settings, favorites, saved queues, or encrypted credentials. It preserves the Android Keystore alias. Later in-place beta updates keep this data; a schema marker from a newer app is never downgraded. Migration is tested for idempotence and data preservation. This cannot transfer data across a debug/beta signature change or an uninstall.
 
+## Obtainium updates
+
+Add `https://github.com/guaka/radio` as a GitHub source in Obtainium. Enable prereleases and, if needed, filter tags with `^android-v` and select `radio-guaka-beta.apk`. Each Android beta release includes the signed APK and its SHA-256 checksum. Allow Obtainium to install apps when Android prompts you.
+
+The Android beta release workflow runs on relevant pushes to `main` and can be run manually from GitHub Actions. It uses the repository's beta signing secrets and verifies the pinned certificate before publishing. Version codes use Unix epoch seconds and must increase for each update; this scheme must be replaced before Android's 2,100,000,000 limit is reached in 2036. Releases use Lisbon timestamps in their names.
+
 ## Optional future signed CI
 
 A signed CI workflow is **not included**. The current GitHub workflow continues to produce debug APKs. Do not configure signing secrets until a reviewed signed-artifact workflow and its destination have been explicitly authorized.
