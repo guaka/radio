@@ -37,6 +37,8 @@ Plex tokens are kept in Android Keystore-encrypted preferences and sent as heade
 
 ## Validation
 
+The Android CI workflow runs JVM tests and lint, then runs the offline instrumentation and Compose UI suites on an API 35 emulator. It uploads the device test reports even on failure. Live radio, YouTube, and the two-app Bookstr checks remain opt-in; run them on a suitable emulator or device with the arguments described below.
+
 ```sh
 ./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
 ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest # use your own device serial
