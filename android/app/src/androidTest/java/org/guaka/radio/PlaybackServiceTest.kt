@@ -171,6 +171,8 @@ class PlaybackServiceTest {
             return id
         }
         try {
+            val listening = (context.applicationContext as RadioApp).repository.listening
+            listening.clearHistory()
             val initial = start(listOf("radio:7soul"))
             assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS, initial.get(60, TimeUnit.SECONDS).resultCode)
             val oldId = currentId()
@@ -183,11 +185,13 @@ class PlaybackServiceTest {
                 Thread.sleep(25)
             } while (android.os.SystemClock.elapsedRealtime() < audibleDeadline)
             assertTrue("Initial station must be audibly playing before testing handoff", audible)
+            assertEquals("radio:7soul", listening.historyIds().firstOrNull())
 
             val bad = start(listOf("radio:missing-station"))
             val failed = bad.get(15, TimeUnit.SECONDS)
             assertNotNull("A failed selection should return a sanitized session error", failed.sessionError)
             assertEquals("radio:7soul", currentId())
+            assertEquals(listOf("radio:7soul"), listening.historyIds())
             instrumentation.runOnMainSync { assertTrue("Failed staging must retain playback", browser.isPlaying) }
 
             val switching = start(listOf("radio:beatblender"))

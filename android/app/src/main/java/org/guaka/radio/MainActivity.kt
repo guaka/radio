@@ -115,6 +115,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var stationArtworkPreloadJob: Job? = null
     private var speakerEpoch = SpeakerRequestEpoch()
     private val history = mutableListOf<Pair<String, String>>()
+    private var playedHistory = repository.listening.historyIds()
     val canGoBack get() = history.isNotEmpty()
     private var appliedQuery = ""
     private var nextPage = 0
@@ -126,6 +127,11 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             val changed = updated != favorites
             favorites = updated
             if (changed && parent == "favorites") refresh()
+            val updatedHistory = repository.listening.historyIds()
+            if (updatedHistory != playedHistory) {
+                playedHistory = updatedHistory
+                if (parent == "history") refresh()
+            }
             refreshSaved()
         }
     }
@@ -163,7 +169,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         } finally { operations-- }
     }
     fun browse(id: String, remember: Boolean = true, title: String = when (id) {
-        "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; "books" -> "Books"; "youtube" -> "YouTube"; else -> locationTitle
+        "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; "history" -> "History"; "books" -> "Books"; "youtube" -> "YouTube"; else -> locationTitle
     }) {
         if (id == "radio") {
             dismissSpeakers()
@@ -253,6 +259,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun back() { if (history.isNotEmpty()) { val (id, title) = history.removeAt(history.lastIndex); browse(id, false, title) } }
+    fun clearHistory() = action { repository.listening.clearHistory() }
     fun favorite(mediaId: String) = action {
         val starred = io { repository.listening.toggleFavorite(mediaId) }
         nostr.favoriteChanged(mediaId, starred)
@@ -714,8 +721,9 @@ fun AppScreen(model: MainModel = viewModel()) {
                     if (model.parent == "favorites") MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     shape = androidx.compose.foundation.shape.CircleShape,
                 )) { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") }
+            FilterChip(selected = model.parent == "history", onClick = { model.browse("history") }, label = { Text("History") })
             FilterChip(selected = model.parent == "radio", onClick = { model.browse("radio") }, label = { Text("Radio") })
-            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "books" && model.parent != "youtube", onClick = { model.browse("plex") }, label = { Text("Plex") })
+            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "history" && model.parent != "books" && model.parent != "youtube", onClick = { model.browse("plex") }, label = { Text("Plex") })
             FilterChip(selected = model.parent == "youtube", onClick = { model.browse("youtube") }, label = { Text("YouTube") })
             val booksSelected = model.parent == "books"
             IconButton(onClick = { model.browse("books") }, modifier = Modifier.width(40.dp)
@@ -736,7 +744,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 selected = false
             }) { Icon(painterResource(R.drawable.ic_settings), contentDescription = null) }
         }
-        if (model.parent !in setOf("radio", "plex", "favorites", "books", "youtube"))
+        if (model.parent !in setOf("radio", "plex", "favorites", "history", "books", "youtube"))
             Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(model.searchTerm, model::updateFilter,
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Filter items" }.onPreviewKeyEvent { event ->
@@ -760,8 +768,10 @@ fun AppScreen(model: MainModel = viewModel()) {
                 TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
             }
         }
+        if (model.parent == "history" && model.entries.isNotEmpty())
+            TextButton(onClick = model::clearHistory) { Text("Clear history") }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "books", "youtube")
+        val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "history", "books", "youtube")
         if (model.status.isNotBlank() && !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX))
             Text(model.status, style = MaterialTheme.typography.bodySmall)
         val plexPlaybackAuthError = playerErrorIsPlexAuth ||

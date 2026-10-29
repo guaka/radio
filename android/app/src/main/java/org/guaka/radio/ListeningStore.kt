@@ -32,9 +32,24 @@ class ListeningStore(context: Context) {
         check(preferences.edit().putString(KEY_FAVORITES, encodeIds(ids)).commit()) { "Could not save favorites." }
     }
 
+    @Synchronized
+    fun historyIds(): List<String> = decodeIds(preferences.getString(KEY_HISTORY, null))
+
+    @Synchronized
+    fun recordPlayed(id: String) {
+        if (!isStableMediaId(id)) return
+        val ids = updateHistory(historyIds(), id)
+        check(preferences.edit().putString(KEY_HISTORY, encodeIds(ids)).commit()) { "Could not save history." }
+    }
+
+    @Synchronized
+    fun clearHistory() {
+        check(preferences.edit().remove(KEY_HISTORY).commit()) { "Could not clear history." }
+    }
+
     fun observeChanges(onChange: () -> Unit): () -> Unit {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == KEY_FAVORITES || key == KEY_PLAYBACK) onChange()
+            if (key == KEY_FAVORITES || key == KEY_PLAYBACK || key == KEY_HISTORY) onChange()
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
         return { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -64,6 +79,7 @@ class ListeningStore(context: Context) {
             }
         }
         val editor = preferences.edit().putString(KEY_FAVORITES, encodeIds(remaining))
+            .putString(KEY_HISTORY, encodeIds(historyIds().filterNot { it.startsWith("track:") }))
             .putLong("plexGeneration", plexGeneration() + 1L)
         if (filtered == null) editor.remove(KEY_PLAYBACK) else editor.putString(KEY_PLAYBACK, encodePlayback(filtered))
         check(editor.commit()) { "Could not clear Plex listening data." }
@@ -83,6 +99,8 @@ class ListeningStore(context: Context) {
     companion object {
         private const val KEY_FAVORITES = "favoriteIds"
         private const val KEY_PLAYBACK = "playback"
+        private const val KEY_HISTORY = "historyIds"
+        private const val MAX_HISTORY = 500
         private const val MAX_FAVORITES = 500
         const val MAX_QUEUE = 500
         internal const val MAX_POSITION_MS = 7L * 24 * 60 * 60 * 1000
@@ -91,6 +109,9 @@ class ListeningStore(context: Context) {
         private val TRACK_ID = Regex("track:[a-zA-Z0-9_-]{1,128}:[a-zA-Z0-9_-]{1,128}")
 
         fun isStableMediaId(id: String): Boolean = RADIO_ID.matches(id) || TRACK_ID.matches(id) || YOUTUBE_ID.matches(id)
+
+        internal fun updateHistory(ids: List<String>, id: String): List<String> =
+            if (!isStableMediaId(id)) ids else (listOf(id) + ids.filterNot { it == id }).take(MAX_HISTORY)
 
         fun encodeIds(ids: List<String>): String = JSONArray().apply {
             ids.asSequence().filter(::isStableMediaId).distinct().take(MAX_FAVORITES).forEach { put(it) }
