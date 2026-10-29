@@ -19,6 +19,19 @@ class PlaybackSelectionTest {
         assertEquals(43_210L, result.positionMs)
     }
 
+    @Test fun mixedHistorySelectionResolvesFreshUrlsForEachSource() = runBlocking {
+        val ids = listOf("radio:one", "track:server:42", "youtube:aqz-KE-bpKQ")
+        val resolved = mutableListOf<String>()
+        val result = PlaybackSelection.resolve(ids, 2, 100L, 4L, { 4L }) { id ->
+            synchronized(resolved) { resolved.add(id) }
+            entry(id)
+        }
+        assertEquals(ids.toSet(), resolved.toSet())
+        assertEquals(ids, result.entries.map { it.id })
+        assertEquals("youtube:aqz-KE-bpKQ", result.entries[result.index].id)
+        assertEquals(100L, result.positionMs)
+    }
+
     @Test fun retryResolvesOnlySelectedSlotAndDropsUnavailableOtherQueueItems() = runBlocking {
         val requested = mutableListOf<String>()
         val existing = mapOf(0 to entry("radio:one"))
