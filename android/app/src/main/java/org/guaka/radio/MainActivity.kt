@@ -677,6 +677,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 Text("Connections", style = MaterialTheme.typography.titleLarge)
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Build: ${BuildConfig.BUILD_TIME} (Lisbon)", style = MaterialTheme.typography.bodySmall)
                 Text("Plex works away from home when your server's Remote Access is configured.")
                 TextButton(onClick = { model.signIn(); closeSettings() }) { Text("Sign in to Plex") }
                 TextButton(onClick = model::signOut) { Text("Sign out of Plex") }

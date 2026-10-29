@@ -1,5 +1,8 @@
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.time.ZonedDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 plugins {
     id("com.android.application")
@@ -28,6 +31,7 @@ android {
         targetSdk = 35
         versionCode = betaVersionCode.toInt()
         versionName = betaVersionName
+        buildConfigField("String", "BUILD_TIME", "\"${ZonedDateTime.now(ZoneId.of("Europe/Lisbon")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
