@@ -27,6 +27,9 @@ class PlaybackServiceTest {
             lateinit var root: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<androidx.media3.common.MediaItem>>
             instrumentation.runOnMainSync { root = browser.getLibraryRoot(null) }
             assertEquals("root", root.get(10, TimeUnit.SECONDS).value?.mediaId)
+            lateinit var sections: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<com.google.common.collect.ImmutableList<androidx.media3.common.MediaItem>>>
+            instrumentation.runOnMainSync { sections = browser.getChildren("root", 0, 10, null) }
+            assertEquals(listOf("favorites", "radio", "plex"), sections.get(10, TimeUnit.SECONDS).value!!.map { it.mediaId })
             lateinit var folder: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<androidx.media3.common.MediaItem>>
             instrumentation.runOnMainSync { folder = browser.getItem("radio") }
             assertEquals(true, folder.get(10, TimeUnit.SECONDS).value?.mediaMetadata?.isBrowsable)
@@ -37,7 +40,17 @@ class PlaybackServiceTest {
             assertEquals(10, items.size)
             assertTrue(items.all { it.mediaMetadata.isPlayable == true })
             assertTrue(items.all { it.localConfiguration == null })
+            assertTrue(items.all { it.mediaMetadata.artist.isNullOrBlank() })
+            assertTrue(items.all { it.mediaMetadata.subtitle.isNullOrBlank() })
         } finally { instrumentation.runOnMainSync { browser.release() } }
+    }
+
+    @Test fun stationTagsStayInternalWhilePlexArtistsRemainVisible() {
+        val station = Entry("radio:test", "Test station", "soma,ambient", true)
+        assertNull(station.asMediaItem().mediaMetadata.artist)
+        assertEquals("soma,ambient", station.subtitle)
+        assertEquals("Test artist", Entry("track:test", "Test track", "Test artist", true)
+            .asMediaItem().mediaMetadata.artist.toString())
     }
 
     @Test fun invalidMediaIdsReportAnErrorWithoutReplacingTheCurrentQueue() {
