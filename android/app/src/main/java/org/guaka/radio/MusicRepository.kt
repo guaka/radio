@@ -59,6 +59,7 @@ class MusicRepository(private val context: Context) {
             parent == "youtube" -> emptyList()
             parent == "radio" -> stations.drop(start).take(size)
             parent == "favorites" -> favoriteEntries(start, size)
+            parent == "history" -> savedEntries(listening.historyIds().drop(start).take(size), history = true)
             parent == "plex" -> {
                 val token = credentials.get("plexToken")
                 if (token.isBlank()) throw ApiRequestException(401)
@@ -91,6 +92,7 @@ class MusicRepository(private val context: Context) {
         entries[id]?.copy(url = "", token = "") ?: when {
             id == "root" -> Entry("root", "Radio Guaka")
             id == "youtube" -> Entry("youtube", "YouTube")
+            id == "history" -> Entry("history", "History")
             id.startsWith("youtube:") -> runInterruptible { youtube.item(id) }
             id in listOf("radio", "plex", "favorites") -> browse("root").first { it.id == id }
             id.startsWith("server:") -> {
@@ -128,8 +130,9 @@ class MusicRepository(private val context: Context) {
         if (parent == "root" || parent == "radio") {
             matches += stations.filter { searchable(it, text) }
         }
-        if (parent == "favorites") {
-            return@withContext favoriteEntries().filter { searchable(it, text) }.drop(start).take(size)
+        if (parent == "favorites" || parent == "history") {
+            val saved = if (parent == "favorites") favoriteEntries() else savedEntries(listening.historyIds(), history = true)
+            return@withContext saved.filter { searchable(it, text) }.drop(start).take(size)
         }
         if (parent.startsWith("artist:") || parent.startsWith("album:")) {
             var offset = 0
@@ -215,11 +218,15 @@ class MusicRepository(private val context: Context) {
     }
 
     private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> =
+        savedEntries(listening.favoriteIds().drop(start).take(size))
+
+    private suspend fun savedEntries(ids: List<String>, history: Boolean = false): List<Entry> =
         resolveFavoriteEntries(
-            ids = listening.favoriteIds().drop(start).take(size),
+            ids = ids,
             tokenAvailable = credentials.get("plexToken").isNotBlank(),
             cachedEntry = { entries[it] },
             resolveEntry = { item(it) },
+            history = history,
         )
 
     private suspend fun plexScopes(parent: String): List<Triple<String, String, String?>> {

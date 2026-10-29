@@ -36,6 +36,21 @@ class ListeningStoreDeviceTest {
         assertNull(ListeningStore(context).loadPlayback())
     }
 
+    @Test fun historyPersistsAndPlexSignOutAndClearRemoveOnlyTheExpectedItems() {
+        val context = isolatedContext()
+        context.getSharedPreferences("listening", Context.MODE_PRIVATE).edit().clear().commit()
+        val store = ListeningStore(context)
+        store.recordPlayed("radio:7soul")
+        store.recordPlayed("track:server:42")
+        store.recordPlayed("youtube:aqz-KE-bpKQ")
+        store.recordPlayed("radio:7soul")
+        assertEquals(listOf("radio:7soul", "youtube:aqz-KE-bpKQ", "track:server:42"), ListeningStore(context).historyIds())
+        store.clearPlex()
+        assertEquals(listOf("radio:7soul", "youtube:aqz-KE-bpKQ"), ListeningStore(context).historyIds())
+        store.clearHistory()
+        assertTrue(ListeningStore(context).historyIds().isEmpty())
+    }
+
     @Test fun fullFavoritesRejectNewItemsButAllowRemoval() {
         val context = isolatedContext()
         val ids = (0 until 500).map { "radio:station$it" }

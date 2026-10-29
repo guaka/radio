@@ -14,6 +14,15 @@ class ListeningStoreTest {
         assertEquals(500, ListeningStore.decodeIds(ListeningStore.encodeIds((0..700).map { "radio:station$it" })).size)
     }
 
+    @Test fun historyMovesPlayedItemsToFrontAndKeepsOnlyStableIds() {
+        val initial = listOf("radio:7soul", "track:server:42", "youtube:aqz-KE-bpKQ")
+        val updated = ListeningStore.updateHistory(initial, "track:server:42")
+        assertEquals(listOf("track:server:42", "radio:7soul", "youtube:aqz-KE-bpKQ"), updated)
+        assertEquals(updated, ListeningStore.decodeIds(ListeningStore.encodeIds(updated)))
+        assertEquals(updated, ListeningStore.updateHistory(updated, "https://example.com/audio"))
+        assertEquals(500, ListeningStore.updateHistory((0 until 500).map { "radio:station$it" }, "radio:new").size)
+    }
+
     @Test fun playbackCodecRoundTripsQueuePositionAndRejectsInvalidData() {
         val saved = SavedPlayback(listOf("radio:7soul", "track:server-1:42", "track:server-1:42"), 1, 123_456L)
         assertEquals(saved, ListeningStore.decodePlayback(ListeningStore.encodePlayback(saved)))
