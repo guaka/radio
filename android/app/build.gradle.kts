@@ -1,5 +1,8 @@
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.time.ZonedDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 plugins {
     id("com.android.application")
@@ -28,9 +31,11 @@ android {
         targetSdk = 35
         versionCode = betaVersionCode.toInt()
         versionName = betaVersionName
+        buildConfigField("String", "BUILD_TIME", "\"${ZonedDateTime.now(ZoneId.of("Europe/Lisbon")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -73,6 +78,8 @@ gradle.taskGraph.whenReady {
     }
 }
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.media:media:1.7.0")
