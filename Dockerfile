@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 
 COPY go.mod go.sum ./
@@ -19,9 +19,10 @@ RUN adduser -D -u 10001 appuser
 COPY --from=build /out/plextr-server /app/plextr-server
 COPY public ./public
 COPY LICENSE README.md CNAME ./
+RUN mkdir -p /app/data && chown -R appuser:appuser /app
 
 USER appuser
-EXPOSE 8080
+EXPOSE 3030
 
-ENV ADDR=:8080
+ENV ADDR=:3030
 ENTRYPOINT ["/app/plextr-server"]

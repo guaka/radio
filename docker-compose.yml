@@ -19,10 +19,11 @@ services:
       - "3030:3030"
     volumes:
       - ./public:/app/public:ro
+      - plextr-data:/app/data
     environment:
       # Core server
       ADDR: ":3030"
-      SESSION_SECRET: "${SESSION_SECRET:-change-me-in-production}"
+      SESSION_SECRET: "${SESSION_SECRET:-}"
       SESSION_COOKIE_NAME: "${SESSION_COOKIE_NAME:-plextr_session}"
 
       # Nostr friend policy
@@ -35,5 +36,9 @@ services:
       PLEX_TOKEN: "${PLEX_TOKEN:-}"
       PLEX_CLIENT_ID: "${PLEX_CLIENT_ID:-plextr-go-gateway}"
 
+
       # Share links
       SHARE_TOKEN_BYTES: "${SHARE_TOKEN_BYTES:-24}"
+
+volumes:
+  plextr-data:
