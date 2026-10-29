@@ -2,7 +2,7 @@ name: Android beta release
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: ['android/**', 'public/channels.js', '.github/workflows/android-beta-release.yml']
   workflow_dispatch:
 
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
@@ -45,13 +45,12 @@ jobs:
           unset RADIO_BETA_KEYSTORE_BASE64
           epoch=$(date +%s)
           version="0.4.$(TZ=Europe/Lisbon date +%Y%m%d-%H%M%S)"
-          code=$epoch
           cd android
           ./gradlew --no-daemon --no-configuration-cache testDebugUnitTest assembleRelease \
-            "-PbetaVersionName=$version" "-PbetaVersionCode=$code"
+            "-PbetaVersionName=$version" "-PbetaVersionCode=$epoch"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/radio-guaka-beta.apk"
-          sha256sum "$RUNNER_TEMP/radio-guaka-beta.apk" | sed 's|.*/|  |' > "$RUNNER_TEMP/radio-guaka-beta.apk.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum radio-guaka-beta.apk > radio-guaka-beta.apk.sha256)
           printf 'VERSION=%s\n' "$version" >> "$GITHUB_ENV"
       - name: Publish GitHub prerelease
         env:

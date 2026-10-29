@@ -34,7 +34,7 @@ The same values can be supplied as `RADIO_BETA_STORE_PASSWORD` and `RADIO_BETA_K
 To build a later beta, increase the version code and set a matching version name:
 
 ```sh
-bash ./scripts/build-beta.sh
+bash ./scripts/build-beta.sh -PbetaVersionCode=5 -PbetaVersionName=0.4.1
 ```
 
 The release APK is written to `app/build/outputs/apk/release/app-release.apk`. Verify its signature and fingerprint before distributing it:
@@ -65,23 +65,30 @@ The debug CI APK is signed with a development key, so it cannot update an instal
 
 The first beta registers preference schema 1 without renaming or rewriting prototype settings, favorites, saved queues, or encrypted credentials. It preserves the Android Keystore alias. Later in-place beta updates keep this data; a schema marker from a newer app is never downgraded. Migration is tested for idempotence and data preservation. This cannot transfer data across a debug/beta signature change or an uninstall.
 
-## GitHub releases and Obtainium
+## Obtainium updates
 
-The **Android beta release** workflow runs automatically after changes to Android files or the station catalogue are pushed to `master`. It can also be triggered manually from Actions. It runs unit tests, builds with the pinned beta certificate, verifies the APK signature, and publishes a GitHub prerelease with an APK and SHA-256 checksum. For manual runs, select the intended branch. Each run uses a Lisbon timestamp for the release tag and version name and Unix epoch seconds for the Android version code. Never reuse or replace an existing release tag. Build and publish newer versions in chronological order so Android accepts updates. This version-code scheme reaches Android’s 2,100,000,000 limit in 2036 and must be revised before then.
+[Add Radio Guaka to Obtainium](obtainium://app/%7B%22id%22%3A%22org.guaka.radio%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fguaka%2Fradio%22%2C%22author%22%3A%22guaka%22%2C%22name%22%3A%22Radio%20Guaka%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Atrue%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5EAndroid%20beta%20%5C%22%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Eradio-guaka-beta%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D) and confirm the import. The link configures GitHub prereleases, the Android beta release filter, and the APK filter. If the link does not open, add `https://github.com/guaka/radio` in Obtainium and enable prereleases. Each Android beta release includes the signed APK and its SHA-256 checksum. Allow Obtainium to install apps when Android prompts you.
 
-Before the first run, configure these repository secrets (or protect the workflow with an environment and required reviewers):
+The Android beta release workflow runs on relevant pushes to `main` and can be run manually from GitHub Actions. It uses the repository's beta signing secrets and verifies the pinned certificate before publishing. Version codes use Unix epoch seconds and must increase for each update; this scheme must be replaced before Android's 2,100,000,000 limit is reached in 2036. Releases use Lisbon timestamps in their names.
 
-- `RADIO_BETA_KEYSTORE_BASE64`: base64-encoded established JKS keystore.
+Local beta builds also default to Lisbon timestamp version names and Unix epoch seconds for version codes. Builds in the same second share a version code. Explicit `-PbetaVersionName=...` and `-PbetaVersionCode=...` arguments override these defaults.
+
+## Optional future signed CI
+
+A signed CI workflow is **not included**. The current GitHub workflow continues to produce debug APKs. Do not configure signing secrets until a reviewed signed-artifact workflow and its destination have been explicitly authorized.
+
+Proposed CI secret names
+
+For a manually triggered signed CI build, configure these repository or environment secrets only after choosing who can trigger the workflow and download its artifacts:
+
+- `RADIO_BETA_KEYSTORE_BASE64`: base64 encoding of the JKS keystore.
 - `RADIO_BETA_STORE_PASSWORD`: keystore password.
-- `RADIO_BETA_KEY_ALIAS`: signing key alias.
+- `RADIO_BETA_KEY_ALIAS`: `radio-guaka-beta`.
 - `RADIO_BETA_KEY_PASSWORD`: private key password.
 
-The workflow writes the keystore to a temporary runner file with restricted permissions and removes it after the build. The Gradle build checks the certificate against `beta-certificate.sha256`; a missing secret or different key fails the release. Protect the signing secrets and retain an independent encrypted backup of the keystore.
+Use an environment with required reviewers if release access needs approval. GitHub secrets are separate from the local signing files, and setting them does not create or back up the signing identity. The workflow must write the decoded keystore only to a temporary runner directory, restrict its file permissions, avoid caching it, remove it after the job, and publish only the signed APK and public certificate fingerprint.
 
-In Obtainium, add `https://github.com/guaka/radio` as a GitHub source, enable prereleases, and filter release tags to `^android-v` if the repository has other releases. Select `radio-guaka-beta.apk` if prompted. The first installation is available only after a beta release has been published. Future updates must use the same certificate and a higher version code. GitHub Actions artifacts from the debug workflow are not the Obtainium release channel.
 
 ## Recorded validation
 
 On 2026-10-24, a local 0.4.0 beta (version code 4) was signed and verified, then updated in place on an API 36 emulator using a same-certificate test build with version code 5. Android retained the UID and original install time; the favorite and endpoint setting remained, and the updated app successfully authenticated to a local fake MA endpoint with the encrypted dummy token saved before the update. Missing signing inputs and a different certificate are rejected. Fifteen JVM tests and eight instrumentation tests passed. Actual Pixel/car/Plex/speaker acceptance and an encrypted off-device backup of the signing identity remain separate user tasks.
-
-Local beta APK versions default to `0.4.YYYYMMDD-HHmmss` in Europe/Lisbon time. The numeric Android version code defaults to Unix epoch seconds, matching the CI release scheme and upgrading earlier minute-based builds. Builds in the same second share a version code. Explicit `-PbetaVersionName=...` and `-PbetaVersionCode=...` arguments still override the defaults for reproducible rebuilds.
