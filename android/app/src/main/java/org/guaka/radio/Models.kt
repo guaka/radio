@@ -123,7 +123,7 @@ object IntegrationParser {
     fun localAssistantUrl(raw: String): String {
         val url = raw.trim().toHttpUrl()
         require(url.username.isEmpty() && url.password.isEmpty() && url.query == null && url.fragment == null) {
-            "Use a local Music Assistant address without credentials or query parameters."
+            "Use a Music Assistant address without credentials, query parameters, or a fragment."
         }
         val host = url.host.lowercase()
         val labels = host.split('.')
@@ -134,8 +134,8 @@ object IntegrationParser {
             (octets[0] == 10 || (octets[0] == 192 && octets[1] == 168) ||
                 (octets[0] == 172 && octets[1] in 16..31))
         val localV6 = host.contains(':') && (host.startsWith("fc") || host.startsWith("fd"))
-        require(privateV4 || localV6 || host.endsWith(".local") || (!host.contains('.') && !host.contains(':'))) {
-            "Use a home-network IP or hostname for Music Assistant."
+        require(url.isHttps || privateV4 || localV6 || host.endsWith(".local") || (!host.contains('.') && !host.contains(':'))) {
+            "Use HTTPS for non-local Music Assistant addresses."
         }
         return url.toString().trimEnd('/')
     }

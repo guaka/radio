@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -13,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -32,6 +34,7 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("clientId", it).apply()
     }
     val api = ApiClient(clientId)
+    private val youtube = YouTubeAudio()
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
     private val somaArtworkCache = SomaArtworkCache()
@@ -53,6 +56,7 @@ class MusicRepository(private val context: Context) {
         when {
             parent == "root" -> listOf(Entry("favorites", "Favorites", "Saved radio and Plex tracks"),
                 Entry("radio", "Radio", "Stations"), Entry("plex", "Plex", "Your music servers")).drop(start).take(size)
+            parent == "youtube" -> emptyList()
             parent == "radio" -> stations.drop(start).take(size)
             parent == "favorites" -> favoriteEntries(start, size)
             parent == "plex" -> {
@@ -86,6 +90,8 @@ class MusicRepository(private val context: Context) {
     suspend fun item(id: String): Entry = withContext(Dispatchers.IO) {
         entries[id]?.copy(url = "", token = "") ?: when {
             id == "root" -> Entry("root", "Radio Guaka")
+            id == "youtube" -> Entry("youtube", "YouTube")
+            id.startsWith("youtube:") -> runInterruptible { youtube.item(id) }
             id in listOf("radio", "plex", "favorites") -> browse("root").first { it.id == id }
             id.startsWith("server:") -> {
                 val serverId = id.removePrefix("server:")
@@ -117,6 +123,7 @@ class MusicRepository(private val context: Context) {
         if (text.isEmpty()) return@withContext emptyList()
         val start = pageStart(page, pageSize)
         val size = safePageSize(pageSize)
+        if (parent == "youtube") return@withContext runInterruptible { youtube.search(text, start, size) }.also(::cache)
         val matches = mutableListOf<Entry>()
         if (parent == "root" || parent == "radio") {
             matches += stations.filter { searchable(it, text) }
@@ -303,6 +310,11 @@ class MusicRepository(private val context: Context) {
             if (entry.id.startsWith("radio:")) {
                 return@withContext stationArtworkCache.get(entry.id) { fetchStationArtwork(entry.id) }
             }
+            if (entry.id.startsWith("youtube:")) {
+                val image = entry.artwork.toHttpUrlOrNull()
+                if (image == null || !image.isHttps || image.host !in setOf("i.ytimg.com", "i9.ytimg.com")) return@withContext null
+                return@withContext stationArtworkCache.get(entry.id) { api.imageBytes(image.toString(), "", MAX_ARTWORK_BYTES) }
+            }
             if (entry.artwork.isBlank()) return@withContext null
             val parts = entry.id.split(':', limit = 3)
             if (parts.size != 3 || parts[0] !in listOf("artist", "album", "track") || !validPathKey(parts[2])) return@withContext null
@@ -359,6 +371,7 @@ class MusicRepository(private val context: Context) {
 
 
     suspend fun playable(id: String): Entry = withContext(Dispatchers.IO) {
+        if (id.startsWith("youtube:")) return@withContext runInterruptible { youtube.playable(id) }.also { entries[id] = it.copy(url = "") }
         if (id.startsWith("radio:")) return@withContext stations.first { it.id == id }
         require(id.startsWith("track:")) { "Unknown media item." }
         val generation = listening.plexGeneration()
@@ -400,9 +413,10 @@ class MusicRepository(private val context: Context) {
     fun assistantAvailable(): Boolean {
         val manager = context.getSystemService(ConnectivityManager::class.java)
         val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        return assistantNetworkAllowed(assistantUrl(), true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
     }
-    private fun requireHomeNetwork() { check(assistantAvailable()) { "Connect to your home Wi-Fi to use speakers." } }
+    private fun requireAssistantNetwork() { check(assistantAvailable()) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." } }
     fun assistantUrl() = preferences.getString("assistantUrl", "").orEmpty()
     fun saveAssistant(url: String, token: String) {
         val normalized = IntegrationParser.localAssistantUrl(url)
@@ -411,16 +425,16 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("assistantUrl", normalized).apply()
     }
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
-        requireHomeNetwork()
+        requireAssistantNetwork()
         IntegrationParser.speakers(api.command(assistantUrl(), credentials.get("assistantToken"), "players/all") as JSONArray)
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        requireHomeNetwork()
+        requireAssistantNetwork()
         val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle}").put("media_types", JSONArray().put("track")).put("limit", 10)
         IntegrationParser.speakerTracks(api.command(assistantUrl(), credentials.get("assistantToken"), "music/search", args) as JSONObject)
     }
     suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
-        requireHomeNetwork()
+        requireAssistantNetwork()
         api.command(assistantUrl(), credentials.get("assistantToken"), "player_queues/play_media",
             JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
     }
@@ -434,3 +448,6 @@ class MusicRepository(private val context: Context) {
         private const val SOMA_ARTWORK_HOST = "api.somafm.com"
     }
 }
+
+internal fun assistantNetworkAllowed(url: String, connected: Boolean, localNetwork: Boolean): Boolean =
+    connected && (localNetwork || runCatching { url.toHttpUrl().isHttps }.getOrDefault(false))

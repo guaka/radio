@@ -30,4 +30,10 @@ if [[ -z "${RADIO_BETA_KEYSTORE:-}" ]]; then
 fi
 
 cd "$android_dir"
-exec ./gradlew --no-daemon --no-configuration-cache assembleRelease "$@"
+# Version names follow Lisbon wall time; Android upgrades compare the numeric code.
+# Seconds since the Unix epoch remain below Android's 2,100,000,000 limit until 2036.
+build_epoch="$(date +%s)"
+build_version="0.4.$(TZ=Europe/Lisbon date +%Y%m%d-%H%M%S)"
+build_code="$build_epoch"
+exec ./gradlew --no-daemon --no-configuration-cache assembleRelease \
+  "-PbetaVersionName=$build_version" "-PbetaVersionCode=$build_code" "$@"
