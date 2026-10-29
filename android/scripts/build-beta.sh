@@ -31,9 +31,9 @@ fi
 
 cd "$android_dir"
 # Version names follow Lisbon wall time; Android upgrades compare the numeric code.
-# Minutes since the Unix epoch remain below Android's 2,100,000,000 limit.
+# Seconds since the Unix epoch remain below Android's 2,100,000,000 limit until 2036.
 build_epoch="$(date +%s)"
-build_version="0.4.$(TZ=Europe/Lisbon date +%Y%m%d-%H%M)"
-build_code="$((build_epoch / 60))"
+build_version="0.4.$(TZ=Europe/Lisbon date +%Y%m%d-%H%M%S)"
+build_code="$build_epoch"
 exec ./gradlew --no-daemon --no-configuration-cache assembleRelease \
   "-PbetaVersionName=$build_version" "-PbetaVersionCode=$build_code" "$@"

@@ -1,6 +1,9 @@
 name: Android beta release
 
 on:
+  push:
+    branches: [master]
+    paths: ['android/**', 'public/channels.js', '.github/workflows/android-beta-release.yml']
   workflow_dispatch:
 
 permissions:
@@ -41,8 +44,8 @@ jobs:
           printf '%s' "$RADIO_BETA_KEYSTORE_BASE64" | base64 --decode > "$RADIO_BETA_KEYSTORE"
           unset RADIO_BETA_KEYSTORE_BASE64
           epoch=$(date +%s)
-          version="0.4.$(TZ=Europe/Lisbon date +%Y%m%d-%H%M)"
-          code=$((epoch / 60))
+          version="0.4.$(TZ=Europe/Lisbon date +%Y%m%d-%H%M%S)"
+          code=$epoch
           cd android
           ./gradlew --no-daemon --no-configuration-cache testDebugUnitTest assembleRelease \
             "-PbetaVersionName=$version" "-PbetaVersionCode=$code"
