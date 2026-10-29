@@ -125,3 +125,7 @@ Run `go test -race ./...` and `go vet ./...` to validate the backend.
 ## Plex gateways
 
 Set `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` to route friend-gated `/libraries`, `/tracks`, and `/stream/:id` through Wrapster's NIP-98 protected Plex gateway. The same-origin `/api/plex/*` proxy still requires `PLEX_BASE_URL` for arbitrary Plex browsing. That proxy accepts the caller's `X-Plex-Token` query parameter or header. Only authenticated friends can use the server's Plex token when no caller token is supplied.
+
+## Android prototype
+
+A native Android companion is being developed for Radio, Plex, Android Auto and local Music Assistant speakers. See [android/README.md](android/README.md) for build/install instructions, scope and the device acceptance checklist; progress is tracked in [issue #86](https://github.com/guaka/radio/issues/86).
