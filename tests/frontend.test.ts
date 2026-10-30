@@ -5,26 +5,23 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const root = resolve(__dirname, '..');
-const html = readFileSync(resolve(root, 'public/index.html'), 'utf8');
+const html = readFileSync(resolve(root, 'public/js/index-2.js'), 'utf8');
 
 function loadFunctions(names, globals = {}) {
   const context = vm.createContext({ URL, ...globals });
   for (const name of names) {
-    const start = html.search(new RegExp(`  (?:async )?function ${name}\\(`));
+    const start = html.search(new RegExp(`    (?:async )?function ${name}\\(`));
     assert.ok(start >= 0, `Missing function: ${name}`);
-    const end = html.indexOf('\n  }', start) + 4;
+    const end = html.indexOf('\n    }', start) + 6;
     vm.runInContext(html.slice(start, end), context);
   }
   return context;
 }
 
-test('inline scripts parse in both player and chat', () => {
-  for (const file of ['index.html', 'chatiframe1.html']) {
-    const source = readFileSync(resolve(root, 'public', file), 'utf8');
-    for (const [index, match] of [...source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].entries()) {
-      if (/\bsrc\s*=/.test(match[1]) || /type=["'](?:module|application\/)/.test(match[1])) continue;
-      new vm.Script(match[2], { filename: `${file}:script-${index}` });
-    }
+test('compiled classic scripts parse', () => {
+  for (const file of ['index-1.js', 'index-2.js', 'index-3.js', 'radio-1.js', 'radio-2.js', 'radio-3.js', 'chatiframe1-2.js', '404-1.js', 'channels.js']) {
+    const source = readFileSync(resolve(root, 'public/js', file), 'utf8');
+    new vm.Script(source, { filename: file });
   }
 });
 

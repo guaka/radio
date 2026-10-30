@@ -1,9 +1,9 @@
 name: Android prototype
 on:
   push:
-    paths: ['android/**', 'public/channels.js', '.github/workflows/android.yml']
+    paths: ['android/**', 'src/frontend/channels.ts', '.github/workflows/android.yml']
   pull_request:
-    paths: ['android/**', 'public/channels.js', '.github/workflows/android.yml']
+    paths: ['android/**', 'src/frontend/channels.ts', '.github/workflows/android.yml']
   workflow_dispatch:
 permissions:
   contents: read

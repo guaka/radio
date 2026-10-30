@@ -40,3 +40,5 @@ spotify-csv
 !.env.example
 data/
 *.p8
+node_modules/
+public/js/

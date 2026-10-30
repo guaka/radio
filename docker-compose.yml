@@ -13,12 +13,17 @@ services:
           path: ./go.mod
         - action: rebuild
           path: ./go.sum
+        - action: rebuild
+          path: ./src/frontend
+        - action: rebuild
+          path: ./public
+        - action: rebuild
+          path: ./package-lock.json
     container_name: plextr
     restart: unless-stopped
     ports:
       - "3030:3030"
     volumes:
-      - ./public:/app/public:ro
       - plextr-data:/app/data
     environment:
       # Core server
