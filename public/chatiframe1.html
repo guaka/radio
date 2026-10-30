@@ -37,7 +37,33 @@
       return /nostr-tools(\.bundle|@)|esm\.sh\/nostr-tools|nr-relay-to-rabbit|nr-relay|relay-to-rabbit|dial tcp:|lookup [^ ]+ on [\d.]+:53|server misbehaving|http request failed:|uncaught \(in promise\) error:/i.test(blob);
     }
 
+    function shouldSuppressNostrConsoleNoise(args) {
+      if (!Array.isArray(args) || !args.length) return false;
+      for (let i = 0; i < args.length; i++) {
+        if (isBenignNostrRelayError(args[i])) return true;
+      }
+      return false;
+    }
+
+    function installNostrConsoleNoiseFilter() {
+      if (window.__rgChatNostrConsoleFilterInstalled) return;
+      window.__rgChatNostrConsoleFilterInstalled = true;
+      const originalError = console.error;
+      const originalWarn = console.warn;
+      console.error = function () {
+        const args = Array.prototype.slice.call(arguments);
+        if (shouldSuppressNostrConsoleNoise(args)) return;
+        return originalError.apply(console, args);
+      };
+      console.warn = function () {
+        const args = Array.prototype.slice.call(arguments);
+        if (shouldSuppressNostrConsoleNoise(args)) return;
+        return originalWarn.apply(console, args);
+      };
+    }
+
     (function installNostrErrorGuard() {
+      installNostrConsoleNoiseFilter();
       if (window.__rgChatNostrRejectionGuard) return;
       window.__rgChatNostrRejectionGuard = true;
       window.addEventListener('unhandledrejection', function (ev) {
@@ -45,8 +71,7 @@
           ev.preventDefault();
           if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
           if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-          const msg = buildNostrErrorBlob(ev.reason, 0) || 'unknown rejection';
-          console.warn('[chat] Nostr relay (non-fatal):', msg.slice(0, 220));
+          // Intentionally silent: avoid resurfacing noisy relay internals in console.
         }
       });
       window.addEventListener('error', function (ev) {
@@ -54,8 +79,7 @@
         if (isBenignNostrRelayError(payload) || isBenignNostrRelayError(ev && ev.error)) {
           ev.preventDefault();
           if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-          const msg = buildNostrErrorBlob(ev && ev.error, 0) || String((ev && ev.message) || '');
-          console.warn('[chat] Nostr relay (non-fatal):', msg.slice(0, 220));
+          // Intentionally silent: avoid resurfacing noisy relay internals in console.
         }
       }, true);
     })();
@@ -793,6 +817,55 @@
             this.messages = [];
           }
         },
+
+        scrollMessagesToBottom() {
+          this.$nextTick(() => {
+            const container = this.$refs.messagesContainer;
+            if (container) container.scrollTop = container.scrollHeight;
+          });
+        },
+
+        normalizeRelayUrl(url) {
+          return String(url || '').replace(/\/$/, '');
+        },
+
+        relayUrlFromInput(relayUrlOrObject) {
+          if (typeof relayUrlOrObject === 'string') return relayUrlOrObject;
+          if (relayUrlOrObject && relayUrlOrObject.url) return relayUrlOrObject.url;
+          if (relayUrlOrObject && typeof relayUrlOrObject.toString === 'function') return relayUrlOrObject.toString();
+          return '';
+        },
+
+        isConfiguredRelay(relayUrlOrObject) {
+          const relayUrl = this.relayUrlFromInput(relayUrlOrObject);
+          if (!relayUrl) return false;
+          const normalizedUrl = this.normalizeRelayUrl(relayUrl);
+          const normalizedRelays = this.relays.map((r) => this.normalizeRelayUrl(r));
+          return normalizedRelays.includes(normalizedUrl);
+        },
+
+        relayStatusFromValue(status) {
+          if (status === 'connected' || status === 1 || status === WebSocket.OPEN) return 'connected';
+          if (status === 'connecting' || status === 0 || status === WebSocket.CONNECTING) return 'connecting';
+          return 'disconnected';
+        },
+
+        setRelayStatusFor(relayUrl, status) {
+          if (!relayUrl || !this.relays.includes(relayUrl)) return;
+          this.relayStatus[relayUrl] = { status };
+        },
+
+        findRelayInPool(relayUrl) {
+          if (!this.ndk || !this.ndk.pool || !this.ndk.pool.relays) return null;
+          if (this.ndk.pool.relays.get) {
+            const direct = this.ndk.pool.relays.get(relayUrl);
+            if (direct) return direct;
+          }
+          for (const [url, relay] of this.ndk.pool.relays) {
+            if (url === relayUrl || relay?.url === relayUrl) return relay;
+          }
+          return null;
+        },
         
         hasRoomTag(tags) {
           const set = new Set(this.chatRoomTags);
@@ -817,10 +890,7 @@
             );
             this.deduplicateMessages();
             this.messages = [...this.messages];
-            this.$nextTick(() => {
-              const container = this.$refs.messagesContainer;
-              if (container) container.scrollTop = container.scrollHeight;
-            });
+            this.scrollMessagesToBottom();
           } catch (e) {
             console.warn('mergeChatFromStorageJson:', e);
           }
@@ -1058,25 +1128,7 @@
             if (this.ndk.pool && this.ndk.pool.addRelay) {
               const originalAddRelay = this.ndk.pool.addRelay.bind(this.ndk.pool);
               this.ndk.pool.addRelay = async (relayUrlOrObject) => {
-                // Handle both string URLs and Relay objects
-                let relayUrl;
-                if (typeof relayUrlOrObject === 'string') {
-                  relayUrl = relayUrlOrObject;
-                } else if (relayUrlOrObject && relayUrlOrObject.url) {
-                  relayUrl = relayUrlOrObject.url;
-                } else if (relayUrlOrObject && typeof relayUrlOrObject.toString === 'function') {
-                  relayUrl = relayUrlOrObject.toString();
-                } else {
-                  // Unknown format, silently ignore
-                  return undefined;
-                }
-                
-                // Normalize relay URL (remove trailing slash)
-                const normalizedUrl = relayUrl.replace(/\/$/, '');
-                const normalizedRelays = this.relays.map(r => r.replace(/\/$/, ''));
-                
-                // Only allow our configured relays
-                if (normalizedRelays.includes(normalizedUrl)) {
+                if (this.isConfiguredRelay(relayUrlOrObject)) {
                   return await originalAddRelay(relayUrlOrObject);
                 } else {
                   // Block any relay not in our configured list
@@ -1090,23 +1142,7 @@
             if (this.ndk.addExplicitRelay) {
               const originalAddExplicitRelay = this.ndk.addExplicitRelay.bind(this.ndk);
               this.ndk.addExplicitRelay = (relayUrlOrObject) => {
-                // Handle both string URLs and Relay objects
-                let relayUrl;
-                if (typeof relayUrlOrObject === 'string') {
-                  relayUrl = relayUrlOrObject;
-                } else if (relayUrlOrObject && relayUrlOrObject.url) {
-                  relayUrl = relayUrlOrObject.url;
-                } else if (relayUrlOrObject && typeof relayUrlOrObject.toString === 'function') {
-                  relayUrl = relayUrlOrObject.toString();
-                } else {
-                  // Unknown format, silently ignore
-                  return undefined;
-                }
-                
-                const normalizedUrl = relayUrl.replace(/\/$/, '');
-                const normalizedRelays = this.relays.map(r => r.replace(/\/$/, ''));
-                
-                if (normalizedRelays.includes(normalizedUrl)) {
+                if (this.isConfiguredRelay(relayUrlOrObject)) {
                   return originalAddExplicitRelay(relayUrlOrObject);
                 } else {
                   // Silently ignore
@@ -1147,32 +1183,24 @@
               this.ndk.pool.on('relay:connect', (relay) => {
                 // Only track status for our configured relays
                 const relayUrl = relay.url || relay;
-                if (this.relays.includes(relayUrl)) {
-                  this.relayStatus[relayUrl] = { status: 'connected' };
-                }
+                this.setRelayStatusFor(relayUrl, 'connected');
               });
               
               this.ndk.pool.on('relay:disconnect', (relay) => {
                 // Only track status for our configured relays
                 const relayUrl = relay.url || relay;
-                if (this.relays.includes(relayUrl)) {
-                  this.relayStatus[relayUrl] = { status: 'disconnected' };
-                }
+                this.setRelayStatusFor(relayUrl, 'disconnected');
               });
               
               // Also listen for 'connect' and 'disconnect' without 'relay:' prefix (NDK v2.x)
               this.ndk.pool.on('connect', (relay) => {
                 const relayUrl = relay?.url || relay;
-                if (this.relays.includes(relayUrl)) {
-                  this.relayStatus[relayUrl] = { status: 'connected' };
-                }
+                this.setRelayStatusFor(relayUrl, 'connected');
               });
               
               this.ndk.pool.on('disconnect', (relay) => {
                 const relayUrl = relay?.url || relay;
-                if (this.relays.includes(relayUrl)) {
-                  this.relayStatus[relayUrl] = { status: 'disconnected' };
-                }
+                this.setRelayStatusFor(relayUrl, 'disconnected');
               });
             }
             
@@ -1365,12 +1393,7 @@
           this.saveCachedMessages();
           
           // Auto-scroll to bottom
-          this.$nextTick(() => {
-            const container = this.$refs.messagesContainer;
-            if (container) {
-              container.scrollTop = container.scrollHeight;
-            }
-          });
+          this.scrollMessagesToBottom();
         },
         
         // Handle profile events
@@ -1649,11 +1672,28 @@
           event.stopPropagation();
           const q = (btn.getAttribute('data-query') || '').trim();
           if (!q) return;
+          this.postToParent({ type: 'chatSearchQuery', query: q }, 'chatSearchQuery');
+        },
+
+        setTransientError(message, timeoutMs = 5000) {
+          this.errorMessage = String(message || '');
+          if (!this.errorMessage) return;
+          setTimeout(() => { this.errorMessage = ''; }, timeoutMs);
+        },
+
+        postToParent(payload, label = 'postMessage') {
           try {
-            window.parent.postMessage({ type: 'chatSearchQuery', query: q }, '*');
+            window.parent.postMessage(payload, '*');
           } catch (e) {
-            console.warn('postMessage chatSearchQuery failed:', e);
+            console.warn('postMessage ' + label + ' failed:', e);
           }
+        },
+
+        getStoredPlextrNsec() {
+          const raw = localStorage.getItem('guakaNostrNsec');
+          if (!raw || typeof raw !== 'string') return null;
+          const ns = raw.trim();
+          return ns.startsWith('nsec') ? ns : null;
         },
         
         // Check auth when user focuses input
@@ -1661,9 +1701,9 @@
         async checkAuthOnFocus() {
           if (this.isAuthenticated) return;
           if (this.minimalEmbed) {
-            const px = localStorage.getItem('guakaNostrNsec');
-            if (px && px.trim().startsWith('nsec')) {
-              this.manualKey = px.trim();
+            const px = this.getStoredPlextrNsec();
+            if (px) {
+              this.manualKey = px;
               await this.authenticateWithKey();
             }
             return;
@@ -1690,14 +1730,14 @@
           
           // Normalize configured relays (remove trailing slashes)
           const normalizedConfiguredRelays = new Set(
-            this.relays.map(r => r.replace(/\/$/, ''))
+            this.relays.map((r) => this.normalizeRelayUrl(r))
           );
           const relaysToRemove = [];
           
           // Check all relays in the pool
           if (this.ndk.pool.relays instanceof Map) {
             for (const [url, relay] of this.ndk.pool.relays) {
-              const normalizedUrl = url.replace(/\/$/, '');
+              const normalizedUrl = this.normalizeRelayUrl(url);
               if (!normalizedConfiguredRelays.has(normalizedUrl)) {
                 relaysToRemove.push(url);
               }
@@ -1705,7 +1745,7 @@
           } else if (Array.isArray(this.ndk.pool.relays)) {
             for (const relay of this.ndk.pool.relays) {
               const url = relay.url || relay;
-              const normalizedUrl = url.replace(/\/$/, '');
+              const normalizedUrl = this.normalizeRelayUrl(url);
               if (!normalizedConfiguredRelays.has(normalizedUrl)) {
                 relaysToRemove.push(url);
               }
@@ -1872,17 +1912,14 @@
         async sendMessage() {
           if (!this.isAuthenticated) {
             if (this.minimalEmbed) {
-              const px = localStorage.getItem('guakaNostrNsec');
-              if (px && px.trim().startsWith('nsec')) {
-                this.manualKey = px.trim();
+              const px = this.getStoredPlextrNsec();
+              if (px) {
+                this.manualKey = px;
                 await this.authenticateWithKey();
               }
               if (!this.isAuthenticated) {
-                try {
-                  window.parent.postMessage({ type: 'openSettingsModal', tab: 'nostr' }, '*');
-                } catch (_) {}
-                this.errorMessage = 'Add your nsec in Nostr (header).';
-                setTimeout(() => { this.errorMessage = ''; }, 5000);
+                this.postToParent({ type: 'openSettingsModal', tab: 'nostr' }, 'openSettingsModal');
+                this.setTransientError('Add your nsec in Nostr (header).', 5000);
                 return;
               }
             } else {
@@ -1893,8 +1930,7 @@
           
           if (!this.messageInput.trim() || !this.ndk || !this.ndk.signer) {
             if (!this.ndk || !this.ndk.signer) {
-              this.errorMessage = 'Not connected. Please wait or refresh.';
-              setTimeout(() => { this.errorMessage = ''; }, 3000);
+              this.setTransientError('Not connected. Please wait or refresh.', 3000);
               return;
             }
             return;
@@ -1960,12 +1996,7 @@
             this.messages = [...this.messages];
             
             // Scroll to bottom to show new message
-            this.$nextTick(() => {
-              const container = this.$refs.messagesContainer;
-              if (container) {
-                container.scrollTop = container.scrollHeight;
-              }
-            });
+            this.scrollMessagesToBottom();
             
             // Clear input immediately for better UX
             this.messageInput = '';
@@ -1985,7 +2016,7 @@
             
           } catch (error) {
             console.error('Send error:', error.message);
-            this.errorMessage = 'Failed to send message: ' + error.message;
+            this.setTransientError('Failed to send message: ' + error.message, 5000);
             
             // Remove optimistic message if send failed
             try {
@@ -1997,9 +2028,6 @@
               // Ignore cleanup errors
             }
             
-            setTimeout(() => {
-              this.errorMessage = '';
-            }, 5000);
           } finally {
             this.isSending = false;
           }
@@ -2053,6 +2081,10 @@
         
         // Set pubkey and compute npub
         setUserPubkey(pubkey) {
+          // Idempotent guard: avoid recomputing/logging on duplicate calls
+          if (pubkey && this.currentUserPubkey === pubkey && this.currentUserNpub) {
+            return;
+          }
           this.currentUserPubkey = pubkey;
           // Convert to npub using NDK
           if (pubkey && !pubkey.includes('...') && !pubkey.startsWith('npub')) {
@@ -2076,6 +2108,10 @@
         
         // Set private key and compute nsec
         setUserPrivateKey(privateKey) {
+          // Idempotent guard: repeated auth paths can call this many times
+          if (privateKey && this.currentUserPrivateKey === privateKey && this.currentUserNsec) {
+            return;
+          }
           this.currentUserPrivateKey = privateKey;
           // If already nsec format, use it directly
           if (privateKey && privateKey.startsWith('nsec')) {
@@ -2104,13 +2140,20 @@
             }
           }
         },
+
+        // Keep key assignment in one place for auth flows
+        setUserCredentials(privateKey, pubkey) {
+          this.setUserPrivateKey(privateKey);
+          if (pubkey) {
+            this.setUserPubkey(pubkey);
+          }
+        },
         
         // Authenticate with key (nsec only)
         async authenticateWithKey() {
           try {
             if (!this.manualKey.trim()) {
-              this.errorMessage = 'Please enter an nsec key';
-              setTimeout(() => { this.errorMessage = ''; }, 3000);
+              this.setTransientError('Please enter an nsec key', 3000);
               return;
             }
             
@@ -2119,10 +2162,7 @@
             
             // Only accept nsec
             if (!key.startsWith('nsec')) {
-              this.errorMessage = 'Only nsec private keys are accepted. Please enter an nsec1... key.';
-              setTimeout(() => {
-                this.errorMessage = '';
-              }, 6000);
+              this.setTransientError('Only nsec private keys are accepted. Please enter an nsec1... key.', 6000);
               return;
             }
             
@@ -2131,8 +2171,7 @@
               const NDKPrivateKeySigner = window.NDKModule?.NDKPrivateKeySigner;
               if (NDKPrivateKeySigner) {
                 const signer = new NDKPrivateKeySigner(key);
-                this.setUserPrivateKey(key);
-                this.setUserPubkey(signer.pubkey);
+                this.setUserCredentials(key, signer.pubkey);
               } else {
                 this.setUserPrivateKey(key);
                 this.currentUserPubkey = 'loading...';
@@ -2168,19 +2207,13 @@
               if (this.minimalEmbed) {
                 console.warn('Chat could not apply nsec (minimal embed):', e);
               } else {
-                this.errorMessage = 'Invalid nsec format. Please check your key and try again.';
-                setTimeout(() => {
-                  this.errorMessage = '';
-                }, 6000);
+                this.setTransientError('Invalid nsec format. Please check your key and try again.', 6000);
               }
             }
             
           } catch (error) {
             console.error('Key auth error:', error);
-            this.errorMessage = 'Authentication failed: ' + error.message;
-            setTimeout(() => {
-              this.errorMessage = '';
-            }, 6000);
+            this.setTransientError('Authentication failed: ' + error.message, 6000);
           } finally {
             // Clear the manual key input after processing
             if (this.isAuthenticated) {
@@ -2206,8 +2239,7 @@
                   const signer = new NDKPrivateKeySigner(privateKey);
                   const user = await signer.user();
                   if (user && user.pubkey) {
-                    this.setUserPrivateKey(privateKey);
-                    this.setUserPubkey(user.pubkey);
+                    this.setUserCredentials(privateKey, user.pubkey);
                     // Try to get nsec if available
                     if (user.nsec) {
                       this.currentUserNsec = user.nsec;
@@ -2256,17 +2288,13 @@
                 }
               } catch (e) {
                 console.error('Error getting pubkey from signer:', e);
-                this.errorMessage = 'Key generated but failed to get public key. You may need to reconnect.';
-                setTimeout(() => { this.errorMessage = ''; }, 5000);
+                this.setTransientError('Key generated but failed to get public key. You may need to reconnect.', 5000);
               }
             }
             
           } catch (error) {
             console.error('Key generation error:', error.message);
-            this.errorMessage = 'Failed to generate key: ' + error.message;
-            setTimeout(() => {
-              this.errorMessage = '';
-            }, 6000);
+            this.setTransientError('Failed to generate key: ' + error.message, 6000);
           }
         },
         
@@ -2395,12 +2423,7 @@
                 this.deduplicateMessages();
                 
                 // Scroll to bottom after loading cached messages
-                this.$nextTick(() => {
-                  const container = this.$refs.messagesContainer;
-                  if (container) {
-                    container.scrollTop = container.scrollHeight;
-                  }
-                });
+                this.scrollMessagesToBottom();
               }
             }
           } catch (e) {
@@ -2438,7 +2461,7 @@
         markRelaysConnected() {
           for (const relayUrl of this.relays) {
             if (this.relayStatus[relayUrl]?.status !== 'connected') {
-              this.relayStatus[relayUrl] = { status: 'connected' };
+              this.setRelayStatusFor(relayUrl, 'connected');
             }
           }
         },
@@ -2450,36 +2473,13 @@
             
             // Check each configured relay's actual status
             for (const relayUrl of this.relays) {
-              // Try different ways to get relay status from NDK pool
-              let relay = null;
-              
-              // NDK v2.x: pool.relays is a Map
-              if (this.ndk.pool.relays && this.ndk.pool.relays.get) {
-                relay = this.ndk.pool.relays.get(relayUrl);
-              }
-              
-              // Try to find relay in pool by URL
-              if (!relay && this.ndk.pool.relays) {
-                for (const [url, r] of this.ndk.pool.relays) {
-                  if (url === relayUrl || r?.url === relayUrl) {
-                    relay = r;
-                    break;
-                  }
-                }
-              }
+              const relay = this.findRelayInPool(relayUrl);
               
               if (relay) {
                 // Check relay's connection status
                 // NDK relay status can be: 'connecting', 'connected', 'disconnected', etc.
-                const status = relay.status || relay.connectionStatus || relay.readyState;
-                
-                if (status === 'connected' || status === 1 || status === WebSocket.OPEN) {
-                  this.relayStatus[relayUrl] = { status: 'connected' };
-                } else if (status === 'connecting' || status === 0 || status === WebSocket.CONNECTING) {
-                  this.relayStatus[relayUrl] = { status: 'connecting' };
-                } else {
-                  this.relayStatus[relayUrl] = { status: 'disconnected' };
-                }
+                const status = relay.status ?? relay.connectionStatus ?? relay.readyState;
+                this.relayStatus[relayUrl] = { status: this.relayStatusFromValue(status) };
               }
             }
             
@@ -2492,9 +2492,9 @@
         async loadKeysFromStorage() {
           try {
             if (this.minimalEmbed) {
-              const px = localStorage.getItem('guakaNostrNsec');
-              if (px && typeof px === 'string' && px.trim().startsWith('nsec')) {
-                this._pendingPlextrNsec = px.trim();
+              const px = this.getStoredPlextrNsec();
+              if (px) {
+                this._pendingPlextrNsec = px;
                 return;
               }
               return;
@@ -2503,13 +2503,8 @@
             const pubkey = localStorage.getItem('radio_guaka_chat_pubkey');
             
             if (privateKey) {
-              this.setUserPrivateKey(privateKey);
+              this.setUserCredentials(privateKey, pubkey);
               this.isAuthenticated = true;
-              
-              // If we have pubkey, use it; otherwise we'll get it from signer
-              if (pubkey) {
-                this.setUserPubkey(pubkey);
-              }
               
               // Set up signer if NDK is ready
               if (this.ndk) {

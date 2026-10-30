@@ -7,3 +7,8 @@
 tmp
 dist
 node_modules
+.env
+.env.*
+*.p8
+data
+spotify-csv

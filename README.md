@@ -6,6 +6,12 @@ It's not Guaka's music, but radio stations that Guaka likes listening to, such a
 
 Started in 2013 using meteorjs, completely revibed in 2025.
 
+## Android beta
+
+[Add Radio Guaka to Obtainium](obtainium://app/%7B%22id%22%3A%22org.guaka.radio%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fguaka%2Fradio%22%2C%22author%22%3A%22guaka%22%2C%22name%22%3A%22Radio%20Guaka%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Atrue%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5EAndroid%20beta%20%5C%22%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Eradio-guaka-beta%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D) to follow signed Android beta updates. Confirm the import in Obtainium. You can also download the APK from [GitHub Releases](https://github.com/guaka/radio/releases).
+
+See [android/README.md](android/README.md) for build instructions and the device acceptance checklist.
+
 
 ## About
 
@@ -29,6 +35,12 @@ Active channels are in the main `channels` object. Broken/non-working channels a
   - Arrow keys ↑ ↓ : Change volume
   - Space : Stop/pause
   - Letter key : Jump to channel starting with that letter (no modifier needed)
+- YouTube tab in pleXtr (MVP):
+  - Paste a single YouTube video URL/ID to play audio through direct extraction, with Piped and Invidious fallbacks.
+  - Resolution is done through the Go backend endpoint (`/api/youtube/resolve`) to avoid browser CORS issues.
+  - Playback uses a same-origin stream proxy endpoint (`/api/youtube/stream`) to reduce browser network/CORS/TLS failures with public instances.
+  - The YouTube tab lists **external check links** (YouTube, Piped API JSON, approximate Piped web UI, Invidious) from `GET /api/youtube/external-links?videoId=…` so you can verify mirrors in the browser.
+  - v1 scope is playback-only (no favorites/sharing/chat coupling for YouTube items).
 
 ## Go Backend (same-origin pleXtr)
 
@@ -38,7 +50,9 @@ The repo now includes an optional Go server that serves `public/index.html` and 
 - Health check: `GET /api/health`
 - Nostr auth: `POST /auth/nostr/challenge`, `POST /auth/nostr/verify`
 - Plex browse/stream (friend-gated): `GET /libraries`, `GET /tracks`, `GET /stream/:trackId`
+- Wrapster-backed Plex search/stream (optional): set `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` to route the friend-gated Plex search/stream endpoints through Wrapster's NIP-98 protected media gateway.
 - Public share links (revokable): `POST /share/song/:trackId`, `DELETE /share/:token`, `GET /s/:token`
+- **Music Assistant quick exploration**: same-origin proxy + probe endpoints for validating API connectivity and command payloads. See [MUSIC-ASSISTANT-QUICKSTART.md](MUSIC-ASSISTANT-QUICKSTART.md). Optional env: `MUSIC_ASSISTANT_BASE_URL`, `MUSIC_ASSISTANT_TOKEN`.
 
 ### Run
 
@@ -48,10 +62,27 @@ Set these env vars as needed:
 - `PLEX_BASE_URL` (e.g. `http://127.0.0.1:32400`)
 - `PLEX_TOKEN` (server-side Plex token)
 - Optional: `NOSTR_RELAYS`, `SESSION_SECRET`, `ADDR`
+- Optional Wrapster media gateway mode:
+  - `WRAPSTER_MEDIA_URL` (e.g. `https://relay.example.org`; base URL that serves `/media/api/services/plex/*`)
+  - `WRAPSTER_MEDIA_NSEC` (Nostr private key, `nsec...` or raw hex, granted for Wrapster media access)
+
+When `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` are set, the backend's friend-gated `GET /libraries`, `GET /tracks`, and `GET /stream/:trackId` routes use Wrapster for Plex search and streaming. The same-origin `/api/plex/*` proxy still requires direct `PLEX_BASE_URL` access because Wrapster's media gateway intentionally exposes only fixed search and stream routes, not arbitrary Plex library APIs.
 
 Then start:
 
 `go run ./cmd/server`
+
+The server defaults to `http://localhost:3030`. When `SESSION_SECRET` is unset, it generates a random secret and stores it in `data/plextr.sqlite3`. Sessions and share links remain in memory and expire on restart. Keep `.env`, private `.p8` keys, and `data/` out of version control.
+
+The same-origin `/api/plex/*` proxy accepts a caller's `X-Plex-Token` query parameter or header. Requests without a caller token require an authenticated friend session before using the server's Plex token. Music Assistant proxy/probe calls and Apple developer token issuance also require a friend session.
+
+### CSV playlists
+
+Open the Playlists tab and select Spotify CSV exports using the file picker. CSV files stay in the current browser tab; matching sends track searches to your configured Plex server. Match results can be played or downloaded as JSON and missing-track CSV reports. Reloading the page clears imported playlists.
+
+### Validation
+
+Run `go test -race ./...`, `go vet ./...`, and `node --test tests/frontend.test.cjs`. Live Plex, Wrapster, Music Assistant, and YouTube playback require separately configured services; the automated suite uses local test servers and fixtures.
 
 ### Docker Compose
 
@@ -64,6 +95,8 @@ Set env vars in your shell or `.env`:
 - `OWNER_PUBKEY`
 - `PLEX_TOKEN`
 - optional overrides: `PLEX_BASE_URL`, `SESSION_SECRET`, `NOSTR_RELAYS`
+
+Compose persists the generated session secret in the `plextr-data` named volume. Music Assistant can be configured with `MUSIC_ASSISTANT_BASE_URL` and `MUSIC_ASSISTANT_TOKEN`; those values are passed through by Compose. Optional Spotify/Apple helpers use `SPOTIFY_CLIENT_ID`, `APPLE_MUSIC_TEAM_ID`, `APPLE_MUSIC_KEY_ID`, and `APPLE_MUSIC_PRIVATE_KEY_PATH`. Mount the Apple `.p8` file read-only into the container and set its container path when enabling MusicKit.
 
 ## Chat
 
@@ -114,8 +147,3 @@ Radio Guaka was inspired by [somafm-popup](https://github.com/joe-roth/somafm-po
 ## Links
 
 * [radio.guaka.org](https://radio.guaka.org/)
-
-
-## Android prototype
-
-A native Android companion is being developed for Radio, Plex, Android Auto and local Music Assistant speakers. See [android/README.md](android/README.md) for build/install instructions, scope and the device acceptance checklist; progress is tracked in [issue #86](https://github.com/guaka/radio/issues/86).

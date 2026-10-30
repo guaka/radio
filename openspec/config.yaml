@@ -1,0 +1,20 @@
+schema: spec-driven
+context: |
+  Radio Guaka is a static HTML5 internet radio player with an optional same-origin Go backend for pleXtr features.
+
+  Core stack:
+  - Frontend: static files in public/, Alpine.js, vanilla JavaScript, plain CSS, History API routing.
+  - Backend: Go net/http server in cmd/server/main.go and internal/httpapi.
+  - Persistence: lightweight local SQLite app_state plus in-memory sessions and share links.
+  - Integrations: Nostr auth/chat/favorites, Plex or Wrapster-backed Plex media access, YouTube audio resolution/proxying, optional Spotify/Apple Music/Music Assistant helpers.
+
+  Development commands:
+  - Run backend: go run ./cmd/server
+  - Run tests: go test ./...
+  - Run container: docker compose up --build
+
+  Design constraints:
+  - Keep the static radio experience usable without requiring backend-only features.
+  - Treat friend-gated media access as private by default.
+  - Preserve same-origin backend endpoints for browser-facing integrations that otherwise hit CORS, TLS, or token exposure issues.
+  - Keep public share URLs revokable and avoid leaking upstream credentials to clients.
