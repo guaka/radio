@@ -86,6 +86,14 @@ class PlaybackService : MediaLibraryService() {
 
     private fun attachPlaybackListeners(player: ExoPlayer) {
         player.addListener(object : androidx.media3.common.Player.Listener {
+            private var recordedCurrent = false
+            private fun recordIfPlaying() {
+                if (!recordedCurrent && player.isPlaying) {
+                    player.currentMediaItem?.mediaId?.let { id ->
+                        runCatching { listening.recordPlayed(id) }.onSuccess { recordedCurrent = true }
+                    }
+                }
+            }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (!isCurrentPlayer(player)) return
                 if (!timeline.isEmpty) hasSeenTimeline = true
@@ -95,6 +103,8 @@ class PlaybackService : MediaLibraryService() {
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (!isCurrentPlayer(player)) return
+                recordedCurrent = false
+                recordIfPlaying()
                 persistPlayback()
                 requestCurrentArtwork()
             }
@@ -105,7 +115,7 @@ class PlaybackService : MediaLibraryService() {
             ) { if (isCurrentPlayer(player)) persistPlayback() }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (!isCurrentPlayer(player)) return
-                if (isPlaying) startPeriodicSave() else { stopPeriodicSave(); persistPlayback() }
+                if (isPlaying) { recordIfPlaying(); startPeriodicSave() } else { stopPeriodicSave(); persistPlayback() }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (!isCurrentPlayer(player)) return

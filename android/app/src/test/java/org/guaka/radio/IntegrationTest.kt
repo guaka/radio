@@ -10,6 +10,32 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IntegrationTest {
+    @Test fun savedTokenIsReusedOnlyForTheSameServer() {
+        assertEquals("saved", assistantTokenForServer("https://a.example", "", "https://a.example", "saved"))
+        assertEquals("new", assistantTokenForServer("https://b.example", " new ", "https://a.example", "saved"))
+        assertTrue(runCatching { assistantTokenForServer("https://b.example", "", "https://a.example", "saved") }.isFailure)
+        assertTrue(runCatching { assistantTokenForServer("https://a.example", "", "https://a.example", "") }.isFailure)
+    }
+    @Test fun assistantConnectionRequiresAnAuthenticatedPlayerList() = runBlocking {
+        val server = MockWebServer(); server.start()
+        try {
+            val api = ApiClient("test-client")
+            val base = "http://localhost:${server.port}"
+            server.enqueue(MockResponse().setBody("[]"))
+            api.checkAssistantConnection(base, "secret")
+            val request = server.takeRequest()
+            assertEquals("Bearer secret", request.getHeader("Authorization"))
+            assertEquals("players/all", JSONObject(request.body.readUtf8()).getString("command"))
+            server.enqueue(MockResponse().setBody("{}"))
+            assertTrue(runCatching { api.checkAssistantConnection(base, "secret") }.isFailure)
+            server.enqueue(MockResponse().setResponseCode(401))
+            val denied = runCatching { api.checkAssistantConnection(base, "secret") }.exceptionOrNull()
+            assertTrue(denied is ApiRequestException)
+            assertFalse(denied!!.message!!.contains("secret"))
+            server.enqueue(MockResponse().setResponseCode(404))
+            assertTrue(runCatching { api.checkAssistantConnection(base, "secret") }.exceptionOrNull()!!.message!!.contains("Music Assistant API not found"))
+        } finally { server.shutdown() }
+    }
     @Test fun discoveryUsesResourceTokenAndHttpsConnections() {
         val servers = IntegrationParser.servers(JSONArray("""[
           {"name":"Plex","clientIdentifier":"server","provides":"server","accessToken":"server-specific-token",
