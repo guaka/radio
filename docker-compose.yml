@@ -18,7 +18,7 @@ services:
         - action: rebuild
           path: ./public
         - action: rebuild
-          path: ./package-lock.json
+          path: ./pnpm-lock.yaml
     container_name: plextr
     restart: unless-stopped
     ports:

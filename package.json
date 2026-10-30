@@ -1,9 +1,10 @@
 {
   "name": "radio-guaka",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test tests/frontend.test.ts"
+    "test": "pnpm run build && node --test tests/frontend.test.ts"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
