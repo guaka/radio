@@ -3,7 +3,7 @@ name: Tests
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -27,3 +27,4 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm test
+      - run: node android/scripts/sync-stations.mjs --check
