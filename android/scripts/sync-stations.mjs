@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const android = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = fs.readFileSync(path.join(android, '../public/channels.js'), 'utf8');
+const source = fs.readFileSync(path.join(android, '../src/frontend/channels.ts'), 'utf8');
 // Read only the catalogue literal; artwork fetches and browser setup are not executed.
 const start = source.indexOf('const channels = {');
 const end = source.indexOf('\n};', start);

@@ -1,0 +1,12 @@
+{
+  "name": "radio-guaka",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/frontend.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  },
+  "engines": { "node": ">=22.18" }
+}
