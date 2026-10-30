@@ -38,6 +38,36 @@ class SpeakerPlaybackTest {
             readSpeakers = { fail("unexpected read"); emptyList() }, wait = { fail("unexpected wait") })
         assertEquals(a, target)
     }
+    @Test fun deselectingSpeakerRemovesItBeforePlayback() = runBlocking {
+        val removed = mutableListOf<Speaker>()
+        val target = synchronizedSpeakerTarget(listOf(a), previous = listOf(a, b),
+            group = { _, _ -> fail("unexpected grouping") },
+            ungroup = { removed += it },
+            readSpeakers = { listOf(a.copy(groupMembers = setOf("a"))) },
+            wait = { fail("already detached") })
+        assertEquals(a, target)
+        assertEquals(listOf(b), removed)
+    }
+    @Test fun changingLeaderDetachesOldFollowersBeforeRegrouping() = runBlocking {
+        val operations = mutableListOf<String>()
+        val target = synchronizedSpeakerTarget(listOf(b, c), previous = listOf(a, b, c),
+            ungroup = { operations += "ungroup:${it.joinToString { speaker -> speaker.id }}" },
+            group = { leader, followers -> operations += "group:${leader.id}:${followers.single().id}" },
+            readSpeakers = { listOf(a, b.copy(groupMembers = setOf("b", "c"))) },
+            wait = { fail("already synchronized") })
+        assertEquals(b, target)
+        assertEquals(listOf("ungroup:b, c", "group:b:c"), operations)
+    }
+    @Test fun failedDetachDoesNotProceedToPlayback() = runBlocking {
+        var grouped = false
+        val error = runCatching {
+            synchronizedSpeakerTarget(listOf(a), previous = listOf(a, b),
+                ungroup = {}, group = { _, _ -> grouped = true },
+                readSpeakers = { listOf(a.copy(groupMembers = setOf("b"))) }, wait = {})
+        }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertFalse(grouped)
+    }
     @Test fun partialFailurePreservesSuccessfulDestinationsAndTriesTheRest() = runBlocking {
         val sent = mutableListOf<String>()
         val playing = mutableListOf<List<Speaker>>()

@@ -9,16 +9,36 @@ internal data class SpeakerPlaybackResult(val started: List<Speaker>, val failed
 /** A shared Music Assistant queue is required for synchronized playback. */
 internal suspend fun synchronizedSpeakerTarget(
     speakers: List<Speaker>,
+    previous: List<Speaker> = emptyList(),
     group: suspend (Speaker, List<Speaker>) -> Unit,
+    ungroup: suspend (List<Speaker>) -> Unit = {},
     readSpeakers: suspend () -> List<Speaker>,
     wait: suspend () -> Unit,
 ): Speaker {
     val selected = speakers.distinctBy { it.id }
     require(selected.isNotEmpty()) { "Choose a speaker." }
-    val leader = selected.first()
-    val followers = selected.drop(1)
+    val oldLeader = previous.firstOrNull()
+    val leader = selected.firstOrNull { it.id == oldLeader?.id } ?: selected.first()
+    val followers = selected.filterNot { it.id == leader.id }
+    val removed = if (oldLeader != null && oldLeader.id != leader.id) {
+        previous.drop(1)
+    } else previous.filter { old -> old.id != leader.id && selected.none { it.id == old.id } }
+    if (removed.isNotEmpty()) {
+        ungroup(removed)
+        var detached = false
+        repeat(10) {
+            if (!detached) {
+                currentCoroutineContext().ensureActive()
+                val current = readSpeakers().firstOrNull { it.id == oldLeader?.id }
+                detached = current != null && removed.none { it.id in current.groupMembers }
+                if (!detached) wait()
+            }
+        }
+        check(detached) { "Music Assistant could not remove the selected speakers from the group." }
+    }
     if (followers.isEmpty()) return leader
-    val ungrouped = followers.filterNot { it.id in leader.groupMembers }
+    val removedIds = removed.map { it.id }.toSet()
+    val ungrouped = followers.filterNot { it.id in leader.groupMembers && it.id !in removedIds }
     if (ungrouped.isNotEmpty()) group(leader, ungrouped)
     repeat(10) {
         currentCoroutineContext().ensureActive()

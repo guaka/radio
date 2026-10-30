@@ -110,6 +110,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     var plexAccountName by mutableStateOf(repository.plexAccountName()); private set
     internal var speakerProgress by mutableStateOf<SpeakerProgress?>(null); private set
     private var activeSpeakers = emptyList<Speaker>()
+    var activeSpeakerSelection by mutableStateOf<List<Speaker>>(emptyList()); private set
     private var speakerControlGeneration = 0L
     var plexAuthRequired by mutableStateOf(false); private set
     var speakers by mutableStateOf<List<Speaker>?>(null); private set
@@ -400,7 +401,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         selectedSpeakers = chosen.distinctBy { it.id }
         if (entry.id.startsWith("radio:") || entry.id.startsWith("youtube:")) {
             speakerJob = action {
-                val uri = repository.speakerStream(entry)
+                val keepingLeader = activeSpeakers.firstOrNull()?.let { active ->
+                    selectedSpeakers.any { it.id == active.id }
+                } == true
+                val uri = if (keepingLeader) "" else repository.speakerStream(entry)
                 if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(uri, selectedSpeakers, pausePhone, request)
             }
         } else speakerJob = action {
@@ -421,17 +425,31 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private fun startSpeakerPlayback(uri: String, chosen: List<Speaker>, pausePhone: () -> Unit, request: Long) {
         speakerJob = action {
             setStatus(if (chosen.size > 1) "Synchronizing speakers…" else "Sending to ${chosen.first().name}…")
-            val target = repository.synchronizedSpeaker(chosen)
+            val previousTarget = activeSpeakers.firstOrNull()
+            val target = repository.synchronizedSpeaker(chosen, activeSpeakerSelection)
             if (!speakerEpoch.isCurrent(request)) return@action
-            repository.playSpeaker(target, uri)
+            val sameTarget = previousTarget?.id == target.id
+            if (!sameTarget) repository.playSpeaker(target, uri)
+            val previousPauseFailed = if (previousTarget != null && !sameTarget) {
+                try {
+                    repository.controlSpeakers(listOf(previousTarget), "pause")
+                    false
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    true
+                }
+            } else false
             speakerEpoch.publishIfCurrent(request) {
                 pausePhone()
                 speakerControlGeneration++
                 activeSpeakers = listOf(target)
-                speakerProgress = null
+                activeSpeakerSelection = listOf(target) + chosen.filterNot { it.id == target.id }
+                if (!sameTarget) speakerProgress = null
                 output = chosen.joinToString { it.name }
                 speakerTracks = null
-                setStatus("Playing on ${chosen.joinToString { it.name }}.")
+                setStatus(if (previousPauseFailed) "Playing on ${chosen.joinToString { it.name }}. Could not pause the previous speaker."
+                    else "Playing on ${chosen.joinToString { it.name }}.")
             }
         }
     }
@@ -446,8 +464,25 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (cancelSpeakerRequests) dismissSpeakers()
         speakerControlGeneration++
         activeSpeakers = emptyList()
+        activeSpeakerSelection = emptyList()
         speakerProgress = null
         output = "This phone"
+    }
+    fun preparePhoneOutput(onReady: () -> Unit, onFailure: () -> Unit) {
+        val targets = activeSpeakers
+        if (targets.isEmpty()) {
+            phoneOutput()
+            onReady()
+            return
+        }
+        speakerJob?.cancel()
+        speakerJob = action(onFailure = { onFailure() }) {
+            repository.controlSpeakers(targets, "pause")
+            if (targets == activeSpeakers) {
+                phoneOutput(cancelSpeakerRequests = false)
+                onReady()
+            }
+        }
     }
     fun openBook(mediaId: String): Boolean {
         val book = bookstr.state.books.firstOrNull { it.id == mediaId } ?: return false
@@ -709,7 +744,8 @@ fun AppScreen(model: MainModel = viewModel()) {
         pendingSelection = true
         playerError = ""; playerFailure = null
         playerErrorIsPlexAuth = false
-        model.phoneOutput()
+        model.preparePhoneOutput(onReady = {
+        if (request != selectionEpoch) return@preparePhoneOutput
         val result = player.sendCustomCommand(
             PlaybackSelectionCommand.COMMAND,
             PlaybackSelectionCommand.bundle(ids, index.coerceIn(ids.indices), positionMs.coerceAtLeast(0L), retrySelectedOnly)
@@ -730,6 +766,12 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
             activeSelection = null
         }, context.mainExecutor)
+        }, onFailure = {
+            if (request == selectionEpoch) {
+                pendingSelection = false
+                playerError = "Could not pause speaker playback. Try again."
+            }
+        })
     }
     fun retryPlayback() {
         val player = browser ?: return
@@ -1023,7 +1065,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                     modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
             }
             TextButton(
-                onClick = { if (!bookOwnsPlayer) { chosenSpeakerIds = emptySet(); showOutputPicker = true; model.speakerPicker(current) } },
+                onClick = { if (!bookOwnsPlayer) { chosenSpeakerIds = model.activeSpeakerSelection.map { it.id }.toSet(); showOutputPicker = true; model.speakerPicker(current) } },
                 enabled = !bookOwnsPlayer && current != null,
                 modifier = Modifier.weight(1f).semantics {
                     val outputName = if (bookOwnsPlayer) routeDisplayName else if (model.output == "This phone") routeDisplayName else model.output
@@ -1095,7 +1137,9 @@ fun AppScreen(model: MainModel = viewModel()) {
             TextButton(enabled = chosenSpeakerIds.isNotEmpty() && !model.busy, onClick = {
                 val selected = speakers.filter { it.id in chosenSpeakerIds }
                 showOutputPicker = false
-                model.selectSpeakers(selected) { browser?.pause() }
+                if (selected.map { it.id }.toSet() != model.activeSpeakerSelection.map { it.id }.toSet()) {
+                    model.selectSpeakers(selected) { browser?.pause() }
+                } else model.dismissSpeakers()
             }) { Text("Play on selected") }
         }, dismissButton = { TextButton(onClick = ::closeOutputs) { Text("Cancel") } })
     }

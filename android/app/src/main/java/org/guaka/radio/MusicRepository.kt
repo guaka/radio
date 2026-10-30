@@ -448,13 +448,18 @@ class MusicRepository(private val context: Context) {
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
         IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
     }
-    suspend fun synchronizedSpeaker(speakers: List<Speaker>): Speaker = withContext(Dispatchers.IO) {
+    suspend fun synchronizedSpeaker(speakers: List<Speaker>, previous: List<Speaker>): Speaker = withContext(Dispatchers.IO) {
         synchronizedSpeakerTarget(
             speakers,
+            previous = previous,
             group = { leader, followers ->
                 assistantCommand("players/cmd/group_many", JSONObject()
                     .put("target_player", leader.id)
                     .put("child_player_ids", JSONArray(followers.map { it.id })))
+            },
+            ungroup = { removed ->
+                assistantCommand("players/cmd/ungroup_many", JSONObject()
+                    .put("player_ids", JSONArray(removed.map { it.id })))
             },
             readSpeakers = { this@MusicRepository.speakers() },
             wait = { kotlinx.coroutines.delay(500) },
