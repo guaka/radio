@@ -1,3 +1,10 @@
+FROM node:22-alpine AS frontend
+WORKDIR /src
+COPY package.json package-lock.json tsconfig.json ./
+RUN npm ci
+COPY src/frontend ./src/frontend
+RUN npm run build
+
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 
@@ -7,6 +14,7 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 COPY public ./public
+COPY --from=frontend /src/public/js ./public/js
 COPY LICENSE README.md CNAME ./
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/plextr-server ./cmd/server
@@ -17,7 +25,7 @@ WORKDIR /app
 RUN adduser -D -u 10001 appuser
 
 COPY --from=build /out/plextr-server /app/plextr-server
-COPY public ./public
+COPY --from=build /src/public ./public
 COPY LICENSE README.md CNAME ./
 RUN mkdir -p /app/data && chown -R appuser:appuser /app
 

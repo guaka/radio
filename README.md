@@ -11,13 +11,13 @@ Started in 2013 using meteorjs, completely revibed in 2025.
 
 This is a static site that can be deployed on GitHub Pages. The current implementation uses:
 - Alpine.js for reactivity
-- Vanilla JavaScript
+- TypeScript compiled to browser JavaScript
 - Plain CSS
 - History API for routing
 
 ## Channels
 
-Channels are defined in `public/channels.js`. You're welcome to add channels and metadata by editing (i.e. fork and send pull requests).
+Channels are defined in `src/frontend/channels.ts`. You're welcome to add channels and metadata by editing (i.e. fork and send pull requests).
 
 Active channels are in the main `channels` object. Broken/non-working channels are kept in comments for reference.
 
@@ -62,6 +62,12 @@ Set these env vars as needed:
 
 When `WRAPSTER_MEDIA_URL` and `WRAPSTER_MEDIA_NSEC` are set, the backend's friend-gated `GET /libraries`, `GET /tracks`, and `GET /stream/:trackId` routes use Wrapster for Plex search and streaming. The same-origin `/api/plex/*` proxy still requires direct `PLEX_BASE_URL` access because Wrapster's media gateway intentionally exposes only fixed search and stream routes, not arbitrary Plex library APIs.
 
+Build the frontend with Node.js 22.18 or newer before running the server locally:
+
+`npm ci && npm run build`
+
+TypeScript sources are in `src/frontend`; the generated browser scripts in `public/js` are ignored by Git. The compiler currently transpiles the migrated code without type-checking (`noCheck`), so type safety is not yet enforced. Rebuild after changing frontend sources. Docker and the Pages workflow build these scripts automatically.
+
 Then start:
 
 `go run ./cmd/server`
@@ -76,7 +82,7 @@ Open the Playlists tab and select Spotify CSV exports using the file picker. CSV
 
 ### Validation
 
-Run `go test -race ./...`, `go vet ./...`, and `node --test tests/frontend.test.cjs`. Live Plex, Wrapster, Music Assistant, and YouTube playback require separately configured services; the automated suite uses local test servers and fixtures.
+Run `go test -race ./...`, `go vet ./...`, and `npm test`. Live Plex, Wrapster, Music Assistant, and YouTube playback require separately configured services; the automated suite uses local test servers and fixtures.
 
 ### Docker Compose
 
@@ -116,7 +122,7 @@ Some browser/Nostr library builds may occasionally emit non-fatal promise reject
 
 This comes from an internal relay transport path and does **not** break chat/playback. To keep this from resurfacing as noisy uncaught errors:
 
-- Keep the unhandled rejection + error guards in `public/index.html` and `public/chatiframe1.html` in sync.
+- Keep the unhandled rejection + error guards in `src/frontend/index-1.ts` and `src/frontend/chatiframe1-1.ts` in sync.
 - When upgrading Nostr libraries, test chat startup and posting with DevTools open to verify those errors stay downgraded to warnings.
 - Keep the relay list fixed to the two production relays above unless there is an explicit migration plan.
 
