@@ -464,7 +464,8 @@ class MusicRepository(private val context: Context) {
                     for (address in phoneRelayAddresses()) {
                         val relay = phoneRelay.prepare(resolved, api.http, address) { resolved.token.isBlank() || generation == listening.plexGeneration() }
                         try {
-                            assistantCommand("music/item_by_uri", JSONObject().put("uri", relay.uri))
+                            val item = assistantCommand("music/item_by_uri", JSONObject().put("uri", "builtin://track/${relay.uri}"))
+                            check(item is JSONObject && item.optString("media_type") == "track") { "Music Assistant did not recognize the relayed audio as a track." }
                             relay.awaitReceiver()
                             selected = relay
                             break
@@ -473,8 +474,11 @@ class MusicRepository(private val context: Context) {
                     }
                     val relay = selected ?: throw IOException("Music Assistant cannot reach this phone’s relay over Nebula or LAN. Check VPN routing and firewall access.")
                     ownedRelay = relay
-                    SpeakerMedia(relay.uri, relay)
-                } else SpeakerMedia(speakerStream(entry))
+                    SpeakerMedia("builtin://track/${relay.uri}", relay)
+                } else {
+                    val uri = speakerStream(entry)
+                    SpeakerMedia(if (entry.id.startsWith("youtube:")) "builtin://track/$uri" else uri)
+                }
             }
         } catch (error: Exception) {
             phoneRelay.discard(ownedRelay)
