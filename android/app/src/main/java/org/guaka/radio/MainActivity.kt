@@ -92,6 +92,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     var parent by mutableStateOf("radio"); private set
     var locationTitle by mutableStateOf("Radio"); private set
     var searchTerm by mutableStateOf("")
+    var searchResults by mutableStateOf<Map<String, List<Entry>>>(emptyMap()); private set
+    var searchErrors by mutableStateOf<Map<String, String>>(emptyMap()); private set
+    var searchingSources by mutableStateOf<Set<String>>(emptySet()); private set
     var hasMore by mutableStateOf(false); private set
     var paginationFailed by mutableStateOf(false); private set
     var listEpoch by mutableIntStateOf(0); private set
@@ -116,6 +119,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     var output by mutableStateOf("This phone"); private set
     private var browseJob: Job? = null
     private var filterJob: Job? = null
+    private var searchGeneration = 0
     private var loginJob: Job? = null
     private var speakerJob: Job? = null
     private var stationArtworkPreloadJob: Job? = null
@@ -215,6 +219,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         parent = id
         locationTitle = title
         filterJob?.cancel()
+        searchGeneration++
         searchTerm = ""
         appliedQuery = ""
         if (id == "books") refreshBooks()
@@ -227,30 +232,53 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun updateFilter(value: String) {
         searchTerm = value
         filterJob?.cancel()
-        // Radio is local; debounce remote collections while the user types.
-        if (parent in setOf("radio", "books") || value.isBlank()) search()
-        else filterJob = viewModelScope.launch {
-            delay(if (parent == "youtube") 700 else 250)
-            applyFilter()
+        val generation = ++searchGeneration
+        listEpoch++
+        searchResults = emptyMap()
+        searchErrors = emptyMap()
+        searchingSources = emptySet()
+        setStatus("")
+        if (value.isNotBlank()) filterJob = viewModelScope.launch {
+            delay(500)
+            searchAll(value.trim(), generation)
         }
     }
     fun search() {
         filterJob?.cancel()
-        applyFilter()
-    }
-    private fun applyFilter() {
+        val generation = ++searchGeneration
         val query = searchTerm.trim()
-        if (query == appliedQuery) return
-        appliedQuery = query
-        if (parent == "books") {
-            listEpoch++
-            status = ""
-            return
+        if (query.isNotEmpty()) filterJob = viewModelScope.launch { searchAll(query, generation) }
+    }
+    private suspend fun searchAll(query: String, generation: Int) = kotlinx.coroutines.coroutineScope {
+        val sources = listOf("radio", "plex", "youtube")
+        searchResults = emptyMap()
+        searchErrors = emptyMap()
+        searchingSources = sources.toSet()
+        sources.forEach { source ->
+            launch {
+                try {
+                    if (source == "plex" && repository.credentials.get("plexToken").isBlank()) {
+                        searchErrors = searchErrors + (source to "Sign in to search Plex.")
+                        return@launch
+                    }
+                    val results = repository.search(query, source, 0, pageSize)
+                    if (generation == searchGeneration) searchResults = searchResults + (source to results)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (generation == searchGeneration) searchErrors = searchErrors + (source to if (source == "plex") {
+                        "Plex search unavailable. Check your connection and sign-in."
+                    } else {
+                        "Search unavailable. Check your connection and try again."
+                    })
+                } finally {
+                    if (generation == searchGeneration) searchingSources = searchingSources - source
+                }
+            }
         }
-        load(reset = true)
     }
     fun loadMore() {
-        if (hasMore && !busy && !loadingMore && !paginationFailed) {
+        if (searchTerm.isBlank() && hasMore && !busy && !loadingMore && !paginationFailed) {
             loadingMore = true
             paginationFailed = false
             setStatus("")
@@ -323,7 +351,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
                     loginUrl = null
                     plexAuthRequired = false
                     setStatus("")
-                    browse("plex")
+                    if (searchTerm.isNotBlank()) search() else browse("plex")
                     return@action
                 }
             }
@@ -813,16 +841,17 @@ fun AppScreen(model: MainModel = viewModel()) {
                 selected = false
             }) { Icon(painterResource(R.drawable.ic_settings), contentDescription = null) }
         }
-        if (model.parent !in setOf("radio", "plex", "favorites", "history", "books", "youtube"))
+        val globalSearch = model.searchTerm.isNotBlank()
+        if (!globalSearch && model.parent !in setOf("radio", "plex", "favorites", "history", "books", "youtube"))
             Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(model.searchTerm, model::updateFilter,
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Filter items" }.onPreviewKeyEvent { event ->
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Search radio, YouTube and Plex" }.onPreviewKeyEvent { event ->
                 if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
                     if (event.type == KeyEventType.KeyUp) submitSearch()
                     true
                 } else false
             },
-            placeholder = { Text(if (model.parent == "youtube") "Search or paste a link" else "Filter") },
+            placeholder = { Text("Search radio, YouTube and Plex") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { submitSearch() }, onDone = { submitSearch() }),
@@ -831,21 +860,21 @@ fun AppScreen(model: MainModel = viewModel()) {
                     Icon(painterResource(R.drawable.ic_search), contentDescription = "Search")
                 }
             })
-        if (model.parent !in setOf("radio", "books")) Row {
-            if (model.parent != "radio" && (model.parent != "favorites" ||
-                    model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })) {
+        if (globalSearch || model.parent !in setOf("radio", "books")) Row {
+            if (globalSearch || (model.parent != "radio" && (model.parent != "favorites" ||
+                    model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") }))) {
                 TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
             }
         }
-        if (model.parent == "history" && model.entries.isNotEmpty())
+        if (!globalSearch && model.parent == "history" && model.entries.isNotEmpty())
             TextButton(onClick = model::clearHistory) { Text("Clear history") }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "history", "books", "youtube")
-        if (model.status.isNotBlank() && !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX))
+        if (model.status.isNotBlank() && (globalSearch || !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX)))
             Text(model.status, style = MaterialTheme.typography.bodySmall)
         val plexPlaybackAuthError = playerErrorIsPlexAuth ||
             (playerFailure == PlaybackFailure.AUTHENTICATION && model.plexAuthRequired)
-        if (showPlexAuthPrompts && (!model.plexSignedIn || model.plexAuthRequired || plexPlaybackAuthError))
+        if (!globalSearch && showPlexAuthPrompts && (!model.plexSignedIn || model.plexAuthRequired || plexPlaybackAuthError))
             TextButton(onClick = model::signIn) { Text("Sign in to Plex") }
         if (model.parent != "books" && playerError.isNotBlank() && (showPlexAuthPrompts || !plexPlaybackAuthError)) {
             Text(playerError, color = MaterialTheme.colorScheme.error)
@@ -853,7 +882,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 TextButton(onClick = ::retryPlayback, enabled = !model.busy && browser != null) { Text("Retry playback") }
         }
         val playable = model.entries.filter { it.playable && !it.id.startsWith("radio:") }.map { it.asMediaItem() }
-        if (model.parent !in setOf("radio", "books") && playable.isNotEmpty()) Row {
+        if (!globalSearch && model.parent !in setOf("radio", "books") && playable.isNotEmpty()) Row {
             TextButton(onClick = { play(playable) }, enabled = browser != null) { Text("Play listed") }
             TextButton(onClick = { enqueue(playable) }, enabled = browser != null) { Text("Queue listed") }
         }
@@ -861,13 +890,48 @@ fun AppScreen(model: MainModel = viewModel()) {
         val visibleBooks = BooksLibrary.filter(bookstrState.books, model.searchTerm)
         val bookOwnsPlayer = BooksLibrary.ownsPlayerControls(bookstrState, model.booksPlaybackSelected)
         val activeBookId = BooksLibrary.activeBookId(bookstrState)
-        if (model.parent == "books" && bookstrState.error != null) {
+        if (!globalSearch && model.parent == "books" && bookstrState.error != null) {
             Text(bookstrState.error!!, color = MaterialTheme.colorScheme.error)
             if (!bookstrState.connected || bookstrState.error != null) TextButton(onClick = model::refreshBooks, enabled = !bookstrState.connecting) { Text("Retry") }
         }
-        if (model.parent == "books" && bookstrState.connecting) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (!globalSearch && model.parent == "books" && bookstrState.connecting) LinearProgressIndicator(Modifier.fillMaxWidth())
         LazyColumn(Modifier.weight(1f), state = listState) {
-            if (model.parent == "books") {
+            if (globalSearch) {
+                listOf("radio" to "Radio", "youtube" to "YouTube", "plex" to "Plex").forEach { (source, title) ->
+                    item(key = "heading:$source") {
+                        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+                    }
+                    val results = model.searchResults[source]
+                    if (source in model.searchingSources || (results == null && source !in model.searchErrors)) {
+                        item(key = "loading:$source") { Text("Searching…", modifier = Modifier.padding(horizontal = 16.dp)) }
+                    } else if (source in model.searchErrors) {
+                        item(key = "error:$source") {
+                            Text(model.searchErrors.getValue(source), modifier = Modifier.padding(horizontal = 16.dp))
+                            if (source == "plex") TextButton(onClick = model::signIn) { Text("Sign in to Plex") }
+                        }
+                    } else if (results.isNullOrEmpty()) {
+                        item(key = "empty:$source") { Text("No matches", modifier = Modifier.padding(horizontal = 16.dp)) }
+                    } else {
+                        items(results, key = { "$source:${it.id}" }) { entry ->
+                            ListItem(
+                                headlineContent = { Text(entry.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = if (entry.id.startsWith("radio:")) null else ({ Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
+                                leadingContent = { EntryArtwork(entry, model) },
+                                trailingContent = {
+                                    if (entry.playable) Row {
+                                        FavoriteButton(entry.id, entry.title, model)
+                                        if (!entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
+                                            modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
+                                    }
+                                },
+                                modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
+                                    if (entry.playable) play(listOf(entry.asMediaItem())) else model.browse(entry.id, title = entry.title)
+                                },
+                            )
+                        }
+                    }
+                }
+            } else if (model.parent == "books") {
                 items(visibleBooks, key = { it.id }) { book ->
                     ListItem(
                         headlineContent = { Text(book.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
@@ -908,7 +972,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                         })
                 }
             }
-            if (model.hasMore && model.paginationFailed) item {
+            if (!globalSearch && model.hasMore && model.paginationFailed) item {
                 TextButton(onClick = model::retryLoadMore, enabled = !model.busy) { Text("Could not load more. Retry") }
             }
         }
@@ -958,7 +1022,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             if (bookOwnsPlayer && activeBookId != null) {
                 IconButton(onClick = model.bookstr::skipPrevious, modifier = Modifier.semantics { contentDescription = "Previous book page" }) { Text("‹") }
                 IconButton(onClick = model.bookstr::skipNext, modifier = Modifier.semantics { contentDescription = "Next book page" }) { Text("›") }
-            } else if (model.parent != "radio" && current?.mediaId?.let { !it.startsWith("radio:") } == true) {
+            } else if (current?.mediaId?.let { !it.startsWith("radio:") } == true) {
                 IconButton(enabled = browser?.hasPreviousMediaItem() == true && model.output == "This phone",
                     onClick = { selectPlayback(queue.map { it.mediaId }, (queueIndex - 1).coerceAtLeast(0)) },
                     modifier = Modifier.semantics { contentDescription = "Previous track" }) { Text("‹") }
