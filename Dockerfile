@@ -1,9 +1,9 @@
 FROM node:22-alpine AS frontend
 WORKDIR /src
-COPY package.json package-lock.json tsconfig.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml tsconfig.json ./
+RUN corepack enable && pnpm install --frozen-lockfile
 COPY src/frontend ./src/frontend
-RUN npm run build
+RUN pnpm run build
 
 FROM golang:1.25-alpine AS build
 WORKDIR /src
