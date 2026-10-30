@@ -23,18 +23,19 @@ class YouTubeAudioDeviceTest {
         assertTrue(YouTubeIds.isAudioHost(entry.url))
         lateinit var player: ExoPlayer
         instrumentation.runOnMainSync {
-            player = ExoPlayer.Builder(ApplicationProvider.getApplicationContext()).build()
+            player = ExoPlayer.Builder(ApplicationProvider.getApplicationContext())
+                .setLoadControl(PlaybackBuffering.loadControl()).build()
             player.setMediaItem(entry.asMediaItem().buildUpon().setUri(entry.url).build())
             player.prepare()
             player.play()
         }
         try {
-            val deadline = android.os.SystemClock.elapsedRealtime() + 40_000
+            val deadline = android.os.SystemClock.elapsedRealtime() + 60_000
             var advanced = false
             while (!advanced && android.os.SystemClock.elapsedRealtime() < deadline) {
                 instrumentation.runOnMainSync {
                     player.playerError?.let { throw AssertionError("YouTube playback failed", it) }
-                    advanced = player.isPlaying && player.currentPosition > 1500
+                    advanced = player.isPlaying && player.currentPosition > 10_000
                 }
                 Thread.sleep(100)
             }

@@ -1,11 +1,16 @@
 package org.guaka.radio
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicInteger
 
 class PlaybackSelectionTest {
     @Test fun selectionKeepsOrderIndexAndSeekPosition() = runBlocking {
@@ -61,6 +66,63 @@ class PlaybackSelectionTest {
             }
         }.exceptionOrNull()
         assertTrue(thrown is IOException)
+    }
+
+    @Test fun retryRefreshesExpiredYouTubeUrlAndRetainsQueueOrderAndPosition() = runBlocking {
+        val ids = listOf("radio:one", "youtube:aqz-KE-bpKQ", "radio:three")
+        val expiredUrl = "https://rr1.googlevideo.com/videoplayback?expire=1&signature=expired"
+        val freshUrl = "https://rr2.googlevideo.com/videoplayback?expire=999999&signature=fresh"
+        val original = PlaybackSelection.resolve(
+            ids = ids, index = 1, positionMs = 12_000L,
+            startingGeneration = 4L, currentGeneration = { 4L },
+        ) { id ->
+            entry(id).copy(url = if (id == ids[1]) expiredUrl else "https://example.test/$id")
+        }
+
+        val retried = PlaybackSelection.resolve(
+            ids = original.entries.map { it.id }, index = original.index, positionMs = original.positionMs,
+            startingGeneration = 4L, currentGeneration = { 4L },
+            reuseEntries = original.entries.mapIndexedNotNull { index, item ->
+                if (index == original.index) null else index to item
+            }.toMap(),
+            allowUnavailableUnselected = true,
+        ) { id ->
+            assertEquals(ids[1], id)
+            entry(id).copy(url = freshUrl)
+        }
+
+        assertEquals(ids, retried.entries.map { it.id })
+        assertEquals(1, retried.index)
+        assertEquals(12_000L, retried.positionMs)
+        assertEquals(freshUrl, retried.entries[retried.index].url)
+        assertTrue(retried.entries[retried.index].url != expiredUrl)
+    }
+
+    @Test fun cancellationDuringConcurrentResolutionCancelsEveryResolverAndReturnsNoPartialQueue() = runBlocking {
+        val ids = listOf("radio:one", "youtube:aqz-KE-bpKQ", "radio:three")
+        val allStarted = CompletableDeferred<Unit>()
+        val neverComplete = CompletableDeferred<Entry>()
+        val startedCount = AtomicInteger()
+        val cancelledCount = AtomicInteger()
+        val pending = async(start = CoroutineStart.UNDISPATCHED) {
+            PlaybackSelection.resolve(
+                ids = ids, index = 1, positionMs = 0L,
+                startingGeneration = 4L, currentGeneration = { 4L },
+            ) {
+                if (startedCount.incrementAndGet() == ids.size) allStarted.complete(Unit)
+                try {
+                    neverComplete.await()
+                } finally {
+                    cancelledCount.incrementAndGet()
+                }
+            }
+        }
+
+        allStarted.await()
+        pending.cancelAndJoin()
+
+        assertTrue(runCatching { pending.await() }.exceptionOrNull() is CancellationException)
+        assertEquals(ids.size, cancelledCount.get())
     }
 
     @Test fun radioAlwaysStartsLiveAtZeroAndGenerationChangeRejectsCandidate() = runBlocking {

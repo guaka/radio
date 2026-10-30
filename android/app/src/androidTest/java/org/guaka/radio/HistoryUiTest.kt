@@ -3,6 +3,7 @@ package org.guaka.radio
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,7 +33,7 @@ class HistoryUiTest {
             compose.onAllNodes(androidx.compose.ui.test.hasText("7soul")).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("7soul").assertIsDisplayed()
-        compose.onNodeWithText("Clear history").performClick()
+        compose.onNodeWithContentDescription("Clear history").assertIsDisplayed().performClick()
         compose.waitUntil(10_000) {
             (compose.activity.application as RadioApp).repository.listening.historyIds().isEmpty()
         }
