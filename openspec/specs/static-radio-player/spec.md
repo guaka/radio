@@ -9,7 +9,7 @@ The system SHALL serve a usable radio player from the files in `public/` without
 #### Scenario: User opens the home page
 - **WHEN** a browser requests `/`
 - **THEN** the application loads `public/index.html`
-- **AND** channel data is available from `public/channels.js`.
+- **AND** channel data is built from `src/frontend/channels.ts`.
 
 #### Scenario: Unknown non-API route
 - **WHEN** a browser requests an unknown route that is not reserved for backend APIs
