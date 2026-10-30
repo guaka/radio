@@ -162,6 +162,10 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
         if (token.isNotBlank()) header("X-Plex-Token", token)
     }
 
+    suspend fun plexAccountName(token: String): String {
+        val user = request("https://plex.tv/api/v2/user", token) as JSONObject
+        return user.optString("username").ifBlank { user.optString("title") }
+    }
     suspend fun createPin(): Pin {
         val response = request("https://plex.tv/api/v2/pins", body = FormBody.Builder().add("strong", "true").build()) as JSONObject
         return Pin(response.getInt("id"), response.getString("code"))
@@ -176,6 +180,18 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
     }
     suspend fun servers(token: String): List<PlexServer> = IntegrationParser.servers(
         request("https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1", token) as JSONArray)
+
+    suspend fun checkAssistantConnection(base: String, token: String) {
+        try {
+            val players = command(base, token, "players/all")
+            check(players is JSONArray) { "The server did not return a Music Assistant player list. Check the Music Assistant URL." }
+        } catch (e: ApiRequestException) {
+            if (e.statusCode in listOf(404, 405, 410)) throw IOException("Music Assistant API not found. Enter the Music Assistant server URL.")
+            throw e
+        } catch (e: org.json.JSONException) {
+            throw IOException("The server did not return a Music Assistant response. Check the server URL.")
+        }
+    }
 
     suspend fun command(base: String, token: String, command: String, args: JSONObject = JSONObject()): Any {
         val payload = JSONObject().put("message_id", java.util.UUID.randomUUID().toString()).put("command", command).put("args", args)
