@@ -420,26 +420,18 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     private fun startSpeakerPlayback(uri: String, chosen: List<Speaker>, pausePhone: () -> Unit, request: Long) {
         speakerJob = action {
-            var paused = false
-            val result = playOnSpeakers(chosen, play = { speaker ->
-                setStatus("Sending to ${speaker.name}…")
-                repository.playSpeaker(speaker, uri)
-            }, onStarted = { started ->
-                speakerEpoch.publishIfCurrent(request) {
-                    if (!paused) { pausePhone(); paused = true }
-                    speakerControlGeneration++
-                    activeSpeakers = started
-                    speakerProgress = null
-                    output = started.joinToString { it.name }
-                    speakerTracks = null
-                }
-            })
+            setStatus(if (chosen.size > 1) "Synchronizing speakers…" else "Sending to ${chosen.first().name}…")
+            val target = repository.synchronizedSpeaker(chosen)
+            if (!speakerEpoch.isCurrent(request)) return@action
+            repository.playSpeaker(target, uri)
             speakerEpoch.publishIfCurrent(request) {
-                setStatus(when {
-                    result.started.isEmpty() -> "Music Assistant could not play this item on the selected speakers. Check its player and provider settings. Phone playback was kept."
-                    result.failed.isNotEmpty() -> "Sent to ${result.started.joinToString { it.name }}. Failed: ${result.failed.joinToString { it.name }}."
-                    else -> "Sent to ${result.started.joinToString { it.name }}. Music Assistant owns speaker playback."
-                })
+                pausePhone()
+                speakerControlGeneration++
+                activeSpeakers = listOf(target)
+                speakerProgress = null
+                output = chosen.joinToString { it.name }
+                speakerTracks = null
+                setStatus("Playing on ${chosen.joinToString { it.name }}.")
             }
         }
     }
@@ -1085,7 +1077,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                         selectPlayback(ids, index, resumePosition)
                     } else playerError = "Choose something to play on the phone."
                 }) { Text("This phone") }
-                Text("Select speakers. For synchronized audio, use a Music Assistant speaker group.")
+                Text("Select compatible speakers to play in sync, or choose a Music Assistant group.")
                 if (model.busy) Text("Loading speakers…")
                 if (speakers.isEmpty() && !model.busy) Text(model.status.ifBlank { "No speakers available." })
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {

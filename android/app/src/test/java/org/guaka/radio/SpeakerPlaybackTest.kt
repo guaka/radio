@@ -10,6 +10,34 @@ class SpeakerPlaybackTest {
     private val a = Speaker("a", "Kitchen")
     private val b = Speaker("b", "Bedroom")
     private val c = Speaker("c", "Office")
+    @Test fun synchronizedSelectionGroupsAndWaitsForAllMembers() = runBlocking {
+        val groups = mutableListOf<List<Speaker>>()
+        var reads = 0
+        var waits = 0
+        val target = synchronizedSpeakerTarget(listOf(a, b, b, c), group = { leader, members ->
+            assertEquals(a, leader)
+            groups += members
+        }, readSpeakers = {
+            reads++
+            listOf(a.copy(groupMembers = if (reads == 1) setOf("b") else setOf("b", "c")))
+        }, wait = { waits++ })
+        assertEquals(a, target)
+        assertEquals(listOf(listOf(b, c)), groups)
+        assertEquals(1, waits)
+    }
+    @Test fun failedGroupingNeverReturnsAPlaybackTarget() = runBlocking {
+        var waits = 0
+        val error = runCatching {
+            synchronizedSpeakerTarget(listOf(a, b), group = { _, _ -> }, readSpeakers = { listOf(a) }, wait = { waits++ })
+        }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertEquals(10, waits)
+    }
+    @Test fun singleSpeakerDoesNotChangeGroups() = runBlocking {
+        val target = synchronizedSpeakerTarget(listOf(a), group = { _, _ -> fail("unexpected grouping") },
+            readSpeakers = { fail("unexpected read"); emptyList() }, wait = { fail("unexpected wait") })
+        assertEquals(a, target)
+    }
     @Test fun partialFailurePreservesSuccessfulDestinationsAndTriesTheRest() = runBlocking {
         val sent = mutableListOf<String>()
         val playing = mutableListOf<List<Speaker>>()
