@@ -12,6 +12,15 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 class FavoriteEntriesTest {
+    @Test fun historyHydratesMixedSourcesInOrderWithoutPersistingStreamUrls() = runBlocking {
+        val ids = listOf("radio:7soul", "track:server:42", "youtube:aqz-KE-bpKQ")
+        val entries = resolveFavoriteEntries(ids, true, { null }, history = true) { id ->
+            Entry(id, id, playable = true, url = "https://stream.example/secret", token = "secret")
+        }
+        assertEquals(ids, entries.map { it.id })
+        assertTrue(entries.all { it.url.isEmpty() && it.token.isEmpty() })
+    }
+
     @Test fun resolvesWithBoundedConcurrencyAndKeepsInputOrder() = runBlocking {
         val ids = (0 until 12).map { "track:server:$it" }
         val active = AtomicInteger()

@@ -34,6 +34,7 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("clientId", it).apply()
     }
     val api = ApiClient(clientId)
+    private val assistantRemote = AssistantRemote(context)
     private val youtube = YouTubeAudio()
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -59,6 +60,7 @@ class MusicRepository(private val context: Context) {
             parent == "youtube" -> emptyList()
             parent == "radio" -> stations.drop(start).take(size)
             parent == "favorites" -> favoriteEntries(start, size)
+            parent == "history" -> savedEntries(listening.historyIds().drop(start).take(size), history = true)
             parent == "plex" -> {
                 val token = credentials.get("plexToken")
                 if (token.isBlank()) throw ApiRequestException(401)
@@ -91,6 +93,7 @@ class MusicRepository(private val context: Context) {
         entries[id]?.copy(url = "", token = "") ?: when {
             id == "root" -> Entry("root", "Radio Guaka")
             id == "youtube" -> Entry("youtube", "YouTube")
+            id == "history" -> Entry("history", "History")
             id.startsWith("youtube:") -> runInterruptible { youtube.item(id) }
             id in listOf("radio", "plex", "favorites") -> browse("root").first { it.id == id }
             id.startsWith("server:") -> {
@@ -128,8 +131,9 @@ class MusicRepository(private val context: Context) {
         if (parent == "root" || parent == "radio") {
             matches += stations.filter { searchable(it, text) }
         }
-        if (parent == "favorites") {
-            return@withContext favoriteEntries().filter { searchable(it, text) }.drop(start).take(size)
+        if (parent == "favorites" || parent == "history") {
+            val saved = if (parent == "favorites") favoriteEntries() else savedEntries(listening.historyIds(), history = true)
+            return@withContext saved.filter { searchable(it, text) }.drop(start).take(size)
         }
         if (parent.startsWith("artist:") || parent.startsWith("album:")) {
             var offset = 0
@@ -215,11 +219,15 @@ class MusicRepository(private val context: Context) {
     }
 
     private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> =
+        savedEntries(listening.favoriteIds().drop(start).take(size))
+
+    private suspend fun savedEntries(ids: List<String>, history: Boolean = false): List<Entry> =
         resolveFavoriteEntries(
-            ids = listening.favoriteIds().drop(start).take(size),
+            ids = ids,
             tokenAvailable = credentials.get("plexToken").isNotBlank(),
             cachedEntry = { entries[it] },
             resolveEntry = { item(it) },
+            history = history,
         )
 
     private suspend fun plexScopes(parent: String): List<Triple<String, String, String?>> {
@@ -404,39 +412,79 @@ class MusicRepository(private val context: Context) {
         val previous = credentials.get("plexToken")
         discovery.reset()
         credentials.set("plexToken", token)
+        if (previous != token) preferences.edit().remove("plexAccountName").apply()
         discovery.reset()
         if (previous != token) listening.clearPlex()
         entries.keys.filter { it.startsWith("track:") || it.startsWith("album:") || it.startsWith("artist:") || it.startsWith("library:") || it.startsWith("catalog:") || it.startsWith("server:") }
             .forEach { entries.remove(it) }
     }
 
-    fun assistantAvailable(): Boolean {
-        val manager = context.getSystemService(ConnectivityManager::class.java)
-        val caps = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-        return assistantNetworkAllowed(assistantUrl(), true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+    fun plexAccountName() = preferences.getString("plexAccountName", "").orEmpty()
+    suspend fun refreshPlexAccountName(): String {
+        val token = credentials.get("plexToken")
+        if (token.isBlank()) return ""
+        val name = api.plexAccountName(token)
+        if (token != credentials.get("plexToken")) return ""
+        preferences.edit().putString("plexAccountName", name).apply()
+        return name
     }
-    private fun requireAssistantNetwork() { check(assistantAvailable()) { "Connect to a network; HTTP speaker connections require Wi-Fi or Ethernet." } }
-    fun assistantUrl() = preferences.getString("assistantUrl", "").orEmpty()
-    fun saveAssistant(url: String, token: String) {
-        val normalized = IntegrationParser.localAssistantUrl(url)
-        require(token.isNotBlank()) { "Enter a Music Assistant access token." }
-        credentials.set("assistantToken", token.trim())
-        preferences.edit().putString("assistantUrl", normalized).apply()
+    fun assistantRemoteId() = preferences.getString("assistantRemoteId", "").orEmpty()
+    fun hasAssistantToken(id: String): Boolean =
+        runCatching { AssistantRemoteIdentity.normalize(id) == assistantRemoteId() }.getOrDefault(false) &&
+            credentials.get("assistantRemoteToken").isNotBlank()
+
+    suspend fun saveAssistant(id: String, token: String) {
+        val normalized = AssistantRemoteIdentity.normalize(id)
+        val selectedToken = assistantTokenForServer(normalized, token, assistantRemoteId(), credentials.get("assistantRemoteToken"))
+        val players = assistantRemote.command(normalized, selectedToken, "players/all")
+        check(players is JSONArray) { "Music Assistant did not return a player list." }
+        currentCoroutineContext().ensureActive()
+        credentials.set("assistantRemoteToken", selectedToken)
+        preferences.edit().putString("assistantRemoteId", normalized).remove("assistantUrl").apply()
+        credentials.set("assistantToken", "")
     }
+    private suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
+        assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
-        requireAssistantNetwork()
-        IntegrationParser.speakers(api.command(assistantUrl(), credentials.get("assistantToken"), "players/all") as JSONArray)
+        IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
+    }
+    suspend fun speakerStream(entry: Entry): String = withContext(Dispatchers.IO) {
+        when {
+            entry.id.startsWith("radio:") -> stations.first { it.id == entry.id }.url
+            entry.id.startsWith("youtube:") -> runInterruptible { youtube.playable(entry.id) }.url.also {
+                require(YouTubeIds.isAudioHost(it)) { "YouTube returned an unsupported speaker stream." }
+            }
+            else -> throw IOException("Choose a matching Music Assistant library track for Plex.")
+        }
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        requireAssistantNetwork()
-        val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle}").put("media_types", JSONArray().put("track")).put("limit", 10)
-        IntegrationParser.speakerTracks(api.command(assistantUrl(), credentials.get("assistantToken"), "music/search", args) as JSONObject)
+        val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle.substringBefore(" · ")}").put("media_types", JSONArray().put("track")).put("library_only", true).put("limit", 10)
+        IntegrationParser.speakerTracks(assistantCommand("music/search", args) as JSONObject)
+    }
+    internal suspend fun speakerProgress(speaker: Speaker): SpeakerProgress? = withContext(Dispatchers.IO) {
+        val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
+        queue?.let(SpeakerProgress::parse)
+    }
+    suspend fun controlSpeakers(speakers: List<Speaker>, command: String, positionMs: Long? = null) = withContext(Dispatchers.IO) {
+        val queues = mutableSetOf<String>()
+        val failures = mutableListOf<String>()
+        for (speaker in speakers.distinctBy { it.id }) {
+            try {
+                val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
+                    ?: throw IOException("The speaker has no active Music Assistant queue.")
+                val id = queue.getString("queue_id")
+                if (id in queues) continue
+                val args = JSONObject().put("queue_id", id)
+                positionMs?.let { args.put("position", (it.coerceAtLeast(0) / 1000).toInt()) }
+                assistantCommand("player_queues/$command", args)
+                queues.add(id)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { failures.add(speaker.name) }
+        }
+        check(failures.isEmpty()) { "Could not update: ${failures.joinToString()}. Other speakers were still attempted." }
     }
     suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
-        requireAssistantNetwork()
-        api.command(assistantUrl(), credentials.get("assistantToken"), "player_queues/play_media",
-            JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
+        assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
     }
 
     companion object {
@@ -451,3 +499,9 @@ class MusicRepository(private val context: Context) {
 
 internal fun assistantNetworkAllowed(url: String, connected: Boolean, localNetwork: Boolean): Boolean =
     connected && (localNetwork || runCatching { url.toHttpUrl().isHttps }.getOrDefault(false))
+
+internal fun assistantTokenForServer(url: String, entered: String, savedUrl: String, savedToken: String): String {
+    val token = entered.trim().ifBlank { if (url == savedUrl) savedToken else "" }
+    require(token.isNotBlank()) { "Enter a Music Assistant access token for this server." }
+    return token
+}

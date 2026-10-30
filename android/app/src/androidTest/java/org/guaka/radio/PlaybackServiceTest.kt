@@ -171,6 +171,8 @@ class PlaybackServiceTest {
             return id
         }
         try {
+            val listening = (context.applicationContext as RadioApp).repository.listening
+            listening.clearHistory()
             val initial = start(listOf("radio:7soul"))
             assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS, initial.get(60, TimeUnit.SECONDS).resultCode)
             val oldId = currentId()
@@ -183,11 +185,13 @@ class PlaybackServiceTest {
                 Thread.sleep(25)
             } while (android.os.SystemClock.elapsedRealtime() < audibleDeadline)
             assertTrue("Initial station must be audibly playing before testing handoff", audible)
+            assertEquals("radio:7soul", listening.historyIds().firstOrNull())
 
             val bad = start(listOf("radio:missing-station"))
             val failed = bad.get(15, TimeUnit.SECONDS)
             assertNotNull("A failed selection should return a sanitized session error", failed.sessionError)
             assertEquals("radio:7soul", currentId())
+            assertEquals(listOf("radio:7soul"), listening.historyIds())
             instrumentation.runOnMainSync { assertTrue("Failed staging must retain playback", browser.isPlaying) }
 
             val switching = start(listOf("radio:beatblender"))
@@ -209,6 +213,26 @@ class PlaybackServiceTest {
             assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS, switched.resultCode)
             assertEquals("radio:beatblender", currentId())
             assertTrue("The old station should remain active for the entire preload window", sawOldWhileBuffering)
+            // A speaker handoff pauses local playback. Returning to phone must resolve and
+            // prepare a fresh stream, rather than resume a stale paused live connection.
+            instrumentation.runOnMainSync { browser.pause() }
+            val pauseDeadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            var paused = false
+            while (!paused && android.os.SystemClock.elapsedRealtime() < pauseDeadline) {
+                instrumentation.runOnMainSync { paused = !browser.isPlaying }
+                Thread.sleep(25)
+            }
+            assertTrue("Phone must pause for speaker handoff", paused)
+            assertEquals(androidx.media3.session.SessionResult.RESULT_SUCCESS,
+                start(listOf("radio:beatblender")).get(60, TimeUnit.SECONDS).resultCode)
+            val resumeDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
+            var resumed = false
+            while (!resumed && android.os.SystemClock.elapsedRealtime() < resumeDeadline) {
+                instrumentation.runOnMainSync { resumed = browser.isPlaying }
+                Thread.sleep(25)
+            }
+            assertTrue("Fresh phone playback must resume after speaker handoff", resumed)
+
         } finally {
             instrumentation.runOnMainSync { browser.stop(); browser.clearMediaItems(); browser.release() }
             context.stopService(android.content.Intent(context, PlaybackService::class.java))
