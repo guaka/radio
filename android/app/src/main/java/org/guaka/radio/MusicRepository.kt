@@ -35,6 +35,7 @@ class MusicRepository(private val context: Context) {
     }
     val api = ApiClient(clientId)
     private val assistantRemote = AssistantRemote(context)
+    internal val phoneRelay = PhoneAudioRelay(context.applicationContext)
     private val youtube = YouTubeAudio()
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -414,7 +415,7 @@ class MusicRepository(private val context: Context) {
         credentials.set("plexToken", token)
         if (previous != token) preferences.edit().remove("plexAccountName").apply()
         discovery.reset()
-        if (previous != token) listening.clearPlex()
+        if (previous != token) { phoneRelay.stopPlex(); listening.clearPlex() }
         entries.keys.filter { it.startsWith("track:") || it.startsWith("album:") || it.startsWith("artist:") || it.startsWith("library:") || it.startsWith("catalog:") || it.startsWith("server:") }
             .forEach { entries.remove(it) }
     }
@@ -447,6 +448,38 @@ class MusicRepository(private val context: Context) {
         assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
         IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
+    }
+    internal fun speakerSourceMode(): SpeakerSourceMode =
+        runCatching { SpeakerSourceMode.valueOf(preferences.getString("speakerSourceMode", "").orEmpty()) }.getOrDefault(SpeakerSourceMode.PHONE_RELAY)
+    internal fun setSpeakerSourceMode(mode: SpeakerSourceMode) { preferences.edit().putString("speakerSourceMode", mode.name).apply() }
+    internal suspend fun prepareSpeakerMedia(entry: Entry): SpeakerMedia {
+        var ownedRelay: PhoneAudioRelaySession? = null
+        return try {
+            withContext(Dispatchers.IO) {
+                if (speakerSourceMode() == SpeakerSourceMode.PHONE_RELAY && (entry.id.startsWith("track:") || entry.id.startsWith("youtube:"))) {
+                    val resolved = playable(entry.id)
+                    val generation = resolved.credentialGeneration
+                    check(resolved.token.isBlank() || generation == listening.plexGeneration()) { "Plex sign-in changed. Choose the track again." }
+                    var selected: PhoneAudioRelaySession? = null
+                    for (address in phoneRelayAddresses()) {
+                        val relay = phoneRelay.prepare(resolved, api.http, address) { resolved.token.isBlank() || generation == listening.plexGeneration() }
+                        try {
+                            assistantCommand("music/item_by_uri", JSONObject().put("uri", relay.uri))
+                            relay.awaitReceiver()
+                            selected = relay
+                            break
+                        } catch (e: kotlinx.coroutines.CancellationException) { phoneRelay.discard(relay); throw e }
+                        catch (_: Exception) { phoneRelay.discard(relay) }
+                    }
+                    val relay = selected ?: throw IOException("Music Assistant cannot reach this phone’s relay over Nebula or LAN. Check VPN routing and firewall access.")
+                    ownedRelay = relay
+                    SpeakerMedia(relay.uri, relay)
+                } else SpeakerMedia(speakerStream(entry))
+            }
+        } catch (error: Exception) {
+            phoneRelay.discard(ownedRelay)
+            throw error
+        }
     }
     suspend fun speakerStream(entry: Entry): String = withContext(Dispatchers.IO) {
         when {
@@ -483,8 +516,9 @@ class MusicRepository(private val context: Context) {
         }
         check(failures.isEmpty()) { "Could not update: ${failures.joinToString()}. Other speakers were still attempted." }
     }
-    suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
-        assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
+    internal suspend fun playSpeaker(speaker: Speaker, media: SpeakerMedia) = withContext(Dispatchers.IO) {
+        assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media.uri)).put("option", "replace"))
+        media.relay?.awaitReceiver()
     }
 
     companion object {

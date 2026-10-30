@@ -108,6 +108,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     var loginUrl by mutableStateOf<String?>(null); private set
     var plexSignedIn by mutableStateOf(repository.credentials.get("plexToken").isNotBlank()); private set
     var plexAccountName by mutableStateOf(repository.plexAccountName()); private set
+    internal var speakerSourceMode by mutableStateOf(repository.speakerSourceMode()); private set
+    internal fun setSpeakerSourceMode(mode: SpeakerSourceMode) { repository.setSpeakerSourceMode(mode); speakerSourceMode = mode }
     internal var speakerProgress by mutableStateOf<SpeakerProgress?>(null); private set
     private var activeSpeakers = emptyList<Speaker>()
     private var speakerControlGeneration = 0L
@@ -398,10 +400,11 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val entry = selectedEntry ?: return
         val request = beginSpeakerOperation()
         selectedSpeakers = chosen.distinctBy { it.id }
-        if (entry.id.startsWith("radio:") || entry.id.startsWith("youtube:")) {
+        if (entry.id.startsWith("radio:") || entry.id.startsWith("youtube:") || speakerSourceMode == SpeakerSourceMode.PHONE_RELAY) {
             speakerJob = action {
-                val uri = repository.speakerStream(entry)
-                if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(uri, selectedSpeakers, pausePhone, request)
+                val media = repository.prepareSpeakerMedia(entry)
+                if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(media, selectedSpeakers, pausePhone, request)
+                else repository.phoneRelay.discard(media.relay)
             }
         } else speakerJob = action {
             val tracks = repository.speakerTracks(entry)
@@ -416,31 +419,34 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val chosen = selectedSpeakers
         if (chosen.isEmpty()) return
         val request = beginSpeakerOperation()
-        startSpeakerPlayback(uri, chosen, pausePhone, request)
+        startSpeakerPlayback(SpeakerMedia(uri), chosen, pausePhone, request)
     }
-    private fun startSpeakerPlayback(uri: String, chosen: List<Speaker>, pausePhone: () -> Unit, request: Long) {
+    private fun startSpeakerPlayback(media: SpeakerMedia, chosen: List<Speaker>, pausePhone: () -> Unit, request: Long) {
         speakerJob = action {
             var paused = false
-            val result = playOnSpeakers(chosen, play = { speaker ->
-                setStatus("Sending to ${speaker.name}…")
-                repository.playSpeaker(speaker, uri)
-            }, onStarted = { started ->
-                speakerEpoch.publishIfCurrent(request) {
-                    if (!paused) { pausePhone(); paused = true }
-                    speakerControlGeneration++
-                    activeSpeakers = started
-                    speakerProgress = null
-                    output = started.joinToString { it.name }
-                    speakerTracks = null
-                }
-            })
-            speakerEpoch.publishIfCurrent(request) {
-                setStatus(when {
-                    result.started.isEmpty() -> "Music Assistant could not play this item on the selected speakers. Check its player and provider settings. Phone playback was kept."
-                    result.failed.isNotEmpty() -> "Sent to ${result.started.joinToString { it.name }}. Failed: ${result.failed.joinToString { it.name }}."
-                    else -> "Sent to ${result.started.joinToString { it.name }}. Music Assistant owns speaker playback."
+            try {
+                val result = playOnSpeakers(chosen, play = { speaker ->
+                    setStatus("Sending to ${speaker.name}…")
+                    repository.playSpeaker(speaker, media)
+                }, onStarted = { started ->
+                    speakerEpoch.publishIfCurrent(request) {
+                        if (!paused) { repository.phoneRelay.activate(media.relay); pausePhone(); paused = true }
+                        speakerControlGeneration++
+                        activeSpeakers = started
+                        speakerProgress = null
+                        output = started.joinToString { it.name }
+                        speakerTracks = null
+                    }
                 })
-            }
+                speakerEpoch.publishIfCurrent(request) {
+                    setStatus(when {
+                        result.started.isEmpty() -> if (media.relay != null) "Music Assistant could not fetch audio from this phone. Keep Nebula connected or use a reachable LAN. Previous playback was kept."
+                            else "Music Assistant could not play this item on the selected speakers. Check its player and provider settings. Previous playback was kept."
+                        result.failed.isNotEmpty() -> "Sent to ${result.started.joinToString { it.name }}. Failed: ${result.failed.joinToString { it.name }}."
+                        else -> "Sent to ${result.started.joinToString { it.name }}. Music Assistant owns speaker playback."
+                    })
+                }
+            } finally { repository.phoneRelay.discard(media.relay) }
         }
     }
     private fun beginSpeakerOperation(): Long {
@@ -455,6 +461,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         speakerControlGeneration++
         activeSpeakers = emptyList()
         speakerProgress = null
+        repository.phoneRelay.stop()
         output = "This phone"
     }
     fun openBook(mediaId: String): Boolean {
@@ -791,6 +798,20 @@ fun AppScreen(model: MainModel = viewModel()) {
                 OutlinedTextField(assistantToken, { assistantToken = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 if (model.repository.hasAssistantToken(assistantRemoteId)) Text("Token saved securely. Leave blank to use it, or enter a replacement.")
                 Text("Enable Music Assistant → Settings → Remote Access and copy its Remote ID. Create an access token in Settings → Profile.")
+                HorizontalDivider()
+                Text("Speaker audio", style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = model.speakerSourceMode == SpeakerSourceMode.PHONE_RELAY,
+                        onClick = { model.setSpeakerSourceMode(SpeakerSourceMode.PHONE_RELAY) })
+                    Text("Relay through this phone (default)")
+                }
+                Text("YouTube and Plex audio is fetched by this phone. Keep Nebula connected, or use a LAN where Music Assistant can reach the phone. No extra music providers are needed.")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = model.speakerSourceMode == SpeakerSourceMode.MUSIC_ASSISTANT,
+                        onClick = { model.setSpeakerSourceMode(SpeakerSourceMode.MUSIC_ASSISTANT) })
+                    Text("Music Assistant sources / direct URLs")
+                }
+                Text("Uses Music Assistant library matching for Plex and direct stream URLs for YouTube. Changes apply to the next speaker selection.")
                 if (saveAttempted && model.status.isNotBlank()) Text(model.status, color = MaterialTheme.colorScheme.error)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
