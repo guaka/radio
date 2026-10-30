@@ -400,12 +400,13 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val entry = selectedEntry ?: return
         val request = beginSpeakerOperation()
         selectedSpeakers = chosen.distinctBy { it.id }
+        if (activeSpeakers.isNotEmpty()) {
+            startSpeakerPlayback("", selectedSpeakers, pausePhone, request)
+            return
+        }
         if (entry.id.startsWith("radio:") || entry.id.startsWith("youtube:")) {
             speakerJob = action {
-                val keepingLeader = activeSpeakers.firstOrNull()?.let { active ->
-                    selectedSpeakers.any { it.id == active.id }
-                } == true
-                val uri = if (keepingLeader) "" else repository.speakerStream(entry)
+                val uri = repository.speakerStream(entry)
                 if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(uri, selectedSpeakers, pausePhone, request)
             }
         } else speakerJob = action {
@@ -427,30 +428,27 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         speakerJob = action {
             setStatus(if (chosen.size > 1) "Synchronizing speakers…" else "Sending to ${chosen.first().name}…")
             val previousTarget = activeSpeakers.firstOrNull()
-            val target = repository.synchronizedSpeaker(chosen, activeSpeakerSelection)
-            if (!speakerEpoch.isCurrent(request)) return@action
-            val sameTarget = previousTarget?.id == target.id
-            if (!sameTarget) repository.playSpeaker(target, uri)
-            val previousPauseFailed = if (previousTarget != null && !sameTarget) {
-                try {
-                    repository.controlSpeakers(listOf(previousTarget), "pause")
-                    false
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    true
-                }
-            } else false
+            val result = transitionSpeakers(
+                previous = previousTarget,
+                explicitMediaSelection = uri.isNotBlank(),
+                isCurrent = { speakerEpoch.isCurrent(request) },
+                readSourceQueue = repository::speakerQueueSnapshot,
+                synchronize = { repository.synchronizedSpeaker(chosen, activeSpeakerSelection) },
+                play = { repository.playSpeaker(it, uri) },
+                transfer = repository::transferSpeaker,
+                pausePrevious = { repository.controlSpeakers(listOf(it), "pause") },
+            ) ?: return@action
+            val target = result.target
             speakerEpoch.publishIfCurrent(request) {
                 pausePhone()
                 speakerControlGeneration++
                 activeSpeakers = listOf(target)
                 sleepTimer.updateSpeakers(setOf(target.id))
                 activeSpeakerSelection = listOf(target) + chosen.filterNot { it.id == target.id }
-                if (!sameTarget) speakerProgress = null
+                if (result.action != SpeakerHandoffAction.KEEP) speakerProgress = null
                 output = chosen.joinToString { it.name }
                 speakerTracks = null
-                setStatus(if (previousPauseFailed) "Playing on ${chosen.joinToString { it.name }}. Could not pause the previous speaker."
+                setStatus(if (result.previousPauseFailed) "Playing on ${chosen.joinToString { it.name }}. Could not pause the previous speaker."
                     else "Playing on ${chosen.joinToString { it.name }}.")
             }
         }
@@ -907,6 +905,12 @@ fun AppScreen(model: MainModel = viewModel()) {
             }) { Icon(painterResource(R.drawable.ic_settings), contentDescription = null) }
         }
         val globalSearch = model.searchTerm.isNotBlank()
+        val playable = model.entries.filter { it.playable && !it.id.startsWith("radio:") }.map { it.asMediaItem() }
+        val showQueueButton = (globalSearch || model.parent !in setOf("radio", "books")) &&
+            (globalSearch || (model.parent != "radio" && (model.parent != "favorites" ||
+                model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })))
+        val showClearHistoryButton = !globalSearch && model.parent == "history" && model.entries.isNotEmpty()
+        val showListedActions = !globalSearch && model.parent !in setOf("radio", "books") && playable.isNotEmpty()
         if (!globalSearch && model.parent !in setOf("radio", "plex", "favorites", "history", "books", "youtube"))
             Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(model.searchTerm, model::updateFilter,
@@ -925,14 +929,28 @@ fun AppScreen(model: MainModel = viewModel()) {
                     Icon(painterResource(R.drawable.ic_search), contentDescription = "Search")
                 }
             })
-        if (globalSearch || model.parent !in setOf("radio", "books")) Row {
-            if (globalSearch || (model.parent != "radio" && (model.parent != "favorites" ||
-                    model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") }))) {
-                TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
+        if (showQueueButton || showClearHistoryButton || showListedActions) Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            if (showQueueButton) TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
+            Spacer(Modifier.weight(1f))
+            if (showClearHistoryButton) IconButton(
+                onClick = model::clearHistory,
+                modifier = Modifier.semantics { contentDescription = "Clear history" },
+            ) { Icon(painterResource(R.drawable.ic_delete), contentDescription = null) }
+            if (showListedActions) {
+                IconButton(
+                    onClick = { play(playable) }, enabled = browser != null,
+                    modifier = Modifier.semantics { contentDescription = "Play listed" },
+                ) { Icon(painterResource(R.drawable.ic_playlist_play), contentDescription = null) }
+                IconButton(
+                    onClick = { enqueue(playable) }, enabled = browser != null,
+                    modifier = Modifier.semantics { contentDescription = "Queue listed" },
+                ) { Icon(painterResource(R.drawable.ic_queue_add), contentDescription = null) }
             }
         }
-        if (!globalSearch && model.parent == "history" && model.entries.isNotEmpty())
-            TextButton(onClick = model::clearHistory) { Text("Clear history") }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         val showPlexAuthPrompts = model.parent !in setOf("radio", "favorites", "history", "books", "youtube")
         if (model.status.isNotBlank() && (globalSearch || !(!showPlexAuthPrompts && model.statusScope == StatusScope.PLEX)))
@@ -945,11 +963,6 @@ fun AppScreen(model: MainModel = viewModel()) {
             Text(playerError, color = MaterialTheme.colorScheme.error)
             if (playerFailure?.let { PlaybackRecovery.isRetryable(it) || it == PlaybackFailure.UNKNOWN } == true)
                 TextButton(onClick = ::retryPlayback, enabled = !model.busy && browser != null) { Text("Retry playback") }
-        }
-        val playable = model.entries.filter { it.playable && !it.id.startsWith("radio:") }.map { it.asMediaItem() }
-        if (!globalSearch && model.parent !in setOf("radio", "books") && playable.isNotEmpty()) Row {
-            TextButton(onClick = { play(playable) }, enabled = browser != null) { Text("Play listed") }
-            TextButton(onClick = { enqueue(playable) }, enabled = browser != null) { Text("Queue listed") }
         }
         val bookstrState = model.bookstr.state
         val visibleBooks = BooksLibrary.filter(bookstrState.books, model.searchTerm)
@@ -1173,7 +1186,9 @@ fun AppScreen(model: MainModel = viewModel()) {
                     if (player != null && id != null) {
                         val ids = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(id) }
                         val index = player.currentMediaItemIndex.coerceIn(ids.indices)
-                        val resumePosition = if (player.isCurrentMediaItemSeekable && !id.startsWith("radio:")) player.currentPosition.coerceAtLeast(0) else 0L
+                        val resumePosition = handoffResumePosition(id,
+                            if (player.isCurrentMediaItemSeekable) player.currentPosition else 0L,
+                            model.speakerProgress, System.nanoTime() / 1_000_000)
                         selectPlayback(ids, index, resumePosition)
                     } else playerError = "Choose something to play on the phone."
                 }) { Text("This phone") }

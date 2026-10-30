@@ -476,12 +476,32 @@ class MusicRepository(private val context: Context) {
         }
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle.substringBefore(" · ")}").put("media_types", JSONArray().put("track")).put("library_only", true).put("limit", 10)
-        IntegrationParser.speakerTracks(assistantCommand("music/search", args) as JSONObject)
+        findSpeakerTracks(entry) { query, libraryOnly ->
+            val args = JSONObject().put("search_query", query)
+                .put("media_types", JSONArray().put("track"))
+                .put("library_only", libraryOnly)
+                .put("limit", 10)
+            val result = assistantCommand("music/search", args)
+            IntegrationParser.speakerTracks(result as? JSONObject
+                ?: throw IOException("Music Assistant returned an invalid track search result."))
+        }
     }
     internal suspend fun speakerProgress(speaker: Speaker): SpeakerProgress? = withContext(Dispatchers.IO) {
         val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
         queue?.let(SpeakerProgress::parse)
+    }
+    internal suspend fun speakerQueueSnapshot(speaker: Speaker): SpeakerQueueSnapshot? = withContext(Dispatchers.IO) {
+        val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
+        parseSpeakerQueueSnapshot(queue)
+    }
+    internal suspend fun transferSpeaker(source: SpeakerQueueSnapshot, target: Speaker): Unit = withContext(Dispatchers.IO) {
+        val targetQueue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", target.id)) as? JSONObject
+            ?: throw IOException("The target speaker has no active Music Assistant queue.")
+        val targetSnapshot = parseSpeakerQueueSnapshot(targetQueue)
+            ?: throw IOException("The target speaker has no active Music Assistant queue.")
+        if (source.queueId == targetSnapshot.queueId) return@withContext
+        assistantCommand("player_queues/transfer", speakerTransferArgs(source.queueId, targetSnapshot.queueId))
+        Unit
     }
     suspend fun controlSpeakers(speakers: List<Speaker>, command: String, positionMs: Long? = null) = withContext(Dispatchers.IO) {
         val queues = mutableSetOf<String>()

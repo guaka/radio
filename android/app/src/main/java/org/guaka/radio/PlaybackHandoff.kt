@@ -22,6 +22,7 @@ internal class PlaybackHandoff {
         create: () -> T,
         prepare: suspend (T) -> Unit,
         commit: (T) -> Unit,
+        isAttached: (T) -> Boolean,
         discard: (T) -> Unit,
     ): Boolean {
         val candidate = create()
@@ -34,7 +35,9 @@ internal class PlaybackHandoff {
             committed = true
             return true
         } finally {
-            if (!committed) discard(candidate)
+            // A commit callback can transfer the candidate to its owner and then
+            // throw while finishing ancillary work. Never release an attached player.
+            if (!committed && !isAttached(candidate)) discard(candidate)
         }
     }
 }

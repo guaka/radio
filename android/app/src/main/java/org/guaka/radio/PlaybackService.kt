@@ -84,6 +84,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun buildPlayer(handleAudioFocus: Boolean): ExoPlayer = ExoPlayer.Builder(this)
         .setMediaSourceFactory(ScopedSourceFactory())
+        .setLoadControl(PlaybackBuffering.loadControl())
         .setAudioAttributes(audioAttributes, handleAudioFocus)
         .setHandleAudioBecomingNoisy(true)
         .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -321,13 +322,18 @@ class PlaybackService : MediaLibraryService() {
                         // Focus remains with the old player during preload; acquire it at commit.
                         stagedPlayer.setAudioAttributes(audioAttributes, true)
                         attachPlaybackListeners(stagedPlayer)
-                        session.setPlayer(stagedPlayer)
-                        if (oldPlayer != null && pauseListener != null) oldPlayer.removeListener(pauseListener!!)
-                        stagedPlayer.play()
-                        oldPlayer?.takeIf { it !== stagedPlayer }?.release()
-                        persistPlayback()
-                        requestCurrentArtwork()
+                        try {
+                            session.setPlayer(stagedPlayer)
+                            stagedPlayer.play()
+                        } finally {
+                            if (session.player === stagedPlayer) {
+                                if (oldPlayer != null && pauseListener != null) oldPlayer.removeListener(pauseListener!!)
+                                oldPlayer?.takeIf { it !== stagedPlayer }?.release()
+                            }
+                        }
+                        runCatching { persistPlayback(); requestCurrentArtwork() }
                     },
+                    isAttached = { session.player === it },
                     discard = ExoPlayer::release,
                 )
                 if (!committed) {
