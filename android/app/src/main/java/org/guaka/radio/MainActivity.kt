@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
 
 class MainModel(application: Application) : AndroidViewModel(application) {
     val repository = (application as RadioApp).repository
+    internal val sleepTimer = (application as RadioApp).sleepTimer
     internal val bookstr = BookstrController(application)
     internal val nostr = NostrFavoritesController(repository, viewModelScope)
     internal var nostrLaunchIntent: ((Intent) -> Unit)? = null
@@ -444,6 +445,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
                 pausePhone()
                 speakerControlGeneration++
                 activeSpeakers = listOf(target)
+                sleepTimer.updateSpeakers(setOf(target.id))
                 activeSpeakerSelection = listOf(target) + chosen.filterNot { it.id == target.id }
                 if (!sameTarget) speakerProgress = null
                 output = chosen.joinToString { it.name }
@@ -464,6 +466,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (cancelSpeakerRequests) dismissSpeakers()
         speakerControlGeneration++
         activeSpeakers = emptyList()
+        sleepTimer.updateSpeakers(emptySet())
         activeSpeakerSelection = emptyList()
         speakerProgress = null
         output = "This phone"
@@ -488,6 +491,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val book = bookstr.state.books.firstOrNull { it.id == mediaId } ?: return false
         if (!book.playable) return false
         if (!bookstr.play(mediaId)) return false
+        if (sleepTimer.state() != null) {
+            sleepTimer.cancel()
+            setStatus("Sleep timer turned off for Bookstr playback.")
+        }
         booksPlaybackSelected = true
         return true
     }
@@ -499,6 +506,13 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     fun bookstrPlaybackStarted() {
         booksPlaybackSelected = bookstr.state.hasActiveBook
+        if (booksPlaybackSelected && sleepTimer.state() != null) {
+            sleepTimer.cancel()
+            setStatus("Sleep timer turned off for Bookstr playback.")
+        }
+    }
+    fun startSleepTimer(minutes: Int) {
+        sleepTimer.start(minutes, activeSpeakers.map { it.id }.toSet())
     }
     fun dismissSpeakers() {
         speakerJob?.cancel(); speakerJob = null
@@ -571,6 +585,23 @@ fun AppScreen(model: MainModel = viewModel()) {
     var queue by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var queueIndex by remember { mutableIntStateOf(-1) }
     var showQueue by remember { mutableStateOf(false) }
+    var showSleepTimer by remember { mutableStateOf(false) }
+    var sleepState by remember { mutableStateOf(model.sleepTimer.state()) }
+    var sleepError by remember { mutableStateOf(model.sleepTimer.failure()) }
+    var sleepNow by remember { mutableLongStateOf(android.os.SystemClock.elapsedRealtime()) }
+    DisposableEffect(model) {
+        val stop = model.sleepTimer.observe {
+            sleepState = model.sleepTimer.state()
+            sleepError = model.sleepTimer.failure()
+        }
+        onDispose { stop() }
+    }
+    LaunchedEffect(sleepState?.token) {
+        while (sleepState != null) {
+            sleepNow = android.os.SystemClock.elapsedRealtime()
+            delay(1_000)
+        }
+    }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var seekable by remember { mutableStateOf(false) }
@@ -1011,6 +1042,13 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
         }
         HorizontalDivider()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { showSleepTimer = true }, enabled = !bookOwnsPlayer) {
+                val remaining = sleepState?.let { ((it.deadline - sleepNow).coerceAtLeast(0) + 59_999) / 60_000 }
+                Text(if (remaining == null) "Sleep timer" else if (remaining == 0L) "Sleep soon" else "Sleep: ${remaining}m")
+            }
+            if (sleepError != null) Text(sleepError!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
         if (bookOwnsPlayer) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 val title = bookstrState.currentTitle
@@ -1085,6 +1123,26 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         }
     }
+    if (showSleepTimer) AlertDialog(
+        onDismissRequest = { showSleepTimer = false },
+        title = { Text("Sleep timer") },
+        text = {
+            Column {
+                Text("Pause playback after:")
+                listOf(15, 30, 45, 60).forEach { minutes ->
+                    TextButton(onClick = {
+                        model.startSleepTimer(minutes)
+                        showSleepTimer = false
+                    }) { Text("$minutes minutes") }
+                }
+                if (sleepState != null) TextButton(onClick = {
+                    model.sleepTimer.cancel()
+                    showSleepTimer = false
+                }) { Text("Turn off") }
+            }
+        },
+        confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Close") } },
+    )
     if (showQueue) AlertDialog(onDismissRequest = { showQueue = false }, title = { Text("Phone queue") }, text = {
         if (queue.isEmpty()) Text("Add Plex tracks to build a queue.")
         else LazyColumn(Modifier.heightIn(max = 420.dp)) {

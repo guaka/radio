@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 class RadioApp : Application() {
     override fun onCreate() { super.onCreate(); SettingsMigration.migrate(this) }
     val repository by lazy { MusicRepository(this) }
+    internal val sleepTimer by lazy { SleepTimer(this) }
 }
 
 class MusicRepository(private val context: Context) {
