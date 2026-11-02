@@ -173,13 +173,17 @@ class PhoneAudioRelayTest {
     }
 
     @Test fun closeStopsAcceptingRelayRequests() {
-        val relay = session(upstream())
-        val address = java.net.URI(relay.uri)
-        relay.close()
-        sessions.remove(relay)
+        val server = upstream()
+        repeat(100) {
+            val relay = session(server)
+            val address = java.net.URI(relay.uri)
+            relay.close()
+            sessions.remove(relay)
 
-        val connection = runCatching { Socket(address.host, address.port) }.getOrNull()
-        assertNull("closed relay listener must reject new connections", connection)
-        assertFalse(relay.isOpen)
+            val connection = runCatching { Socket(address.host, address.port) }.getOrNull()
+            connection?.close()
+            assertNull("closed relay listener must reject new connections", connection)
+            assertFalse(relay.isOpen)
+        }
     }
 }

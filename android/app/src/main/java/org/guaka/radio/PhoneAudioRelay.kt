@@ -48,19 +48,19 @@ internal class PhoneAudioRelaySession(
     val uri: String = "http://${address.hostAddress}:${server.localPort}$path"
     val isOpen get() = !closed && System.nanoTime() <= expiresAt
 
-    init {
-        Thread({
-            while (!closed) {
-                try {
-                    val socket = server.accept()
-                    socket.soTimeout = 10_000
-                    clients.add(socket)
-                    try { workers.execute { serve(socket) } }
-                    catch (_: java.util.concurrent.RejectedExecutionException) { clients.remove(socket); socket.close() }
-                } catch (_: IOException) { if (!closed) close() }
-            }
-        }, "radio-audio-relay-listener").apply { isDaemon = true; start() }
-    }
+    private val listener = Thread({
+        while (!closed) {
+            try {
+                val socket = server.accept()
+                socket.soTimeout = 10_000
+                clients.add(socket)
+                try { workers.execute { serve(socket) } }
+                catch (_: java.util.concurrent.RejectedExecutionException) { clients.remove(socket); socket.close() }
+            } catch (_: IOException) { if (!closed) close() }
+        }
+    }, "radio-audio-relay-listener").apply { isDaemon = true }
+
+    init { listener.start() }
 
     suspend fun awaitReceiver() {
         check(withTimeoutOrNull(15_000) { received.await(); true } == true) {
@@ -150,6 +150,16 @@ internal class PhoneAudioRelaySession(
     override fun close() {
         closed = true
         runCatching { server.close() }
+        // A pending accept can keep the native listener open until its thread exits.
+        // Join before closing clients so no accepted socket can escape cleanup.
+        if (Thread.currentThread() != listener) {
+            var interrupted = false
+            while (listener.isAlive) {
+                try { listener.join() }
+                catch (_: InterruptedException) { interrupted = true }
+            }
+            if (interrupted) Thread.currentThread().interrupt()
+        }
         clients.forEach { runCatching { it.close() } }
         calls.forEach { it.cancel() }
         workers.shutdownNow()
