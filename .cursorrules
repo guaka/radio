@@ -47,6 +47,7 @@ Radio Guaka is an Internet Radio player built with HTML5 and vanilla JavaScript.
 - Add channel definitions to `channels.js` in the `channels` object
 - Include required fields: `url` (for non-SomaFM streams), `tags` array
 - Optional: `site` URL for channel website
+- Optional: `artwork` — station image for UI and Media Session: a URL string, or an array of `{ src, sizes?, type? }` (same shape as `MediaMetadata.artwork`). If omitted, `img` is derived from SomaFM / site / stream host.
 - SomaFM channels only need `tags: ['soma']` - URL is auto-generated
 - Broken/non-working channels should be moved to `brokenChannels` object (commented out)
 - **Channel Organization**: Place channels in the appropriate section:

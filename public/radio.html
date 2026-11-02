@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Radio Guaka - An Internet Radio player. Stream your favorite stations including SomaFM, FIP, Radio Paradise, and more.">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://radio.guaka.org/">
+  <meta property="og:title" content="Radio Guaka">
+  <meta property="og:description" content="An Internet Radio player. Stream your favorite stations including SomaFM, FIP, Radio Paradise, and more.">
+  <meta property="og:image" content="https://radio.guaka.org/og-image.png">
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://radio.guaka.org/">
+  <meta name="twitter:title" content="Radio Guaka">
+  <meta name="twitter:description" content="An Internet Radio player. Stream your favorite stations including SomaFM, FIP, Radio Paradise, and more.">
+  <meta name="twitter:image" content="https://radio.guaka.org/og-image.png">
+  
+  <title>Radio Guaka</title>
+  <link rel="icon" type="image/png" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    /* Hide page until fonts load to prevent system font probing */
+    html { visibility: hidden; opacity: 0; }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=block" rel="stylesheet">
+  <script src="/js/radio/bootstrap.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    
+    html {
+      font-size: 16px;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Scan lines overlay for retro-futuristic effect - static to prevent flickering */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 255, 255, 0.02) 0px,
+        rgba(0, 255, 255, 0.02) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    /* Glitch effect overlay - static to prevent flickering */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        linear-gradient(90deg, transparent 50%, rgba(0, 255, 255, 0.01) 50%),
+        linear-gradient(0deg, transparent 50%, rgba(255, 0, 255, 0.01) 50%);
+      background-size: 2px 2px;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.2;
+    }
+    
+    html, body {
+      background: 
+        radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.05) 0%, transparent 50%),
+        linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+      background-attachment: fixed;
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 0;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      font-size: 1rem;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0 clamp(8px, 1.5vw, 15px);
+      box-sizing: border-box;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
+      position: relative;
+      z-index: 10;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      width: 100%;
+    }
+
+    header {
+      padding: 0;
+      margin: 0;
+      border-bottom: 2px solid rgba(0, 255, 255, 0.4);
+      background: 
+        linear-gradient(180deg, rgba(20, 20, 30, 0.95) 0%, rgba(10, 10, 20, 0.98) 100%),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 255, 255, 0.05) 2px,
+          rgba(0, 255, 255, 0.05) 4px
+        );
+      backdrop-filter: blur(10px);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(0, 255, 255, 0.3),
+        0 0 40px rgba(0, 255, 255, 0.2),
+        0 0 60px rgba(0, 255, 255, 0.1);
+      position: relative;
+      z-index: 10;
+    }
+    
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, 
+        transparent 0%,
+        rgba(0, 255, 255, 1) 20%,
+        rgba(255, 0, 255, 1) 50%,
+        rgba(0, 255, 255, 1) 80%,
+        transparent 100%
+      );
+      box-shadow: 
+        0 0 10px rgba(0, 255, 255, 0.8),
+        0 0 20px rgba(0, 255, 255, 0.5),
+        0 0 30px rgba(255, 0, 255, 0.4);
+      z-index: 1;
+    }
+
+    header .container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: clamp(8px, 2vw, 12px);
+      justify-content: space-between;
+      padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 15px) 0 clamp(8px, 1.5vw, 15px);
+      flex-wrap: wrap;
+    }
+    
+    header .volume-control {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      padding: 8px 12px;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.8) 0%, rgba(10, 10, 30, 0.9) 100%);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 6px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 15px rgba(0, 255, 255, 0.3),
+        0 0 25px rgba(0, 255, 255, 0.2);
+    }
+    
+    header .volume-control span {
+      font-size: clamp(14px, 2.5vw, 18px);
+      filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.9)) drop-shadow(0 0 16px rgba(0, 255, 255, 0.5));
+    }
+    
+    header .volume-control input[type="range"] {
+      -webkit-appearance: slider-vertical;
+      appearance: slider-vertical;
+      writing-mode: bt-lr;
+      width: 80px;
+      height: 6px;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      margin: 25px 0;
+      padding: 0;
+      cursor: pointer;
+      background: 
+        linear-gradient(90deg, 
+          rgba(0, 0, 0, 0.8) 0%,
+          rgba(0, 255, 255, 0.2) 50%,
+          rgba(0, 0, 0, 0.8) 100%
+        );
+      border-radius: 3px;
+      outline: none;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      box-shadow: 
+        inset 0 1px 3px rgba(0, 0, 0, 0.5),
+        0 0 8px rgba(0, 255, 255, 0.2);
+    }
+    
+    header .volume-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 
+        0 0 15px rgba(0, 255, 255, 1),
+        0 0 30px rgba(0, 255, 255, 0.7),
+        0 0 45px rgba(0, 255, 255, 0.4),
+        inset 0 1px 2px rgba(255, 255, 255, 0.4);
+      transition: all 0.2s ease;
+    }
+    
+    header .volume-control input[type="range"]::-webkit-slider-thumb:hover {
+      box-shadow: 
+        0 0 20px rgba(0, 255, 255, 1),
+        0 0 40px rgba(0, 255, 255, 0.8),
+        0 0 60px rgba(0, 255, 255, 0.5),
+        inset 0 1px 2px rgba(255, 255, 255, 0.5);
+      transform: scale(1.1);
+    }
+    
+    header .volume-control input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 
+        0 0 15px rgba(0, 255, 255, 1),
+        0 0 30px rgba(0, 255, 255, 0.7),
+        0 0 45px rgba(0, 255, 255, 0.4);
+    }
+
+    header h1 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 2vw, 12px);
+      font-size: clamp(18px, 4vw, 24px);
+      font-weight: 700;
+      font-family: 'Orbitron', 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 1),
+        0 0 20px rgba(0, 255, 255, 0.8),
+        0 0 30px rgba(0, 255, 255, 0.6),
+        0 0 40px rgba(0, 255, 255, 0.4),
+        2px 2px 4px rgba(0, 0, 0, 0.8);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      position: relative;
+      line-height: 1.2;
+    }
+
+    header h1 .logo-icon {
+      font-size: clamp(28px, 7vw, 42px);
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      filter: drop-shadow(0 0 10px rgba(255, 200, 0, 1)) drop-shadow(0 0 20px rgba(255, 200, 0, 0.6)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.3));
+      /* animation: radio-pulse 3s ease-in-out infinite; */
+    }
+    
+    @keyframes radio-pulse {
+      0%, 100% { 
+        transform: scale(1); 
+        filter: drop-shadow(0 0 10px rgba(255, 200, 0, 1)) drop-shadow(0 0 20px rgba(255, 200, 0, 0.6)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.3));
+      }
+      50% { 
+        transform: scale(1.05); 
+        filter: drop-shadow(0 0 15px rgba(255, 200, 0, 1)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.8)) drop-shadow(0 0 45px rgba(255, 200, 0, 0.5));
+      }
+    }
+
+    header h1 strike {
+      color: rgba(255, 0, 255, 0.6);
+      text-decoration: line-through;
+      text-shadow: 0 0 5px rgba(255, 0, 255, 0.5);
+    }
+
+    header audio {
+      display: none;
+    }
+    
+    header input[type="range"]:not(.volume-control input) {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: 
+        linear-gradient(90deg, 
+          rgba(0, 0, 0, 0.8) 0%,
+          rgba(0, 255, 255, 0.2) 50%,
+          rgba(0, 0, 0, 0.8) 100%
+        );
+      border-radius: 3px;
+      outline: none;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      box-shadow: 
+        inset 0 1px 3px rgba(0, 0, 0, 0.5),
+        0 0 8px rgba(0, 255, 255, 0.2);
+    }
+    
+    header input[type="range"]:not(.volume-control input)::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 
+        0 0 8px rgba(0, 255, 255, 0.8),
+        0 0 16px rgba(0, 255, 255, 0.4);
+    }
+    
+    header input[type="range"]:not(.volume-control input)::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: 
+        radial-gradient(circle, #00ffff 0%, #0080ff 100%);
+      border: 2px solid rgba(0, 255, 255, 0.8);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 
+        0 0 8px rgba(0, 255, 255, 0.8),
+        0 0 16px rgba(0, 255, 255, 0.4);
+    }
+
+    header > div > div:not(.volume-control) {
+      display: flex;
+      align-items: center;
+      gap: clamp(6px, 1.5vw, 10px);
+      font-size: clamp(11px, 2vw, 13px);
+      color: #aaa;
+      flex-wrap: wrap;
+    }
+    
+    .header-controls-wrapper {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 2vw, 12px);
+      flex-wrap: wrap;
+      width: 100%;
+    }
+    
+    .header-controls-audio {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+    }
+    
+    .header-channel-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .header-channel-info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: clamp(8px, 1.5vw, 12px);
+      width: 100%;
+      min-width: 0;
+    }
+
+    .header-channel-art {
+      width: clamp(44px, 9vw, 56px);
+      height: clamp(44px, 9vw, 56px);
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0, 255, 255, 0.35);
+      box-shadow:
+        0 0 10px rgba(0, 255, 255, 0.25),
+        inset 0 0 0 1px rgba(255, 0, 255, 0.08);
+    }
+
+    .header-channel-text-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      flex: 1;
+    }
+
+
+    article {
+      padding: clamp(12px, 2.5vh, 24px) 0 clamp(50px, 7vh, 60px) 0;
+      flex: 1;
+      overflow-y: visible;
+      overflow-x: hidden;
+      min-height: 0;
+      background: 
+        radial-gradient(circle at 50% 0%, rgba(0, 255, 255, 0.02) 0%, transparent 50%);
+      position: relative;
+      z-index: 10;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    article .container {
+      height: auto;
+      overflow: visible;
+      min-height: 0;
+    }
+
+    #channels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(4px, 1.2vw, 8px);
+      margin-bottom: clamp(10px, 2vh, 20px);
+    }
+
+    /* Button styles - oldschool radio + cyberpunk */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(3px, 0.6vh, 4px) clamp(6px, 1.2vw, 10px);
+      font-size: clamp(11px, 2vw, 13px);
+      font-weight: 400;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      line-height: 1.4;
+      text-align: center;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      border: 2px solid rgba(255, 68, 68, 0.6);
+      border-radius: 4px;
+      text-decoration: none;
+      color: #ff4444;
+      text-transform: lowercase;
+      letter-spacing: 1px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      min-height: 26px;
+      position: relative;
+      overflow: hidden;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%),
+        repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 1px,
+          rgba(255, 68, 68, 0.03) 1px,
+          rgba(255, 68, 68, 0.03) 2px
+        );
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 68, 68, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 12px rgba(255, 68, 68, 0.3),
+        0 0 20px rgba(255, 68, 68, 0.2);
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 68, 68, 0.3), 
+        transparent
+      );
+      transition: left 0.4s;
+    }
+
+    .btn:hover::before {
+      left: 100%;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      border-color: #ff4444;
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 68, 68, 0.4),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 20px rgba(255, 68, 68, 0.6),
+        0 0 35px rgba(255, 68, 68, 0.4),
+        0 0 50px rgba(255, 68, 68, 0.2);
+      text-shadow: 
+        0 0 10px rgba(255, 68, 68, 1),
+        0 0 20px rgba(255, 68, 68, 0.8),
+        0 0 30px rgba(255, 68, 68, 0.5);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.8),
+        0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    .btn-large {
+      padding: clamp(4px, 0.7vh, 5px) clamp(8px, 1.8vw, 12px);
+      font-size: clamp(11px, 2.2vw, 13px);
+      min-height: 28px;
+    }
+
+    .btn-primary {
+      border-color: rgba(138, 43, 226, 0.6);
+      color: #da70d6;
+      box-shadow: 
+        inset 0 1px 2px rgba(138, 43, 226, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 8px rgba(138, 43, 226, 0.1);
+    }
+    
+    .btn-primary:hover {
+      border-color: #da70d6;
+      color: #ff00ff;
+      text-shadow: 0 0 8px rgba(255, 0, 255, 0.8);
+      box-shadow: 
+        inset 0 1px 2px rgba(138, 43, 226, 0.3),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 15px rgba(255, 0, 255, 0.4),
+        0 0 25px rgba(255, 0, 255, 0.2);
+    }
+
+    .btn-success {
+      border-color: rgba(0, 255, 127, 0.6);
+      color: #00ff7f;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 127, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 8px rgba(0, 255, 127, 0.1),
+        0 0 15px rgba(0, 255, 127, 0.2);
+      /* animation: active-glow 2s ease-in-out infinite; */
+    }
+    
+    @keyframes active-glow {
+      0%, 100% { 
+        box-shadow: 
+          inset 0 1px 2px rgba(0, 255, 127, 0.2),
+          inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+          0 2px 4px rgba(0, 0, 0, 0.6),
+          0 0 8px rgba(0, 255, 127, 0.1),
+          0 0 15px rgba(0, 255, 127, 0.2);
+      }
+      50% { 
+        box-shadow: 
+          inset 0 1px 2px rgba(0, 255, 127, 0.3),
+          inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+          0 2px 4px rgba(0, 0, 0, 0.6),
+          0 0 12px rgba(0, 255, 127, 0.3),
+          0 0 25px rgba(0, 255, 127, 0.4);
+      }
+    }
+
+    .btn-success:hover {
+      border-color: #00ff7f;
+      color: #00ffaa;
+      text-shadow: 0 0 10px rgba(0, 255, 127, 1);
+    }
+
+    .btn-danger {
+      border-color: rgba(255, 20, 147, 0.6);
+      color: #ff1493;
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 20, 147, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 8px rgba(255, 20, 147, 0.1);
+    }
+
+    .btn-danger:hover {
+      border-color: #ff1493;
+      color: #ff00ff;
+      text-shadow: 0 0 10px rgba(255, 20, 147, 1);
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 20, 147, 0.3),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 15px rgba(255, 20, 147, 0.4),
+        0 0 25px rgba(255, 20, 147, 0.2);
+    }
+
+    .channel {
+      text-transform: lowercase;
+      letter-spacing: 1.5px;
+    }
+
+    h1, h2 {
+      margin: clamp(12px, 2.5vh, 18px) 0 clamp(10px, 2vh, 14px) 0;
+      font-size: clamp(22px, 5vw, 32px);
+      font-weight: 700;
+      font-family: 'Orbitron', 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      color: #00ffff;
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 2vw, 12px);
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 0.6),
+        0 0 20px rgba(0, 255, 255, 0.3),
+        2px 2px 4px rgba(0, 0, 0, 0.8);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      position: relative;
+    }
+    
+    h1::before, h2::before {
+      content: '▶';
+      font-size: 0.6em;
+      color: rgba(0, 255, 255, 0.5);
+      margin-right: 8px;
+      display: flex;
+      align-items: center;
+    }
+    
+    /* Remove play arrow from header h1 and h2 */
+    header h1::before,
+    header h2::before {
+      content: none;
+    }
+
+    h1 span {
+      font-weight: 400;
+      text-transform: lowercase;
+      letter-spacing: 2px;
+    }
+    
+    h2 {
+      font-size: clamp(16px, 3.5vw, 22px);
+      color: rgba(0, 255, 255, 0.8);
+      border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    
+    /* Header h2 should not have border, padding, or margin */
+    header h2 {
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-bottom: 0;
+    }
+
+    #metadata {
+      margin-top: clamp(10px, 2vh, 14px);
+      display: flex;
+      align-items: center;
+      gap: clamp(10px, 2.5vw, 14px);
+      flex-wrap: wrap;
+    }
+
+    #metadata a {
+      color: #ffd700;
+      text-decoration: none;
+      font-size: clamp(11px, 2vw, 13px);
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      padding: clamp(5px, 1vh, 6px) clamp(10px, 2vw, 12px);
+      background: 
+        linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 165, 0, 0.1) 100%);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      border-radius: 3px;
+      transition: all 0.2s ease;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 215, 0, 0.2),
+        0 0 8px rgba(255, 215, 0, 0.1);
+    }
+
+    #metadata a:hover {
+      background: 
+        linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 165, 0, 0.2) 100%);
+      border-color: rgba(255, 215, 0, 0.6);
+      transform: translateY(-1px);
+      box-shadow: 
+        inset 0 1px 2px rgba(255, 215, 0, 0.3),
+        0 0 15px rgba(255, 215, 0, 0.3);
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+    }
+
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: clamp(8px, 1.5vh, 12px) 0;
+      background: 
+        linear-gradient(180deg, rgba(10, 10, 20, 0.98) 0%, rgba(20, 20, 30, 0.95) 100%),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 255, 255, 0.03) 2px,
+          rgba(0, 255, 255, 0.03) 4px
+        );
+      backdrop-filter: blur(10px);
+      border-top: 2px solid rgba(0, 255, 255, 0.3);
+      z-index: 50; /* Below chat container so chat appears on top */
+      box-shadow: 
+        0 -4px 20px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(0, 255, 255, 0.2),
+        0 0 30px rgba(0, 255, 255, 0.1);
+    }
+    
+    /* Desktop: adjust footer to not overlap chat container */
+    @media (min-width: 769px) {
+      footer {
+        right: 350px; /* Leave space for chat container (350px wide) */
+      }
+    }
+    
+    footer::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, 
+        transparent 0%,
+        rgba(0, 255, 255, 0.8) 20%,
+        rgba(255, 0, 255, 0.8) 50%,
+        rgba(0, 255, 255, 0.8) 80%,
+        transparent 100%
+      );
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    footer .container {
+      padding: clamp(6px, 1.2vh, 8px) clamp(12px, 2vw, 18px);
+    }
+
+    footer p {
+      margin: 0;
+      font-size: clamp(10px, 2.2vw, 12px);
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      line-height: 1.8;
+      color: rgba(0, 255, 255, 0.7);
+      text-align: right;
+      text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+      letter-spacing: 0.5px;
+    }
+
+    footer a {
+      color: #ffd700;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+
+    footer a:hover {
+      color: #ffff00;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      text-decoration: none;
+    }
+
+    footer strong {
+      color: #00ffff;
+      font-weight: 700;
+      text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+    }
+
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      html {
+        font-size: 15px;
+      }
+      
+      body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      header {
+        padding: 0;
+      }
+      
+      header .container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: clamp(6px, 1.2vh, 8px);
+        padding: clamp(6px, 1.2vh, 8px) clamp(10px, 2.5vw, 12px);
+      }
+      
+      header h1 {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin: 0;
+        font-size: clamp(14px, 3.5vw, 16px);
+        letter-spacing: 1px;
+      }
+      
+      header h1 .logo-icon {
+        font-size: clamp(20px, 5vw, 24px) !important;
+      }
+      
+      header h1 img {
+        height: clamp(24px, 6vw, 28px);
+      }
+      
+      .header-controls-wrapper {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: clamp(4px, 1vh, 6px);
+      }
+      
+      .header-controls-audio {
+        width: 100%;
+      }
+      
+      .header-channel-info {
+        width: 100%;
+      }
+
+      .header-channel-info-row {
+        justify-content: center;
+        align-items: center;
+      }
+
+      .header-channel-text-block {
+        align-items: center;
+      }
+      
+      .control-panel {
+        width: 100%;
+        justify-content: center;
+        padding: clamp(6px, 1.2vh, 8px);
+        gap: clamp(6px, 1.5vw, 8px);
+      }
+      
+      header h2 {
+        text-align: center;
+        font-size: clamp(11px, 2.5vw, 13px);
+        margin: 0;
+        line-height: 1.3;
+      }
+      
+      .current-song {
+        text-align: center;
+        font-size: clamp(9px, 2vw, 11px);
+        line-height: 1.3;
+        margin-top: 2px;
+      }
+      
+      #channels {
+        justify-content: flex-start;
+      }
+      
+      .btn {
+        white-space: normal;
+        word-break: break-word;
+        hyphens: auto;
+        min-height: 44px;
+        padding: clamp(8px, 1.5vh, 10px) clamp(12px, 3vw, 16px);
+        font-size: clamp(12px, 2.5vw, 14px);
+        touch-action: manipulation;
+      }
+      
+      .btn-play-pause {
+        align-self: center;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        font-size: clamp(16px, 4vw, 20px) !important;
+        padding: clamp(6px, 1.2vh, 8px) !important;
+      }
+      
+      .time-display {
+        font-size: clamp(10px, 2.2vw, 12px) !important;
+        padding: clamp(4px, 0.8vh, 6px) clamp(8px, 1.8vw, 10px) !important;
+      }
+      
+      header .volume-control {
+        display: none;
+      }
+      
+      article {
+        padding-top: clamp(8px, 1.5vh, 12px);
+        padding-bottom: clamp(80px, 12vh, 100px);
+      }
+      
+      footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      html {
+        font-size: 14px;
+      }
+      
+      body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      header {
+        padding: 0;
+      }
+      
+      header .container {
+        padding: clamp(4px, 1vh, 6px) clamp(8px, 2vw, 10px);
+        gap: clamp(4px, 1vh, 6px);
+      }
+      
+      header h1 {
+        gap: 6px;
+        font-size: clamp(12px, 3vw, 14px);
+        letter-spacing: 0.5px;
+      }
+      
+      header h1 .logo-icon {
+        font-size: clamp(18px, 4.5vw, 20px) !important;
+      }
+      
+      .header-controls-wrapper {
+        gap: clamp(3px, 0.8vh, 4px);
+      }
+      
+      .control-panel {
+        padding: clamp(4px, 1vh, 6px);
+        gap: clamp(4px, 1.2vw, 6px);
+      }
+      
+      header h2 {
+        font-size: clamp(10px, 2.2vw, 11px);
+      }
+      
+      .current-song {
+        font-size: clamp(8px, 1.8vw, 10px);
+      }
+      
+      #channels {
+        gap: 8px;
+      }
+      
+      .btn-large {
+        padding: clamp(10px, 2vh, 12px) clamp(14px, 3vw, 16px);
+        font-size: clamp(12px, 2.5vw, 13px);
+        min-height: 44px;
+      }
+      
+      h1, h2 {
+        font-size: clamp(16px, 4vw, 20px);
+      }
+      
+      footer p {
+        line-height: 1.5;
+        font-size: clamp(9px, 2vw, 11px);
+        text-align: center;
+      }
+      
+      .time-display {
+        font-size: clamp(9px, 2vw, 11px) !important;
+        padding: clamp(3px, 0.6vh, 5px) clamp(6px, 1.5vw, 8px) !important;
+      }
+      
+      .btn-play-pause {
+        min-width: 40px !important;
+        min-height: 40px !important;
+        font-size: clamp(14px, 3.5vw, 18px) !important;
+        padding: clamp(4px, 1vh, 6px) !important;
+      }
+      
+      header .volume-control {
+        display: none;
+      }
+      
+      article {
+        padding-top: clamp(6px, 1.2vh, 8px);
+      }
+    }
+    
+    /* Desktop styles - restore horizontal layout */
+    @media (min-width: 769px) {
+      .chat-toggle-btn {
+        display: none !important;
+      }
+      header {
+        padding: 0;
+      }
+      
+      header .container {
+        flex-direction: row !important;
+        align-items: center;
+        gap: clamp(12px, 2vw, 16px);
+        padding: clamp(8px, 1.2vh, 12px) clamp(12px, 2vw, 20px);
+        flex-wrap: nowrap;
+      }
+      
+      header h1 {
+        flex-direction: row !important;
+        align-items: center;
+        justify-content: flex-start;
+        width: auto !important;
+        margin: 0;
+        font-size: clamp(20px, 3vw, 24px);
+        letter-spacing: 2px;
+        flex-shrink: 0;
+      }
+      
+      header h1 .logo-icon {
+        font-size: clamp(32px, 5vw, 42px) !important;
+      }
+      
+      .header-controls-wrapper {
+        width: auto !important;
+        flex-direction: row !important;
+        flex: 1;
+        min-width: 0;
+        flex-wrap: nowrap;
+      }
+      
+      .header-controls-audio {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+      }
+      
+      .header-channel-info {
+        width: auto !important;
+        flex: 1;
+        min-width: 0;
+      }
+      
+      .control-panel {
+        width: auto !important;
+        justify-content: flex-start;
+        padding: clamp(10px, 1.5vh, 14px);
+        gap: clamp(10px, 2vw, 14px);
+        flex-shrink: 0;
+      }
+      
+      header h2 {
+        text-align: left !important;
+        font-size: clamp(16px, 2.5vw, 22px);
+        margin: 0;
+        line-height: 1.2;
+      }
+      
+      .current-song {
+        text-align: left !important;
+        font-size: clamp(12px, 2vw, 16px);
+        line-height: 1.4;
+        margin-top: 2px;
+      }
+      
+      .btn-play-pause {
+        min-width: 50px !important;
+        min-height: 50px !important;
+        font-size: clamp(18px, 3vw, 24px) !important;
+        padding: clamp(8px, 1.2vh, 12px) !important;
+      }
+      
+      .time-display {
+        font-size: clamp(13px, 2vw, 16px) !important;
+        padding: clamp(8px, 1.2vh, 10px) clamp(10px, 1.8vw, 12px) !important;
+      }
+      
+      header .volume-control {
+        display: flex !important;
+        width: auto !important;
+        flex-direction: column !important;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      
+      header .volume-control input[type="range"] {
+        transform: rotate(-90deg) !important;
+        writing-mode: bt-lr !important;
+        width: 80px !important;
+        height: 6px !important;
+        margin: 25px 0 !important;
+      }
+      
+      header .volume-control span {
+        font-size: clamp(14px, 2vw, 18px);
+      }
+      
+      article {
+        padding-top: clamp(12px, 2.5vh, 24px);
+      }
+    }
+    
+    @media (min-width: 1200px) {
+      html {
+        font-size: 18px;
+      }
+      
+      header h1 {
+        font-size: 24px;
+      }
+      
+      header h1 .logo-icon {
+        font-size: 42px !important;
+      }
+      
+      header h2 {
+        font-size: 22px;
+      }
+      
+      .current-song {
+        font-size: 16px;
+      }
+    }
+    
+    @media (min-width: 1600px) {
+      html {
+        font-size: 20px;
+      }
+    }
+
+    /* Play/Pause button styling */
+    .btn-play-pause {
+      min-width: 50px !important;
+      min-height: 50px !important;
+      border-radius: 50% !important;
+      font-size: clamp(18px, 4vw, 24px) !important;
+      padding: clamp(8px, 1.5vh, 12px) !important;
+      background: 
+        radial-gradient(circle, rgba(255, 68, 68, 0.2) 0%, rgba(200, 0, 0, 0.1) 100%),
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%) !important;
+      border: 2px solid rgba(255, 68, 68, 0.6) !important;
+      box-shadow: 
+        inset 0 2px 4px rgba(255, 68, 68, 0.3),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+        0 4px 8px rgba(0, 0, 0, 0.7),
+        0 0 20px rgba(255, 68, 68, 0.5),
+        0 0 35px rgba(255, 68, 68, 0.3) !important;
+    }
+    
+    .btn-play-pause:hover {
+      border-color: rgba(255, 68, 68, 1) !important;
+      box-shadow: 
+        inset 0 2px 4px rgba(255, 68, 68, 0.4),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+        0 6px 12px rgba(0, 0, 0, 0.8),
+        0 0 30px rgba(255, 68, 68, 0.8),
+        0 0 50px rgba(255, 68, 68, 0.6),
+        0 0 70px rgba(255, 68, 68, 0.3) !important;
+      transform: scale(1.05) !important;
+    }
+    
+    .btn-play-pause:active {
+      transform: scale(0.95) !important;
+    }
+    
+    /* Time display styling */
+    .time-display {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: clamp(12px, 2.5vw, 16px);
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 1),
+        0 0 20px rgba(0, 255, 255, 0.7),
+        0 0 30px rgba(0, 255, 255, 0.4);
+      padding: 8px 12px;
+      background: 
+        linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(10, 10, 30, 0.8) 100%);
+      border: 1px solid rgba(0, 255, 255, 0.4);
+      border-radius: 4px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 15px rgba(0, 255, 255, 0.4),
+        0 0 25px rgba(0, 255, 255, 0.2);
+      letter-spacing: 2px;
+    }
+    
+    /* Control panel styling */
+    .control-panel {
+      display: flex;
+      align-items: center;
+      gap: clamp(10px, 2vw, 14px);
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.6) 0%, rgba(10, 10, 30, 0.8) 100%);
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      border-radius: 6px;
+      box-shadow: 
+        inset 0 1px 2px rgba(0, 255, 255, 0.2),
+        0 0 20px rgba(0, 255, 255, 0.3),
+        0 0 30px rgba(0, 255, 255, 0.2);
+      line-height: 1;
+    }
+    
+    /* Channel name display */
+    header h2 {
+      margin: 0;
+      font-size: clamp(16px, 3.5vw, 22px);
+      font-weight: 400;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      color: #00ffff;
+      text-shadow: 
+        0 0 10px rgba(0, 255, 255, 0.9),
+        0 0 20px rgba(0, 255, 255, 0.6),
+        0 0 30px rgba(0, 255, 255, 0.3);
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      line-height: 1.2;
+    }
+    
+    header h2 a {
+      color: inherit;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    
+    header h2 a:hover {
+      color: #ffff00;
+      text-shadow: 
+        0 0 15px rgba(255, 255, 0, 1),
+        0 0 30px rgba(255, 255, 0, 0.7),
+        0 0 45px rgba(255, 255, 0, 0.4);
+    }
+    
+    .current-song {
+      font-size: clamp(12px, 2.5vw, 16px);
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+      color: rgba(0, 255, 255, 0.8);
+      text-shadow: 
+        0 0 8px rgba(0, 255, 255, 0.6),
+        0 0 16px rgba(0, 255, 255, 0.3);
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .add-song-btn {
+      background: rgba(0, 255, 255, 0.1);
+      border: 1px solid rgba(0, 255, 255, 0.4);
+      border-radius: 4px;
+      color: rgba(0, 255, 255, 0.8);
+      font-size: clamp(10px, 1.8vw, 12px);
+      padding: 2px 6px;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+      text-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
+      white-space: nowrap;
+    }
+    
+    .add-song-btn:hover {
+      background: rgba(0, 255, 255, 0.2);
+      border-color: rgba(0, 255, 255, 0.7);
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+    }
+
+    /* Smooth transitions */
+    * {
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    /* Chat iframe container */
+    .chat-container {
+      position: fixed;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 350px;
+      z-index: 200; /* Above footer (50) so it appears on top */
+      border-left: 2px solid rgba(0, 255, 255, 0.4);
+      background: rgba(10, 10, 20, 0.95);
+      backdrop-filter: blur(10px);
+      box-shadow: 
+        -4px 0 20px rgba(0, 0, 0, 0.8),
+        inset 1px 0 0 rgba(0, 255, 255, 0.3),
+        0 0 40px rgba(0, 255, 255, 0.1);
+    }
+    
+    .chat-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: transparent;
+    }
+    
+    /* Mobile chat toggle button */
+    .chat-toggle-btn {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      z-index: 250; /* Above chat container (200) so it's always clickable */
+      padding: 0;
+      background: 
+        linear-gradient(135deg, rgba(20, 20, 40, 0.9) 0%, rgba(10, 10, 30, 0.95) 100%);
+      border: 2px solid rgba(0, 255, 255, 0.6);
+      border-radius: 50%;
+      color: #00ffff;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 
+        0 0 20px rgba(0, 255, 255, 0.5),
+        0 0 40px rgba(0, 255, 255, 0.3);
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      font-family: 'Share Tech Mono', 'Courier New', 'Courier', 'Lucida Console', 'Monaco', 'Consolas';
+    }
+    
+    /* Close button style when chat is open */
+    .chat-toggle-btn.is-open {
+      border-color: rgba(255, 0, 255, 0.6);
+      box-shadow: 
+        0 0 20px rgba(255, 0, 255, 0.5),
+        0 0 40px rgba(255, 0, 255, 0.3);
+    }
+    
+    .chat-toggle-btn:hover {
+      box-shadow: 
+        0 0 30px rgba(0, 255, 255, 0.8),
+        0 0 60px rgba(0, 255, 255, 0.5);
+      transform: scale(1.1);
+    }
+    
+    /* Mobile chat container */
+    @media (max-width: 768px) {
+      .chat-container {
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 200; /* Above footer on mobile too */
+        /* Ensure chat doesn't interfere when hidden */
+        pointer-events: none;
+      }
+      
+      .chat-container.visible {
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+      
+      /* Ensure main content is not blocked on mobile */
+      article {
+        margin-right: 0 !important;
+      }
+    }
+    
+    /* Desktop: adjust article margin when chat is visible */
+    @media (min-width: 769px) {
+      article {
+        margin-right: 350px;
+      }
+    }
+  </style>
+</head>
+<body x-data="radioApp()" x-init="init()">
+  <div class="container">
+    <!-- Player Header -->
+    <header>
+      <div class="container">
+        <h1>
+          <span class="logo-icon">📻</span>
+          radio guaka
+        </h1>
+
+        <div class="header-controls-wrapper">
+          <template x-if="srcUrl">
+            <div class="header-controls-audio">
+              <audio preload="auto" id="player" :src="srcUrl" x-ref="audioPlayer" style="display: none;">
+              </audio>
+
+              <div class="control-panel">
+                <button @click="togglePlay()" class="btn btn-play-pause" style="touch-action: manipulation;">
+                  <span x-text="isPlaying ? '⏸' : '▶'"></span>
+                </button>
+                
+                <div class="time-display">
+                  <span x-text="formatTime(currentTime)"></span>
+                </div>
+              </div>
+            </div>
+          </template>
+          
+          <template x-if="currentChannelData">
+            <div class="header-channel-info">
+              <div class="header-channel-info-row">
+                <template x-if="currentChannelArtUrl">
+                  <img class="header-channel-art"
+                       :src="currentChannelArtUrl"
+                       alt=""
+                       loading="lazy" />
+                </template>
+                <div class="header-channel-text-block">
+                  <h2>
+                    <template x-if="currentChannelData.site">
+                      <a :href="currentChannelData.site" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.2s ease;" 
+                         onmouseover="this.style.color='#ffff00'"
+                         onmouseout="this.style.color=''">
+                        <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
+                      </a>
+                    </template>
+                    <template x-if="!currentChannelData.site">
+                      <span x-text="currentChannelData.name.replace(/^flux_fm_/, 'flux ').replace(/_/g, ' ')"></span>
+                    </template>
+                  </h2>
+                  <template x-if="currentSong">
+                    <div class="current-song">
+                      <span x-text="currentSong.artist && currentSong.title ? currentSong.artist + ' - ' + currentSong.title : (currentSong.title || '')"></span>
+                      <button class="add-song-btn" 
+                              @click="likeSong()" 
+                              title="Like this song (public)">👍</button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+        
+        <div class="volume-control">
+          <span style="font-size: clamp(10px, 1.5vw, 12px); color: #aaa;">🔊</span>
+          <input type="range" 
+                 min="0" 
+                 max="1" 
+                 step="0.01" 
+                 @input="setVolume($event.target.value)"
+                 :value="volume"
+                 title="Volume">
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <article>
+      <div class="container">
+        <div id="channels" style="clear:both; width: 100%; max-width: 100%;">
+          <template x-for="channel in otherChannels" :key="channel.name">
+            <a href="#"
+               @click.prevent="navigateTo('#' + channel.name)"
+               class="channel btn btn-large"
+               :class="channel.playing ? 'btn-success' : 'btn-primary'">
+              <span x-text="channel.name"></span>
+            </a>
+          </template>
+          
+          <template x-for="section in sortedSections" :key="section.name">
+            <template x-if="getSectionChannels(section).length > 0">
+              <div>
+                <h2 style="width: 100%; margin: clamp(10px, 2vh, 15px) 0 clamp(6px, 1.2vh, 10px) 0; font-size: clamp(13px, 2.5vw, 15px); font-weight: 300; color: #fff;" x-text="section.name"></h2>
+                
+                <template x-for="channel in getSectionChannels(section)" :key="channel.name">
+                  <a href="#"
+                     @click.prevent="navigateTo('#' + channel.name)"
+                     class="channel btn btn-large"
+                     :class="channel.playing ? 'btn-success' : 'btn-primary'">
+                    <span x-text="formatChannelName(channel.name, section.name)"></span>
+                  </a>
+                </template>
+              </div>
+            </template>
+          </template>
+        </div>
+
+      </div>
+    </article>
+    
+    <!-- Chat iframe -->
+    <div class="chat-container" 
+         :class="{ 'visible': isChatVisible }"
+         x-show="(isChatVisible && window.innerWidth < 769) || window.innerWidth >= 769"
+         x-ref="chatContainer">
+      <iframe 
+        :src="chatIframeSrc"
+        x-ref="chatIframe"
+        @load="onChatIframeLoad()">
+      </iframe>
+    </div>
+    
+    <!-- Mobile chat toggle button -->
+    <template x-if="window.innerWidth < 769">
+      <button 
+        class="chat-toggle-btn"
+        :class="{ 'is-open': isChatVisible }"
+        @click="toggleChat()"
+        :title="isChatVisible ? 'Close chat' : 'Open chat'">
+        <span x-text="isChatVisible ? '✕' : '💬'"></span>
+      </button>
+    </template>
+    
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+          <p>
+          ⌨ shortcuts:
+          Change volume ↑ ↓
+          Change channels ← →
+          or press first letter of the name. ⏸ space bar to play/pause.
+
+          <a target="_blank" href="https://github.com/guaka/radio-meteor/"><span>📦</span></a> <a target="_blank" href="https://github.com/guaka/radio">free software</a>
+          <span x-text="buildDate" style="margin-left: 12px; color: rgba(0, 255, 255, 0.5); font-size: 10px;"></span>
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/radio/build-info.js"></script>
+  <script src="/js/channels.js"></script>
+  <script src="/js/radio/app.js"></script>
+</body>
+</html>

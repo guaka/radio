@@ -1,0 +1,14 @@
+    // GitHub Pages 404.html redirect for SPA routing
+    // This allows History API routing to work on GitHub Pages
+    var path = window.location.pathname;
+    var search = window.location.search;
+    var hash = window.location.hash;
+    
+    // Store the path in sessionStorage and redirect to index.html
+    if (path !== '/index.html' && path !== '/') {
+      sessionStorage.setItem('redirectPath', path + search + hash);
+      window.location.replace('/index.html');
+    } else {
+      window.location.replace('/');
+    }
+  

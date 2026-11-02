@@ -1,0 +1,58 @@
+services:
+  plextr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd
+        - action: rebuild
+          path: ./internal
+        - action: rebuild
+          path: ./go.mod
+        - action: rebuild
+          path: ./go.sum
+        - action: rebuild
+          path: ./src/frontend
+        - action: rebuild
+          path: ./public
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+    container_name: plextr
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+    volumes:
+      - plextr-data:/app/data
+    environment:
+      # Core server
+      ADDR: ":3030"
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+      SESSION_COOKIE_NAME: "${SESSION_COOKIE_NAME:-plextr_session}"
+
+      # Nostr friend policy
+      OWNER_PUBKEY: "${OWNER_PUBKEY:-}"
+      NOSTR_RELAYS: "${NOSTR_RELAYS:-wss://relay.nomadwiki.org,wss://relay.trustroots.org}"
+      NOSTR_CONTACTS_TTL: "${NOSTR_CONTACTS_TTL:-10m}"
+
+      # Plex upstream
+      PLEX_BASE_URL: "${PLEX_BASE_URL:-http://host.docker.internal:32400}"
+      PLEX_TOKEN: "${PLEX_TOKEN:-}"
+      PLEX_CLIENT_ID: "${PLEX_CLIENT_ID:-plextr-go-gateway}"
+      WRAPSTER_MEDIA_URL: "${WRAPSTER_MEDIA_URL:-}"
+      WRAPSTER_MEDIA_NSEC: "${WRAPSTER_MEDIA_NSEC:-}"
+
+      # Optional music integrations
+      MUSIC_ASSISTANT_BASE_URL: "${MUSIC_ASSISTANT_BASE_URL:-}"
+      MUSIC_ASSISTANT_TOKEN: "${MUSIC_ASSISTANT_TOKEN:-}"
+      SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
+      APPLE_MUSIC_TEAM_ID: "${APPLE_MUSIC_TEAM_ID:-}"
+      APPLE_MUSIC_KEY_ID: "${APPLE_MUSIC_KEY_ID:-}"
+      APPLE_MUSIC_PRIVATE_KEY_PATH: "${APPLE_MUSIC_PRIVATE_KEY_PATH:-}"
+
+      # Share links
+      SHARE_TOKEN_BYTES: "${SHARE_TOKEN_BYTES:-24}"
+
+volumes:
+  plextr-data:
