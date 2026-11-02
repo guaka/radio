@@ -58,4 +58,4 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "android-v$VERSION" "$RUNNER_TEMP/radio-guaka-beta.apk" "$RUNNER_TEMP/radio-guaka-beta.apk.sha256" \
-            --target "$GITHUB_SHA" --title "Android beta $VERSION" --notes "Signed Android beta. See android/BETA.md for installation and updates." --prerelease
+            --target "$GITHUB_SHA" --title "Android beta $VERSION" --notes "Signed Android beta. See docs/android/BETA.md for installation and updates." --prerelease

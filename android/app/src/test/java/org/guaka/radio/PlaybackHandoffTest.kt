@@ -25,7 +25,7 @@ class PlaybackHandoffTest {
             handoff.stage(request, { true }, create = { "new" }, prepare = {
                 assertEquals("old", active)
                 ready.await()
-            }, commit = { active = it; swaps++ }, discard = { released++ })
+            }, commit = { active = it; swaps++ }, isAttached = { it == active }, discard = { released++ })
         }
         assertEquals("old", active)
         ready.complete(Unit)
@@ -42,7 +42,7 @@ class PlaybackHandoffTest {
         val thrown = runCatching {
             handoff.stage(handoff.begin(), { true }, create = { "bad" }, prepare = {
                 throw IOException("stream failed")
-            }, commit = { active = it }, discard = { released++ })
+            }, commit = { active = it }, isAttached = { it == active }, discard = { released++ })
         }.exceptionOrNull()
 
         assertTrue(thrown is IOException)
@@ -58,14 +58,14 @@ class PlaybackHandoffTest {
         val firstRequest = handoff.begin()
         val first = async(start = CoroutineStart.UNDISPATCHED) {
             handoff.stage(firstRequest, { true }, create = { "stale" }, prepare = { ready.await() },
-                commit = { active = it }, discard = { released++ })
+                commit = { active = it }, isAttached = { it == active }, discard = { released++ })
         }
         val newerRequest = handoff.begin()
         ready.complete(Unit)
 
         assertFalse(first.await())
         assertTrue(handoff.stage(newerRequest, { true }, create = { "latest" }, prepare = {},
-            commit = { active = it }, discard = { released++ }))
+            commit = { active = it }, isAttached = { it == active }, discard = { released++ }))
         assertEquals("latest", active)
         assertEquals(1, released)
     }
@@ -79,7 +79,7 @@ class PlaybackHandoffTest {
             val request = handoff.begin()
             val pending = async(start = CoroutineStart.UNDISPATCHED) {
                 handoff.stage(request, { true }, create = { "candidate" }, prepare = { ready.await() },
-                    commit = { active = it }, discard = { released++ })
+                    commit = { active = it }, isAttached = { it == active }, discard = { released++ })
             }
             invalidate(handoff)
             ready.complete(Unit)
@@ -94,7 +94,7 @@ class PlaybackHandoffTest {
         var active = "old"
         var released = 0
         val committed = handoff.stage(handoff.begin(), { false }, create = { "candidate" }, prepare = {},
-            commit = { active = it }, discard = { released++ })
+            commit = { active = it }, isAttached = { it == active }, discard = { released++ })
         assertFalse(committed)
         assertEquals("old", active)
         assertEquals(1, released)
@@ -110,12 +110,31 @@ class PlaybackHandoffTest {
             handoff.stage(handoff.begin(), { true }, create = { "candidate" }, prepare = {
                 entered.complete(Unit)
                 neverReady.await()
-            }, commit = { active = it }, discard = { released++ })
+            }, commit = { active = it }, isAttached = { it == active }, discard = { released++ })
         }
         entered.await()
         pending.cancelAndJoin()
         assertEquals("old", active)
         assertEquals(1, released)
         assertTrue(runCatching { pending.await() }.exceptionOrNull() is CancellationException)
+    }
+
+    @Test fun candidateAttachedBeforeCommitThrowsIsNotReleased() = runBlocking {
+        val handoff = PlaybackHandoff()
+        var active = "old"
+        var released = 0
+        val thrown = runCatching {
+            handoff.stage(handoff.begin(), { true }, create = { "candidate" }, prepare = {},
+                commit = {
+                    active = it
+                    throw IOException("post-attachment bookkeeping failed")
+                },
+                isAttached = { it == active },
+                discard = { released++ })
+        }.exceptionOrNull()
+
+        assertTrue(thrown is IOException)
+        assertEquals("candidate", active)
+        assertEquals("An attached candidate remains owned by the active player", 0, released)
     }
 }

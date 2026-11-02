@@ -48,4 +48,14 @@ class PlaybackRecoveryTest {
         assertEquals(null, PlaybackRecovery.retryDelayMs(PlaybackFailure.UNSUPPORTED_MEDIA, 1))
     }
 
+    @Test fun interruptedTlsReadsCanRetryWithoutBypassingCertificateErrors() {
+        val failure = PlaybackRecovery.classify(
+            IOException("outer", javax.net.ssl.SSLException("connection reset while reading")))
+
+        assertEquals(PlaybackFailure.TRANSIENT_NETWORK, failure)
+        assertEquals(1_000L, PlaybackRecovery.retryDelayMs(failure, 1))
+        assertEquals(PlaybackFailure.SECURE_CONNECTION, PlaybackRecovery.classify(
+            IOException("outer", javax.net.ssl.SSLPeerUnverifiedException("untrusted peer"))))
+    }
+
 }

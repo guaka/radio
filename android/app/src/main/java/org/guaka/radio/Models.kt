@@ -21,7 +21,7 @@ data class Entry(
 data class PlexConnection(val uri: String, val local: Boolean, val relay: Boolean)
 data class PlexServer(val id: String, val name: String, val token: String, val connections: List<PlexConnection>)
 data class Pin(val id: Int, val code: String)
-data class Speaker(val id: String, val name: String)
+data class Speaker(val id: String, val name: String, val groupMembers: Set<String> = emptySet())
 data class SpeakerTrack(val uri: String, val name: String, val artist: String)
 
 object IntegrationParser {
@@ -106,7 +106,11 @@ object IntegrationParser {
     fun speakers(rows: JSONArray): List<Speaker> = (0 until rows.length()).mapNotNull { i ->
         val row = rows.getJSONObject(i)
         if (!row.optBoolean("available", false) || row.optString("player_id").isBlank()) null
-        else Speaker(row.getString("player_id"), row.optString("display_name", row.optString("name", "Speaker")))
+        else {
+            val members = row.optJSONArray("group_members") ?: JSONArray()
+            Speaker(row.getString("player_id"), row.optString("display_name", row.optString("name", "Speaker")),
+                (0 until members.length()).mapNotNull { members.optString(it).takeIf(String::isNotBlank) }.toSet())
+        }
     }
 
     fun speakerTracks(result: JSONObject): List<SpeakerTrack> {
