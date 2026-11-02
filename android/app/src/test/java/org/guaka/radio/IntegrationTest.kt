@@ -114,6 +114,12 @@ class IntegrationTest {
         """))
         assertEquals(listOf(Speaker("living", "Living room")), speakers)
     }
+    @Test fun speakerGroupsIncludeTheirMemberIds() {
+        val speakers = IntegrationParser.speakers(JSONArray("""[
+          {"player_id":"leader","display_name":"Living room","available":true,"group_members":["leader","bedroom"]}]
+        """))
+        assertEquals(setOf("leader", "bedroom"), speakers.single().groupMembers)
+    }
     @Test fun plexTokenIsInHeaderAndRedirectsAreNotFollowed() = runBlocking {
         val server = MockWebServer(); server.start()
         try {
