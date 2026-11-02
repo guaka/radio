@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const root = resolve(__dirname, '..');
-const html = readFileSync(resolve(root, 'public/js/index-2.js'), 'utf8');
+const html = readFileSync(resolve(root, 'public/js/player/app.js'), 'utf8');
 
 function loadFunctions(names, globals = {}) {
   const context = vm.createContext({ URL, ...globals });
@@ -19,7 +19,7 @@ function loadFunctions(names, globals = {}) {
 }
 
 test('compiled classic scripts parse', () => {
-  for (const file of ['index-1.js', 'index-2.js', 'index-3.js', 'radio-1.js', 'radio-2.js', 'radio-3.js', 'chatiframe1-2.js', '404-1.js', 'channels.js']) {
+  for (const file of ['player/bootstrap.js', 'player/app.js', 'player/visualizer.js', 'radio/bootstrap.js', 'radio/build-info.js', 'radio/app.js', 'chat/app.js', 'routing/not-found.js', 'channels.js']) {
     const source = readFileSync(resolve(root, 'public/js', file), 'utf8');
     new vm.Script(source, { filename: file });
   }

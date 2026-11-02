@@ -65,7 +65,7 @@
   ]);
   const NOSTR_TAG = 'plextr';
   const NOSTR_MAX_ACTIVITY = 40;
-  /** Machine-readable favorite tags (see PLEXTR-FAVORITES-NOSTR.md) */
+  /** Machine-readable favorite tags (see docs/PLEXTR-FAVORITES-NOSTR.md) */
   const PLEXTR_FAVORITE_SPEC_VER = '1';
   const PLEXTR_AUDIOBOOK_PROGRESS_SPEC_VER = '1';
   const NOSTR_FAVORITES_LIMIT = 2000;
