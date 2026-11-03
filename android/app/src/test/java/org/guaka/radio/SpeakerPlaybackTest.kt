@@ -1,6 +1,10 @@
 package org.guaka.radio
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -96,6 +100,42 @@ class SpeakerPlaybackTest {
         assertTrue(error is CancellationException)
         assertEquals(listOf(a), sent)
         assertFalse(notified)
+    }
+    @Test fun phoneKeepsPlayingUntilFirstSpeakerAcknowledgesPlayback() = runBlocking {
+        val acknowledged = CompletableDeferred<Unit>()
+        var phonePlaying = true
+        val pending = async(start = CoroutineStart.UNDISPATCHED) {
+            playOnSpeakers(listOf(a), play = { acknowledged.await() }, onStarted = { phonePlaying = false })
+        }
+        assertTrue(phonePlaying)
+        acknowledged.complete(Unit)
+        assertEquals(listOf(a), pending.await().started)
+        assertFalse(phonePlaying)
+    }
+    @Test fun returningToPhoneWhileSpeakerStartIsPendingPreventsLatePause() = runBlocking {
+        val pendingStart = CompletableDeferred<Unit>()
+        var pauses = 0
+        val sent = mutableListOf<Speaker>()
+        val pending = async(start = CoroutineStart.UNDISPATCHED) {
+            playOnSpeakers(listOf(a, b), play = {
+                sent += it
+                pendingStart.await()
+            }, onStarted = { pauses++ })
+        }
+        pending.cancelAndJoin()
+        pendingStart.complete(Unit)
+        assertEquals(0, pauses)
+        assertEquals(listOf(a), sent)
+    }
+    @Test fun failedFirstSpeakerLeavesPhonePlayingUntilAnotherSpeakerStarts() = runBlocking {
+        var phonePlaying = true
+        val result = playOnSpeakers(listOf(a, b), play = {
+            assertTrue(phonePlaying)
+            if (it == a) throw IOException("offline")
+        }, onStarted = { phonePlaying = false })
+        assertFalse(phonePlaying)
+        assertEquals(listOf(b), result.started)
+        assertEquals(listOf(a), result.failed)
     }
 }
 

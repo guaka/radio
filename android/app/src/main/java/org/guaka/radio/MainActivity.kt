@@ -69,6 +69,7 @@ private data class PlaybackSelectionRequest(
     val index: Int,
     val positionMs: Long,
     val retrySelectedOnly: Boolean,
+    val explicitPhone: Boolean = false,
 )
 
 internal enum class StatusScope { GENERAL, PLEX }
@@ -115,6 +116,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var activeSpeakers = emptyList<Speaker>()
     var activeSpeakerSelection by mutableStateOf<List<Speaker>>(emptyList()); private set
     private var speakerControlGeneration = 0L
+    internal var activeRemoteEntry by mutableStateOf<Entry?>(null); private set
+    internal val playbackOutputRoute: PlaybackOutputRoute
+        get() = PlaybackOutputRoute(activeSpeakerSelection.map { it.id }, activeRemoteEntry?.id)
     var plexAuthRequired by mutableStateOf(false); private set
     var speakers by mutableStateOf<List<Speaker>?>(null); private set
     var speakerTracks by mutableStateOf<List<SpeakerTrack>?>(null); private set
@@ -409,7 +413,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (entry.id.startsWith("radio:") || entry.id.startsWith("youtube:") || speakerSourceMode == SpeakerSourceMode.PHONE_RELAY) {
             speakerJob = action {
                 val media = repository.prepareSpeakerMedia(entry)
-                if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(media, selectedSpeakers, pausePhone, request)
+                if (speakerEpoch.isCurrent(request)) startSpeakerPlayback(media, selectedSpeakers, pausePhone, request, entry)
                 else repository.phoneRelay.discard(media.relay)
             }
         } else speakerJob = action {
@@ -421,43 +425,90 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+    fun selectOnCurrentSpeakers(mediaId: String, pausePhone: () -> Unit) {
+        val route = PlaybackOutputRouting.forNewSelection(playbackOutputRoute)
+        if (!route.isSpeakers) return
+        val chosen = activeSpeakerSelection.ifEmpty { activeSpeakers }
+        val request = beginSpeakerOperation()
+        speakerJob = action {
+            PlaybackOutputRouting.selectOnSpeakers(
+                mediaId = mediaId,
+                speakers = chosen,
+                sourceMode = speakerSourceMode,
+                isCurrent = { speakerEpoch.isCurrent(request) },
+                resolveEntry = repository::item,
+                prepareMedia = repository::prepareSpeakerMedia,
+                findTracks = repository::speakerTracks,
+                startPlayback = { entry, media, targets ->
+                    selectedEntry = entry
+                    executeSpeakerPlayback(media, targets, pausePhone, request, entry)
+                },
+                discardMedia = { media -> repository.phoneRelay.discard(media.relay) },
+                showTracks = { entry, targets, tracks ->
+                    selectedEntry = entry
+                    speakerEpoch.publishIfCurrent(request) {
+                        selectedSpeakers = targets
+                        speakerTracks = tracks
+                        setStatus(if (tracks.isEmpty()) "No matching tracks. Add your Plex server as a Music Assistant music provider, then sync its library."
+                            else "Confirm the matching track from Music Assistant.")
+                    }
+                },
+            )
+        }
+    }
     fun playOnSpeaker(uri: String, pausePhone: () -> Unit) {
         val chosen = selectedSpeakers
         if (chosen.isEmpty()) return
         val request = beginSpeakerOperation()
         startSpeakerPlayback(SpeakerMedia(uri), chosen, pausePhone, request)
     }
-    private fun startSpeakerPlayback(media: SpeakerMedia, chosen: List<Speaker>, pausePhone: () -> Unit, request: Long) {
+    private fun startSpeakerPlayback(
+        media: SpeakerMedia,
+        chosen: List<Speaker>,
+        pausePhone: () -> Unit,
+        request: Long,
+        remoteEntry: Entry? = selectedEntry,
+    ) {
         speakerJob = action {
-            try {
-                setStatus(if (chosen.size > 1) "Synchronizing speakers…" else "Sending to ${chosen.first().name}…")
-                val previousTarget = activeSpeakers.firstOrNull()
-                val result = transitionSpeakers(
-                    previous = previousTarget,
-                    explicitMediaSelection = media.uri.isNotBlank(),
-                    isCurrent = { speakerEpoch.isCurrent(request) },
-                    readSourceQueue = repository::speakerQueueSnapshot,
-                    synchronize = { repository.synchronizedSpeaker(chosen, activeSpeakerSelection) },
-                    play = { repository.playSpeaker(it, media) },
-                    transfer = repository::transferSpeaker,
-                    pausePrevious = { repository.controlSpeakers(listOf(it), "pause") },
-                ) ?: return@action
-                val target = result.target
-                speakerEpoch.publishIfCurrent(request) {
-                    if (result.action == SpeakerHandoffAction.PLAY) repository.phoneRelay.activate(media.relay)
-                    pausePhone()
-                    speakerControlGeneration++
-                    activeSpeakers = listOf(target)
-                    sleepTimer.updateSpeakers(setOf(target.id))
-                    activeSpeakerSelection = listOf(target) + chosen.filterNot { it.id == target.id }
-                    if (result.action != SpeakerHandoffAction.KEEP) speakerProgress = null
-                    output = chosen.joinToString { it.name }
-                    speakerTracks = null
-                    setStatus(if (result.previousPauseFailed) "Playing on ${chosen.joinToString { it.name }}. Could not pause the previous speaker."
-                        else "Playing on ${chosen.joinToString { it.name }}.")
-                }
-            } finally { repository.phoneRelay.discard(media.relay) }
+            executeSpeakerPlayback(media, chosen, pausePhone, request, remoteEntry)
         }
+    }
+    private suspend fun executeSpeakerPlayback(
+        media: SpeakerMedia,
+        chosen: List<Speaker>,
+        pausePhone: () -> Unit,
+        request: Long,
+        remoteEntry: Entry?,
+    ) {
+        try {
+            setStatus(if (chosen.size > 1) "Synchronizing speakers…" else "Sending to ${chosen.first().name}…")
+            val previousTarget = activeSpeakers.firstOrNull()
+            val result = transitionSpeakers(
+                previous = previousTarget,
+                explicitMediaSelection = media.uri.isNotBlank(),
+                isCurrent = { speakerEpoch.isCurrent(request) },
+                readSourceQueue = repository::speakerQueueSnapshot,
+                synchronize = { repository.synchronizedSpeaker(chosen, activeSpeakerSelection) },
+                play = { repository.playSpeaker(it, media) },
+                transfer = repository::transferSpeaker,
+                pausePrevious = { repository.controlSpeakers(listOf(it), "pause") },
+            ) ?: return
+            val target = result.target
+            speakerEpoch.publishIfCurrent(request) {
+                if (result.action == SpeakerHandoffAction.PLAY) repository.phoneRelay.activate(media.relay)
+                pausePhone()
+                speakerControlGeneration++
+                activeSpeakers = listOf(target)
+                sleepTimer.updateSpeakers(setOf(target.id))
+                activeSpeakerSelection = listOf(target) + chosen.filterNot { it.id == target.id }
+                activeRemoteEntry = remoteEntry
+                if (result.action != SpeakerHandoffAction.KEEP) speakerProgress = null
+                output = chosen.joinToString { it.name }
+                speakerTracks = null
+                setStatus(if (result.previousPauseFailed) "Playing on ${chosen.joinToString { it.name }}. Could not pause the previous speaker."
+                    else "Playing on ${chosen.joinToString { it.name }}.")
+            }
+        } finally { repository.phoneRelay.discard(media.relay) }
     }
     private fun beginSpeakerOperation(): Long {
         speakerJob?.cancel()
@@ -472,6 +523,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         activeSpeakers = emptyList()
         sleepTimer.updateSpeakers(emptySet())
         activeSpeakerSelection = emptyList()
+        activeRemoteEntry = null
         speakerProgress = null
         repository.phoneRelay.stop()
         output = "This phone"
@@ -479,17 +531,28 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun preparePhoneOutput(onReady: () -> Unit, onFailure: () -> Unit) {
         val targets = activeSpeakers
         if (targets.isEmpty()) {
-            phoneOutput()
+            speakerJob?.cancel()
+            speakerJob = null
+            speakerEpoch.next()
             onReady()
             return
         }
         speakerJob?.cancel()
+        val request = speakerEpoch.next()
         speakerJob = action(onFailure = { onFailure() }) {
             repository.controlSpeakers(targets, "pause")
-            if (targets == activeSpeakers) {
-                phoneOutput(cancelSpeakerRequests = false)
-                onReady()
-            }
+            if (speakerEpoch.isCurrent(request) && targets == activeSpeakers) onReady()
+        }
+    }
+    fun resumeSpeakerOutputAfterFailure() {
+        val targets = activeSpeakers
+        if (targets.isEmpty()) return
+        speakerJob?.cancel()
+        val request = speakerEpoch.next()
+        speakerJob = action {
+            if (!speakerEpoch.isCurrent(request) || targets != activeSpeakers) return@action
+            repository.controlSpeakers(targets, "play")
+            if (speakerEpoch.isCurrent(request) && targets == activeSpeakers) refreshSpeakerProgress()
         }
     }
     fun openBook(mediaId: String): Boolean {
@@ -617,6 +680,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     var playerErrorIsPlexAuth by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(false) }
     var pendingSelection by remember { mutableStateOf(false) }
+    var pendingPhoneOutput by remember { mutableStateOf(false) }
     var selectionEpoch by remember { mutableIntStateOf(0) }
     var failedSelection by remember { mutableStateOf<PlaybackSelectionRequest?>(null) }
     var activeSelection by remember { mutableStateOf<PlaybackSelectionRequest?>(null) }
@@ -708,6 +772,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 }
             }).buildAsync()
         fun sync(player: Player) {
+            if (model.output != "This phone" && !pendingPhoneOutput && player.isPlaying) player.pause()
             val previousMediaId = current?.mediaId
             current = player.currentMediaItem; playing = player.isPlaying
             buffering = player.playbackState == Player.STATE_BUFFERING
@@ -769,17 +834,28 @@ fun AppScreen(model: MainModel = viewModel()) {
         if (queue.size + items.size > ListeningStore.MAX_QUEUE) { playerError = "The phone queue can hold up to 500 items."; return }
         browser?.addMediaItems(items)
     }
-    fun selectPlayback(ids: List<String>, index: Int, positionMs: Long = 0L, retrySelectedOnly: Boolean = false) {
-        val player = browser ?: run { playerError = "Playback service is unavailable."; return }
+    fun selectPlayback(ids: List<String>, index: Int, positionMs: Long = 0L, retrySelectedOnly: Boolean = false, explicitPhone: Boolean = false) {
         if (ids.isEmpty()) return
         val request = ++selectionEpoch
+        val route = model.playbackOutputRoute
+        if (!explicitPhone && PlaybackOutputRouting.forNewSelection(route).isSpeakers) {
+            pendingSelection = false
+            pendingPhoneOutput = false
+            activeSelection = null
+            failedSelection = null
+            playerError = ""; playerFailure = null; playerErrorIsPlexAuth = false
+            model.selectOnCurrentSpeakers(ids[index.coerceIn(ids.indices)]) { browser?.pause() }
+            return
+        }
+        val player = browser ?: run { playerError = "Playback service is unavailable."; return }
         val attempted = PlaybackSelectionRequest(ids.toList(), index.coerceIn(ids.indices),
-            positionMs.coerceAtLeast(0L), retrySelectedOnly)
+            positionMs.coerceAtLeast(0L), retrySelectedOnly, explicitPhone)
         failedSelection = null
         activeSelection = attempted
         pendingSelection = true
         playerError = ""; playerFailure = null
         playerErrorIsPlexAuth = false
+        pendingPhoneOutput = explicitPhone && route.isSpeakers
         model.preparePhoneOutput(onReady = {
         if (request != selectionEpoch) return@preparePhoneOutput
         val result = player.sendCustomCommand(
@@ -789,6 +865,7 @@ fun AppScreen(model: MainModel = viewModel()) {
         result.addListener({
             if (request != selectionEpoch) return@addListener
             pendingSelection = false
+            pendingPhoneOutput = false
             val outcome = runCatching { result.get() }.getOrNull()
             if (outcome == null || (outcome.resultCode != androidx.media3.session.SessionResult.RESULT_SUCCESS &&
                     outcome.resultCode != androidx.media3.session.SessionError.INFO_CANCELLED)) {
@@ -797,15 +874,21 @@ fun AppScreen(model: MainModel = viewModel()) {
                     playerFailure = PlaybackFailure.UNKNOWN
                     playerError = "Could not start the selected item. Current playback was kept."
                 }
+                model.resumeSpeakerOutputAfterFailure()
             } else if (outcome.resultCode == androidx.media3.session.SessionResult.RESULT_SUCCESS) {
                 failedSelection = null
+                model.phoneOutput()
+            } else {
+                model.resumeSpeakerOutputAfterFailure()
             }
             activeSelection = null
         }, context.mainExecutor)
         }, onFailure = {
             if (request == selectionEpoch) {
                 pendingSelection = false
+                pendingPhoneOutput = false
                 playerError = "Could not pause speaker playback. Try again."
+                model.resumeSpeakerOutputAfterFailure()
             }
         })
     }
@@ -823,7 +906,7 @@ fun AppScreen(model: MainModel = viewModel()) {
         model.action {
             withContext(Dispatchers.IO) { model.repository.invalidatePlexConnections() }
             // Retry the failed candidate when present; otherwise retry only the active queue slot.
-            selectPlayback(selection.ids, selection.index, selection.positionMs, selection.retrySelectedOnly)
+            selectPlayback(selection.ids, selection.index, selection.positionMs, selection.retrySelectedOnly, selection.explicitPhone)
         }
     }
     fun play(items: List<MediaItem>) {
@@ -1091,7 +1174,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text("Bookstr", style = MaterialTheme.typography.labelSmall)
             }
-        } else current?.let { item ->
+        } else (model.activeRemoteEntry?.asMediaItem() ?: current)?.let { item ->
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 val title = item.mediaMetadata.title?.toString().orEmpty()
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -1099,6 +1182,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
         }
         val remoteOutput = model.output != "This phone"
+        val outputCurrent = if (remoteOutput) model.activeRemoteEntry?.asMediaItem() ?: current else current
         val progress = model.speakerProgress
         val sliderDuration = if (remoteOutput) progress?.durationMs ?: 0L else duration
         val sliderPosition = if (remoteOutput) progress?.positionAt(playbackClockMs) ?: 0L else position
@@ -1116,7 +1200,7 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FilledIconButton(enabled = if (bookOwnsPlayer) bookstrState.connected && activeBookId != null
-                else current != null && (!remoteOutput || progress != null) && !model.busy, onClick = {
+                else outputCurrent != null && (!remoteOutput || progress != null) && !model.busy, onClick = {
                 if (bookOwnsPlayer) model.bookstr.togglePlayPause()
                 else if (remoteOutput) model.toggleSpeakers()
                 else if (playing) browser?.pause() else { browser?.prepare(); browser?.play() }
@@ -1128,7 +1212,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             if (bookOwnsPlayer && activeBookId != null) {
                 IconButton(onClick = model.bookstr::skipPrevious, modifier = Modifier.semantics { contentDescription = "Previous book page" }) { Text("‹") }
                 IconButton(onClick = model.bookstr::skipNext, modifier = Modifier.semantics { contentDescription = "Next book page" }) { Text("›") }
-            } else if (current?.mediaId?.let { !it.startsWith("radio:") } == true) {
+            } else if (outputCurrent?.mediaId?.let { !it.startsWith("radio:") } == true) {
                 IconButton(enabled = browser?.hasPreviousMediaItem() == true && model.output == "This phone",
                     onClick = { selectPlayback(queue.map { it.mediaId }, (queueIndex - 1).coerceAtLeast(0)) },
                     modifier = Modifier.semantics { contentDescription = "Previous track" }) { Text("‹") }
@@ -1137,8 +1221,8 @@ fun AppScreen(model: MainModel = viewModel()) {
                     modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
             }
             TextButton(
-                onClick = { if (!bookOwnsPlayer) { chosenSpeakerIds = model.activeSpeakerSelection.map { it.id }.toSet(); showOutputPicker = true; model.speakerPicker(current) } },
-                enabled = !bookOwnsPlayer && current != null,
+                onClick = { if (!bookOwnsPlayer) { chosenSpeakerIds = model.activeSpeakerSelection.map { it.id }.toSet(); showOutputPicker = true; model.speakerPicker(outputCurrent) } },
+                enabled = !bookOwnsPlayer && outputCurrent != null,
                 modifier = Modifier.weight(1f).semantics {
                     val outputName = if (bookOwnsPlayer) routeDisplayName else if (model.output == "This phone") routeDisplayName else model.output
                     contentDescription = if (bookOwnsPlayer) "Playback output: $outputName. Android controls Bookstr audio routing."
@@ -1203,14 +1287,17 @@ fun AppScreen(model: MainModel = viewModel()) {
                 TextButton(onClick = {
                     closeOutputs()
                     val player = browser
-                    val id = player?.currentMediaItem?.mediaId
+                    val phoneId = player?.currentMediaItem?.mediaId
+                    val route = model.playbackOutputRoute
+                    val id = PlaybackOutputRouting.mediaIdForPhoneReturn(route, phoneId)
                     if (player != null && id != null) {
-                        val ids = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(id) }
-                        val index = player.currentMediaItemIndex.coerceIn(ids.indices)
+                        val ids = if (route.isSpeakers) listOf(id) else
+                            (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(id) }
+                        val index = if (route.isSpeakers) 0 else player.currentMediaItemIndex.coerceIn(ids.indices)
                         val resumePosition = handoffResumePosition(id,
-                            if (player.isCurrentMediaItemSeekable) player.currentPosition else 0L,
+                            if (id == phoneId && player.isCurrentMediaItemSeekable) player.currentPosition else 0L,
                             model.speakerProgress, System.nanoTime() / 1_000_000)
-                        selectPlayback(ids, index, resumePosition)
+                        selectPlayback(ids, index, resumePosition, explicitPhone = true)
                     } else playerError = "Choose something to play on the phone."
                 }) { Text("This phone") }
                 Text("Select compatible speakers to play in sync, or choose a Music Assistant group.")
