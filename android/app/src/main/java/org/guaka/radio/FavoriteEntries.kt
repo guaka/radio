@@ -14,15 +14,17 @@ internal suspend fun resolveFavoriteEntries(
     tokenAvailable: Boolean,
     cachedEntry: (String) -> Entry?,
     history: Boolean = false,
+    maxConcurrentLookups: Int = FAVORITE_LOOKUPS,
     resolveEntry: suspend (String) -> Entry,
 ): List<Entry> = coroutineScope {
     val failedServers = ConcurrentHashMap.newKeySet<String>()
-    val requests = Semaphore(MAX_CONCURRENT_LOOKUPS)
+    val requests = Semaphore(maxConcurrentLookups.coerceAtLeast(1))
 
     ids.map { id ->
         async {
             cachedEntry(id)?.withoutCredentials() ?: run {
-                val serverId = id.takeIf { it.startsWith("track:") }?.split(':', limit = 3)?.getOrNull(1)
+                val serverId = id.takeIf { it.startsWith("track:") || it.startsWith("album:") }
+                    ?.split(':', limit = 3)?.getOrNull(1)
                 if (serverId != null && (!tokenAvailable || serverId in failedServers)) {
                     unavailableFavorite(id, signIn = !tokenAvailable, history = history)
                 } else {
@@ -48,10 +50,14 @@ private fun Entry.withoutCredentials() = copy(url = "", token = "")
 
 private fun unavailableFavorite(id: String, signIn: Boolean, history: Boolean) = Entry(
     id = id,
-    title = if (id.startsWith("youtube:")) "Unavailable YouTube audio" else "Unavailable Plex track",
+    title = when {
+        id.startsWith("youtube:") -> "Unavailable YouTube audio"
+        id.startsWith("album:") -> "Unavailable Plex album"
+        else -> "Unavailable Plex track"
+    },
     subtitle = if (history) { if (signIn) "Sign in to Plex" else "Reconnect and try again" }
         else if (signIn) "Sign in or remove this favorite" else "Reconnect or remove this favorite",
-    playable = true,
+    playable = !id.startsWith("album:"),
 )
 
 /** Missing or unsupported media affects one favorite; auth/network/server failures affect its server. */
@@ -60,4 +66,5 @@ private fun stopsServerLookups(error: Exception): Boolean = when (error) {
     else -> true
 }
 
-private const val MAX_CONCURRENT_LOOKUPS = 4
+internal const val FAVORITE_LOOKUPS = 4
+internal const val HISTORY_LOOKUPS = 8

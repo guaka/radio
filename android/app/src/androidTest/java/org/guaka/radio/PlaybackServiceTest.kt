@@ -303,6 +303,9 @@ class PlaybackServiceTest {
             val items = listOf("radio:7soul", "radio:beatblender").map { androidx.media3.common.MediaItem.Builder().setMediaId(it).build() }
             instrumentation.runOnMainSync { browser!!.setMediaItems(items) }
             awaitSaved(SavedPlayback(listOf("radio:7soul", "radio:beatblender"), 0, 0L))
+            assertEquals("radio:7soul", listening.playbackPreview()?.id)
+            assertEquals("7soul", listening.playbackPreview()?.title)
+            assertEquals("", listening.playbackPreview()?.url)
 
             instrumentation.runOnMainSync { browser!!.moveMediaItem(1, 0) }
             awaitSaved(SavedPlayback(listOf("radio:beatblender", "radio:7soul"), 1, 0L))
