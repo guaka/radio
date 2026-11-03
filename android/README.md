@@ -40,6 +40,8 @@ Speaker playback exposes a **Volume** button beside the output selector. It open
 
 ## Security and network boundaries
 
+While speakers are selected, choosing another station or YouTube video sends it to the same speakers using the configured playback source. The current title and favorite action follow the item confirmed by Music Assistant. Returning to This phone prepares that remote item at the available speaker position (radio starts live). If phone playback fails, the previous speaker queue resumes and remains selected.
+
 Plex tokens are kept in Android Keystore-encrypted preferences and sent as headers over HTTPS. A fresh data source is used per item; every credential-bearing HTTP request, including HLS child playlists, keys and segments, must match the original Plex scheme, host and port. Redirects on those requests are refused. Tokenless radio can follow redirects across HTTP/HTTPS. Browser/Auto clients supply media IDs; the service resolves them itself and does not accept arbitrary controller stream URLs. Music Assistant tokens are sent only after the remote peer identity is verified against its Remote ID over DTLS. Relay URLs are short-lived capabilities bound to phone VPN/LAN interfaces and never contain Plex credentials. Relay HTTP is intended for an encrypted VPN or trusted LAN; upstream credential-bearing audio remains HTTPS. Cleartext is enabled for radio and the local audio relay. App backup is disabled. No analytics, credential logs or bundled secrets.
 
 ## Validation
