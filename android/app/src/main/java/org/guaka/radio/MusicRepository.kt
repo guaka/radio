@@ -445,7 +445,7 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("assistantRemoteId", normalized).remove("assistantUrl").apply()
         credentials.set("assistantToken", "")
     }
-    private suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
+    internal suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
         assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
         IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)

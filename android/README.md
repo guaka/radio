@@ -36,6 +36,8 @@ Stations are bundled for cold startup/offline browsing; streams need a network. 
 - **Nostr:** the Connections gear offers Android signers (NIP-55, including Amber) or a remote signer bunker URL (NIP-46). Radio favorite changes use the public Radiostr format; Plex stays local. Sync imports favorites and retries pending updates. See [NOSTR.md](../docs/android/NOSTR.md) for protocol and privacy details.
 - **Android Auto:** enable Android Auto developer mode and its “Unknown sources” setting for a sideloaded media app. Connect to the car or Desktop Head Unit and choose Radio Guaka. Radio and Plex expose browse trees; Plex sign-in happens on the phone while parked. Test cold startup before opening the phone activity. Voice search is deferred. Wired/wireless car setup is not yet specified.
 
+Speaker playback exposes a **Volume** button beside the output selector. It opens a 0–100% slider for the active speaker or Music Assistant group. Values refresh every eight seconds; releasing a slider sends one command. Unsupported, offline or unknown volumes are disabled. A failed command keeps the last confirmed value and displays a connection error.
+
 ## Security and network boundaries
 
 While speakers are selected, choosing another station or YouTube video sends it to the same speakers using the configured playback source. The current title and favorite action follow the item confirmed by Music Assistant. Returning to This phone prepares that remote item at the available speaker position (radio starts live). If phone playback fails, the previous speaker queue resumes and remains selected.
