@@ -56,7 +56,7 @@ class SpeakerVolumeTest {
         var state = emptyList<SpeakerVolume>()
         var sent = ""
         val rows = JSONArray().put(player().put("supported_features", JSONArray()).put("volume_control", "ha-control"))
-            .put(player(kitchen.id).put("type", "group").put("group_volume", 42).put("supported_features", JSONArray()))
+            .put(player(kitchen.id).put("type", "group").put("group_volume", 42).put("volume_level", 35).put("supported_features", JSONArray()))
         val control = SpeakerVolumeControl({ command, _ -> sent = command; rows }) { state = it }
         control.reset(listOf(living, kitchen))
         control.refresh()
@@ -64,6 +64,50 @@ class SpeakerVolumeTest {
         control.setVolume(kitchen.id, 25)
         assertEquals("players/cmd/group_volume", sent)
         assertEquals(25, state.last().level)
+    }
+
+    @Test fun standaloneProtocolPlayerUsesGroupVolumeWhenVolumeLevelIsNull() = runBlocking {
+        val protocolPlayer = JSONObject(
+            """{"player_id":"${living.id}","type":"player","available":true,"volume_level":null,"group_volume":37,"volume_control":"follow_protocol","supported_features":[]}""",
+        )
+        var state = emptyList<SpeakerVolume>()
+        var sent = ""
+        val control = SpeakerVolumeControl({ command, _ -> sent = command; JSONArray().put(protocolPlayer) }) { state = it }
+
+        control.reset(listOf(living))
+        control.refresh()
+        assertEquals(37, state.single().level)
+        control.setVolume(living.id, 52)
+        assertEquals("players/cmd/volume_set", sent)
+        assertEquals(52, state.single().level)
+    }
+
+    @Test fun standaloneVolumeLevelTakesPriorityOverGroupVolume() = runBlocking {
+        val standalone = player().put("group_volume", 42)
+        var state = emptyList<SpeakerVolume>()
+        val control = SpeakerVolumeControl({ _, _ -> JSONArray().put(standalone) }) { state = it }
+
+        control.reset(listOf(living))
+        control.refresh()
+        assertEquals(35, state.single().level)
+    }
+
+    @Test fun standaloneGroupVolumeFallbackStillRequiresVolumeSupport() = runBlocking {
+        val unsupported = JSONObject(
+            """{"player_id":"${living.id}","type":"player","available":true,"volume_level":null,"group_volume":37,"volume_control":"none","supported_features":[]}""",
+        )
+        var state = emptyList<SpeakerVolume>()
+        var writes = 0
+        val control = SpeakerVolumeControl({ command, _ ->
+            if (command != "players/all") writes++
+            JSONArray().put(unsupported)
+        }) { state = it }
+
+        control.reset(listOf(living))
+        control.refresh()
+        assertNull(state.single().level)
+        control.setVolume(living.id, 52)
+        assertEquals(0, writes)
     }
 
     @Test fun failedWriteKeepsReportedLevelAndRefreshRecoversFromConnectionFailure() = runBlocking {

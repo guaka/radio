@@ -32,11 +32,17 @@ internal class SpeakerVolumeControl(
             volumes.map { state ->
                 val player = players[state.speaker.id]
                 val group = player?.optString("type") == "group"
-                val field = if (group) "group_volume" else "volume_level"
                 val features = player?.optJSONArray("supported_features") ?: JSONArray()
                 val supported = player?.optString("volume_control")?.let { it.isNotBlank() && it != "none" } == true ||
                     (0 until features.length()).any { features.optString(it) == "volume_set" }
-                val level = (player?.opt(field) as? Number)?.toInt()?.takeIf { it in 0..100 }
+                // MA can expose the effective volume only through group_volume for a
+                // standalone player (for example, a universal player following a protocol).
+                val reportedLevel = if (group) {
+                    player?.opt("group_volume") as? Number ?: player?.opt("volume_level") as? Number
+                } else {
+                    player?.opt("volume_level") as? Number ?: player?.opt("group_volume") as? Number
+                }
+                val level = reportedLevel?.toInt()?.takeIf { it in 0..100 }
                 state.copy(level = level.takeIf { player?.optBoolean("available", false) == true && (group || supported) }, group = group)
             }
         } catch (e: CancellationException) { throw e }

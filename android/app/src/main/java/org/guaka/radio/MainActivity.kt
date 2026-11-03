@@ -1045,57 +1045,21 @@ fun AppScreen(model: MainModel = viewModel()) {
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (settings) {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                TextButton(onClick = ::closeSettings) { Text("‹  Back") }
-                Icon(painterResource(R.drawable.ic_settings), contentDescription = null, modifier = Modifier.semantics {
-                    contentDescription = "Setup"
-                    selected = true
-                })
-                Text("Connections", style = MaterialTheme.typography.titleLarge)
-            }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Build: ${BuildConfig.BUILD_TIME} (Lisbon)", style = MaterialTheme.typography.bodySmall)
-                Text("Plex works away from home when your server's Remote Access is configured.")
-                if (!model.plexSignedIn)
-                    TextButton(onClick = { model.signIn(); closeSettings() }) { Text("Sign in to Plex") }
-                if (model.plexSignedIn) {
-                    Text(if (model.plexAccountName.isBlank()) "Signed in to Plex" else "Plex: ${model.plexAccountName}")
-                    TextButton(onClick = model::signOut) { Text("Sign out of Plex") }
-                }
-                NostrConnections(model.nostr, model.nostrBridge)
-                HorizontalDivider()
-                Text("Music Assistant")
-                OutlinedTextField(assistantRemoteId, { assistantRemoteId = it }, label = { Text("Remote ID") }, placeholder = { Text("From Music Assistant → Settings → Remote Access") }, singleLine = true)
-                OutlinedTextField(assistantToken, { assistantToken = it }, label = { Text("Access token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                if (model.repository.hasAssistantToken(assistantRemoteId)) Text("Token saved securely. Leave blank to use it, or enter a replacement.")
-                Text("Enable Music Assistant → Settings → Remote Access and copy its Remote ID. Create an access token in Settings → Profile.")
-                HorizontalDivider()
-                Text("Speaker audio", style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = model.speakerSourceMode == SpeakerSourceMode.PHONE_RELAY,
-                        onClick = { model.setSpeakerSourceMode(SpeakerSourceMode.PHONE_RELAY) })
-                    Text("Relay through this phone (default)")
-                }
-                Text("YouTube and Plex audio is fetched by this phone. Keep Nebula connected, or use a LAN where Music Assistant can reach the phone. No extra music providers are needed.")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = model.speakerSourceMode == SpeakerSourceMode.MUSIC_ASSISTANT,
-                        onClick = { model.setSpeakerSourceMode(SpeakerSourceMode.MUSIC_ASSISTANT) })
-                    Text("Music Assistant sources / direct URLs")
-                }
-                Text("Uses Music Assistant library matching for Plex and direct stream URLs for YouTube. Changes apply to the next speaker selection.")
-                if (saveAttempted && model.status.isNotBlank()) Text(model.status, color = MaterialTheme.colorScheme.error)
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = ::closeSettings) { Text("Close") }
-                TextButton(enabled = !model.busy, onClick = {
-                    saveAttempted = true
-                    model.saveAssistant(assistantRemoteId, assistantToken) {
-                        settings = false
-                        saveAttempted = false
-                        assistantToken = ""
-                    }
-                }) { Text(if (model.busy) "Checking connection…" else "Connect and save") }
-            }
+            SettingsPane(
+                model = model,
+                assistantRemoteId = assistantRemoteId,
+                onAssistantRemoteIdChange = { assistantRemoteId = it },
+                assistantToken = assistantToken,
+                onAssistantTokenChange = { assistantToken = it },
+                saveAttempted = saveAttempted,
+                onClose = ::closeSettings,
+                onSaveStarted = { saveAttempted = true },
+                onSaved = {
+                    settings = false
+                    saveAttempted = false
+                    assistantToken = ""
+                },
+            )
         } else {
         val sourceScroll = rememberScrollState()
         LaunchedEffect(model.parent) {
@@ -1111,9 +1075,45 @@ fun AppScreen(model: MainModel = viewModel()) {
                     shape = androidx.compose.foundation.shape.CircleShape,
                 )) { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") }
             FilterChip(selected = model.parent == "history", onClick = { browseSource("history") }, label = { Text("History") })
-            FilterChip(selected = model.parent == "radio", onClick = { browseSource("radio") }, label = { Text("Radio") })
-            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "history" && model.parent != "books" && model.parent != "youtube", onClick = { browseSource("plex") }, label = { Text("Plex") })
-            FilterChip(selected = model.parent == "youtube", onClick = { browseSource("youtube") }, label = { Text("YouTube") })
+            val radioSelected = model.parent == "radio"
+            IconButton(onClick = { browseSource("radio") }, modifier = Modifier.width(40.dp)
+                .background(
+                    if (radioSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                )
+                .semantics {
+                    contentDescription = "Radio"
+                    selected = radioSelected
+                }) {
+                Icon(painterResource(R.drawable.ic_radio_nav), contentDescription = null,
+                    tint = if (radioSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val plexSelected = model.parent != "radio" && model.parent != "favorites" && model.parent != "history" && model.parent != "books" && model.parent != "youtube"
+            IconButton(onClick = { browseSource("plex") }, modifier = Modifier.width(40.dp)
+                .background(
+                    if (plexSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                )
+                .semantics {
+                    contentDescription = "Plex"
+                    selected = plexSelected
+                }) {
+                Icon(painterResource(R.drawable.ic_plex), contentDescription = null,
+                    tint = if (plexSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val youtubeSelected = model.parent == "youtube"
+            IconButton(onClick = { browseSource("youtube") }, modifier = Modifier.width(40.dp)
+                .background(
+                    if (youtubeSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                )
+                .semantics {
+                    contentDescription = "YouTube"
+                    selected = youtubeSelected
+                }) {
+                Icon(painterResource(R.drawable.ic_youtube), contentDescription = null,
+                    tint = if (youtubeSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             val booksSelected = model.parent == "books"
             IconButton(onClick = { browseSource("books") }, modifier = Modifier.width(40.dp)
                 .background(
