@@ -27,7 +27,7 @@ internal fun NostrConnections(nostr: NostrFavoritesController, bridge: AndroidSi
             }
         } else {
             val npub = remember(nostr.pubkey) { nostr.pubkey.hexToByteArray().toNpub() }
-            SelectionContainer { Text("Connected: $npub") }
+            SelectionContainer { Text("Connected: $npub", modifier = Modifier.fillMaxWidth(), softWrap = true) }
             Row {
                 TextButton(enabled = !nostr.busy, onClick = nostr::sync) { Text("Sync favorites") }
                 TextButton(onClick = nostr::disconnect) { Text("Disconnect") }
