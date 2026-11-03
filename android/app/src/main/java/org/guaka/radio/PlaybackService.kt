@@ -250,7 +250,9 @@ class PlaybackService : MediaLibraryService() {
         val state = SavedPlayback(indexed.map { it.first }, savedIndex,
             if (!currentWasRetained || currentId.startsWith("radio:")) 0L else player.currentPosition.coerceAtLeast(0L))
         if (state != lastPersisted) {
-            runCatching { listening.savePlayback(state) }.onSuccess { lastPersisted = state }
+            val metadata = player.getMediaItemAt(indexed[savedIndex].second).mediaMetadata
+            val preview = Entry(currentId, metadata.title?.toString().orEmpty(), metadata.artist?.toString().orEmpty(), playable = true)
+            runCatching { listening.savePlayback(state, preview) }.onSuccess { lastPersisted = state }
         }
     }
     private fun <T> future(block: suspend () -> T): ListenableFuture<T> {

@@ -74,6 +74,17 @@ class RadiostrFavoritesTest {
         assertTrue(runCatching { RadiostrFavorites.template("../bad", "Bad", true, now) }.isFailure)
     }
 
+    @Test fun syncingRadioFavoritesPreservesLocalAlbumStarsWithoutPublishingThem() {
+        val localAlbum = "album:server-1:42"
+        val merged = RadiostrFavorites.merge(listOf(localAlbum, "radio:local"),
+            listOf(event("remote", "star", now - 1)), author, now)
+
+        assertEquals(listOf("radio:remote", localAlbum, "radio:local"), merged)
+        assertTrue(runCatching {
+            RadiostrFavorites.template(localAlbum, "Blue", true, now)
+        }.isFailure)
+    }
+
     private fun event(
         stationId: String,
         action: String,

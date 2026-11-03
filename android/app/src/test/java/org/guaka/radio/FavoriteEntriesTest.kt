@@ -38,7 +38,32 @@ class FavoriteEntriesTest {
 
         assertEquals(ids, results.map { it.id })
         assertEquals((0 until 12).map { it.toString() }, results.map { it.title })
-        assertTrue("maximum active resolver count was ${maximum.get()}", maximum.get() in 2..4)
+        assertTrue("maximum active resolver count was ${maximum.get()}", maximum.get() in 2..FAVORITE_LOOKUPS)
+    }
+
+    @Test fun historyHydrationUsesHigherBoundedConcurrencyAndPreservesOrder() = runBlocking {
+        val ids = (0 until 24).map { "track:server:$it" }
+        val active = AtomicInteger()
+        val maximum = AtomicInteger()
+        val results = resolveFavoriteEntries(
+            ids = ids,
+            tokenAvailable = true,
+            cachedEntry = { null },
+            history = true,
+            maxConcurrentLookups = HISTORY_LOOKUPS,
+        ) { id ->
+            val now = active.incrementAndGet()
+            maximum.updateAndGet { old -> maxOf(old, now) }
+            try {
+                delay(20)
+                Entry(id, id.substringAfterLast(':'))
+            } finally {
+                active.decrementAndGet()
+            }
+        }
+
+        assertEquals(ids, results.map { it.id })
+        assertTrue("history resolver count was ${maximum.get()}", maximum.get() in 5..HISTORY_LOOKUPS)
     }
 
     @Test fun authOrOfflineFailureStopsQueuedLookupsForThatServer() = runBlocking {
@@ -103,6 +128,36 @@ class FavoriteEntriesTest {
         }
         assertEquals(ids, results.map { it.id })
         assertTrue(results.all { it.subtitle == "Sign in or remove this favorite" })
+        assertFalse(resolverCalled)
+    }
+
+    @Test fun albumFavoriteResolvesToNavigableNonPlayableEntryWithoutCredentials() = runBlocking {
+        val id = "album:server:9"
+        var resolvedId: String? = null
+        val result = resolveFavoriteEntries(listOf(id), true, { null }) { requested ->
+            resolvedId = requested
+            Entry(requested, "Blue", "Joni Mitchell", playable = false, url = "https://plex.example/metadata/9", token = "secret")
+        }.single()
+
+        assertEquals(id, resolvedId)
+        assertEquals(id, result.id)
+        assertEquals("Blue", result.title)
+        assertFalse(result.playable)
+        assertEquals("", result.url)
+        assertEquals("", result.token)
+    }
+
+    @Test fun albumFavoriteWithoutPlexSignInRemainsNonPlayableAndExplainsHowToRecover() = runBlocking {
+        var resolverCalled = false
+        val result = resolveFavoriteEntries(listOf("album:server:9"), false, { null }) {
+            resolverCalled = true
+            error("no Plex token should avoid lookup")
+        }.single()
+
+        assertEquals("album:server:9", result.id)
+        assertEquals("Unavailable Plex album", result.title)
+        assertEquals("Sign in or remove this favorite", result.subtitle)
+        assertFalse(result.playable)
         assertFalse(resolverCalled)
     }
 

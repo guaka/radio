@@ -34,12 +34,12 @@ object RadiostrFavorites {
     }
 
     /**
-     * Merges the verified author's recent public station actions with local stable IDs.
+     * Merges the verified author's recent public station actions with local favorites.
      * When timestamp ties occur, the lexically larger event ID is the later action.
      */
     fun merge(localIds: List<String>, events: List<JSONObject>, pubkey: String, nowSeconds: Long): List<String> {
         if (!pubkey.matches(Regex("[0-9a-fA-F]{64}")) || nowSeconds <= 0) {
-            return localStableIds(localIds).take(MAX_FAVORITES)
+            return localFavoriteIds(localIds).take(MAX_FAVORITES)
         }
         val actions = events.mapNotNull { parse(it, pubkey, nowSeconds) }
         val lastAction = actions.groupBy { it.stationId }.mapValues { (_, stationActions) ->
@@ -53,7 +53,7 @@ object RadiostrFavorites {
             result.add("radio:${action.stationId}")
             if (result.size == MAX_FAVORITES) return result.toList()
         }
-        for (id in localStableIds(localIds)) {
+        for (id in localFavoriteIds(localIds)) {
             val stationId = id.removePrefix("radio:")
             if (id.startsWith("radio:") && stationId in remoteKnown) continue
             result.add(id)
@@ -104,8 +104,8 @@ object RadiostrFavorites {
         return number.toLong()
     }
 
-    private fun localStableIds(ids: List<String>): List<String> = ids.asSequence()
-        .filter(ListeningStore::isStableMediaId).distinct().toList()
+    private fun localFavoriteIds(ids: List<String>): List<String> = ids.asSequence()
+        .filter(ListeningStore::isFavoriteMediaId).distinct().toList()
 
     private const val MAX_TITLE_LENGTH = 160
 }

@@ -62,6 +62,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 
 private data class PlaybackSelectionRequest(
@@ -103,6 +106,9 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     var favorites by mutableStateOf(repository.listening.favoriteIds().toSet()); private set
     var booksPlaybackSelected by mutableStateOf(false); private set
     var savedPlayback by mutableStateOf(repository.listening.loadPlayback()); private set
+    internal var savedPlaybackPreview by mutableStateOf(repository.listening.playbackPreview()); private set
+    internal val savedPlaybackEntry: Entry?
+        get() = PlaybackResumption.preview(savedPlayback, savedPlaybackPreview, repository.stations, plexSignedIn)
     var status by mutableStateOf(""); private set
     internal var statusScope by mutableStateOf(StatusScope.GENERAL); private set
     private var operations by mutableIntStateOf(0)
@@ -136,6 +142,11 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var speakerEpoch = SpeakerRequestEpoch()
     private val history = mutableListOf<Pair<String, String>>()
     private var playedHistory = repository.listening.historyIds()
+    private val plexBrowseStore = PlexBrowseStore(application)
+    private var plexScrollIndex = 0
+    private var plexScrollOffset = 0
+    internal var restoringPlexBrowse by mutableStateOf(false); private set
+    internal var pendingPlexScroll by mutableStateOf<Pair<Int, Int>?>(null); private set
     val canGoBack get() = history.isNotEmpty()
     private var appliedQuery = ""
     private var nextPage = 0
@@ -155,7 +166,25 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             refreshSaved()
         }
     }
-    init { browse("radio"); refreshPlexIdentity() }
+    init {
+        val restore = if (plexSignedIn) plexBrowseStore.load(repository.listening.plexGeneration()) else null
+        if (restore == null) browse("radio") else restorePlexBrowse(restore)
+        refreshPlexIdentity()
+    }
+    private fun restorePlexBrowse(state: PlexBrowseState) {
+        history.clear()
+        history.addAll(state.breadcrumbs.map { it.id to it.title })
+        parent = state.parent
+        locationTitle = state.title
+        searchTerm = ""
+        appliedQuery = ""
+        plexScrollIndex = state.scrollIndex
+        plexScrollOffset = state.scrollOffset
+        pendingPlexScroll = state.scrollIndex to state.scrollOffset
+        restoringPlexBrowse = true
+        plexBrowseStore.save(state)
+        load(reset = true)
+    }
     private fun refreshPlexIdentity() = viewModelScope.launch {
         try { plexAccountName = io { repository.refreshPlexAccountName() } }
         catch (e: CancellationException) { throw e } catch (_: Exception) { }
@@ -228,6 +257,24 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun browse(id: String, remember: Boolean = true, title: String = when (id) {
         "radio" -> "Radio"; "plex" -> "Plex"; "favorites" -> "Favorites"; "history" -> "History"; "books" -> "Books"; "youtube" -> "YouTube"; else -> locationTitle
     }) {
+        val reenteringPlex = id == "plex" && !PlexBrowseState.isPlexLocation(parent)
+        val storedPlex = if (reenteringPlex && plexSignedIn)
+            plexBrowseStore.load(repository.listening.plexGeneration(), requireActive = false) else null
+        if (storedPlex != null) {
+            restorePlexBrowse(storedPlex)
+            return
+        }
+        if (id != parent) {
+            plexScrollIndex = 0
+            plexScrollOffset = 0
+        }
+        if (!PlexBrowseState.isPlexLocation(id)) {
+            plexBrowseStore.markInactive()
+            pendingPlexScroll = null
+            restoringPlexBrowse = false
+            plexScrollIndex = 0
+            plexScrollOffset = 0
+        }
         if (id == "radio") {
             dismissSpeakers()
             setStatus("")
@@ -240,7 +287,32 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         searchTerm = ""
         appliedQuery = ""
         if (id == "books") refreshBooks()
+        persistPlexBrowse()
         load(reset = true)
+    }
+    internal fun savePlexScroll(index: Int, offset: Int) {
+        if (!PlexBrowseState.isPlexLocation(parent) || restoringPlexBrowse || searchTerm.isNotBlank()) return
+        plexScrollIndex = index.coerceIn(0, 599)
+        plexScrollOffset = offset.coerceIn(0, 10_000)
+        persistPlexBrowse()
+    }
+    internal fun consumePendingPlexScroll(): Pair<Int, Int>? = pendingPlexScroll.also { pendingPlexScroll = null }
+    private fun persistPlexBrowse() {
+        if (!PlexBrowseState.isPlexLocation(parent)) return
+        val breadcrumbs = if (parent == "plex") emptyList() else {
+            val firstPlexRoot = history.indexOfLast { it.first == "plex" }
+            if (firstPlexRoot < 0) emptyList() else history.drop(firstPlexRoot)
+                .filter { PlexBrowseState.isPlexLocation(it.first) }
+                .takeLast(24)
+                .map { PlexBrowseLocation(it.first, it.second.take(300)) }
+        }
+        runCatching {
+            plexBrowseStore.save(PlexBrowseState(
+                parent, locationTitle.take(300), breadcrumbs,
+                plexScrollIndex.coerceIn(0, 599), plexScrollOffset.coerceIn(0, 10_000),
+                repository.listening.plexGeneration(),
+            ))
+        }
     }
     fun refreshBooks() {
         if (bookstr.state.connected) bookstr.refreshCatalog() else bookstr.connect()
@@ -325,17 +397,24 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val page = nextPage
         browseJob = action(onFailure = { if (!reset) paginationFailed = true }) {
             try {
-                val result = if (query.isBlank()) repository.browse(folder, page, pageSize)
-                    else repository.search(query, folder, page, pageSize)
-                val previousCount = entries.size
-                val merged = (if (reset) result else entries + result).distinctBy { it.id }
-                entries = merged
-                nextPage = page + 1
-                hasMore = result.size == pageSize && (reset || merged.size > previousCount)
+                var pageToLoad = page
+                var firstPage = reset
+                do {
+                    val result = if (query.isBlank()) repository.browse(folder, pageToLoad, pageSize)
+                        else repository.search(query, folder, pageToLoad, pageSize)
+                    val previousCount = entries.size
+                    val merged = (if (firstPage) result else entries + result).distinctBy { it.id }
+                    entries = merged
+                    nextPage = pageToLoad + 1
+                    hasMore = result.size == pageSize && (firstPage || merged.size > previousCount)
+                    firstPage = false
+                    pageToLoad = nextPage
+                } while (restoringPlexBrowse && entries.size <= (pendingPlexScroll?.first ?: 0) && hasMore && pageToLoad < 12)
                 setStatus(if (entries.isEmpty()) "No items found." else "")
                 paginationFailed = false
             } finally {
                 loadingMore = false
+                if (restoringPlexBrowse) restoringPlexBrowse = false
             }
         }
     }
@@ -348,7 +427,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (parent == "favorites") refresh()
     }
     fun requirePlexSignIn() { plexAuthRequired = true }
-    fun refreshSaved() { savedPlayback = repository.listening.loadPlayback() }
+    fun refreshSaved() {
+        savedPlayback = repository.listening.loadPlayback()
+        savedPlaybackPreview = repository.listening.playbackPreview()
+    }
     fun signIn() {
         loginJob?.cancel()
         loginJob = action(failureScope = StatusScope.PLEX) {
@@ -379,6 +461,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     fun signOut() {
         dismissSpeakers()
         loginJob?.cancel(); browseJob?.cancel(); loginUrl = null
+        plexBrowseStore.clear()
         action {
             io { repository.savePlexToken("") }
             plexSignedIn = false
@@ -640,6 +723,7 @@ private fun durationLabel(millis: Long): String {
     return "%d:%02d".format(seconds / 60, seconds % 60)
 }
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun AppScreen(model: MainModel = viewModel()) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -707,6 +791,10 @@ fun AppScreen(model: MainModel = viewModel()) {
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    fun browseSource(id: String) {
+        model.savePlexScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        model.browse(id)
+    }
     fun submitSearch() {
         keyboardController?.hide()
         focusManager.clearFocus()
@@ -730,6 +818,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 }
                 Lifecycle.Event.ON_RESUME -> if (model.parent == "books") model.refreshBooks()
                 Lifecycle.Event.ON_STOP -> {
+                    model.savePlexScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
                     model.stopStationArtworkPreload()
                     routeObserver.close()
                 }
@@ -765,7 +854,24 @@ fun AppScreen(model: MainModel = viewModel()) {
         playerError = if (playerFailure == PlaybackFailure.AUTHENTICATION && targetId?.startsWith("radio:") == true)
             "This station denied access. Choose another station." else error.message
     }
-    LaunchedEffect(model.listEpoch) { listState.scrollToItem(0) }
+    LaunchedEffect(model.listEpoch) {
+        if (model.restoringPlexBrowse) snapshotFlow { model.restoringPlexBrowse }.first { !it }
+        val restore = model.consumePendingPlexScroll()
+        if (restore == null) listState.scrollToItem(0)
+        else {
+            val lastIndex = model.entries.lastIndex.coerceAtLeast(0)
+            listState.scrollToItem(restore.first.coerceAtMost(lastIndex), restore.second)
+        }
+    }
+    LaunchedEffect(listState, model.parent) {
+        snapshotFlow {
+            val layout = listState.layoutInfo
+            val index = layout.visibleItemsInfo.firstOrNull()?.index ?: listState.firstVisibleItemIndex
+            index to listState.firstVisibleItemScrollOffset
+        }.distinctUntilChanged().drop(1).debounce(350).collect { (index, offset) ->
+            model.savePlexScroll(index, offset)
+        }
+    }
     LaunchedEffect(listState, model.listEpoch, model.parent) {
         snapshotFlow {
             val layout = listState.layoutInfo
@@ -999,17 +1105,17 @@ fun AppScreen(model: MainModel = viewModel()) {
             Icon(painterResource(R.drawable.ic_radio), contentDescription = "Radio Guaka",
                 tint = Color.Unspecified, modifier = Modifier.size(24.dp))
             Row(Modifier.weight(1f).horizontalScroll(sourceScroll), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            IconToggleButton(checked = model.parent == "favorites", onCheckedChange = { model.browse("favorites") },
+            IconToggleButton(checked = model.parent == "favorites", onCheckedChange = { browseSource("favorites") },
                 modifier = Modifier.width(40.dp).background(
                     if (model.parent == "favorites") MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     shape = androidx.compose.foundation.shape.CircleShape,
                 )) { Icon(painterResource(R.drawable.ic_star), contentDescription = "Favorites") }
-            FilterChip(selected = model.parent == "history", onClick = { model.browse("history") }, label = { Text("History") })
-            FilterChip(selected = model.parent == "radio", onClick = { model.browse("radio") }, label = { Text("Radio") })
-            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "history" && model.parent != "books" && model.parent != "youtube", onClick = { model.browse("plex") }, label = { Text("Plex") })
-            FilterChip(selected = model.parent == "youtube", onClick = { model.browse("youtube") }, label = { Text("YouTube") })
+            FilterChip(selected = model.parent == "history", onClick = { browseSource("history") }, label = { Text("History") })
+            FilterChip(selected = model.parent == "radio", onClick = { browseSource("radio") }, label = { Text("Radio") })
+            FilterChip(selected = model.parent != "radio" && model.parent != "favorites" && model.parent != "history" && model.parent != "books" && model.parent != "youtube", onClick = { browseSource("plex") }, label = { Text("Plex") })
+            FilterChip(selected = model.parent == "youtube", onClick = { browseSource("youtube") }, label = { Text("YouTube") })
             val booksSelected = model.parent == "books"
-            IconButton(onClick = { model.browse("books") }, modifier = Modifier.width(40.dp)
+            IconButton(onClick = { browseSource("books") }, modifier = Modifier.width(40.dp)
                 .background(
                     if (booksSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     shape = androidx.compose.foundation.shape.CircleShape,
@@ -1118,9 +1224,9 @@ fun AppScreen(model: MainModel = viewModel()) {
                                 supportingContent = if (entry.id.startsWith("radio:")) null else ({ Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
                                 leadingContent = { EntryArtwork(entry, model) },
                                 trailingContent = {
-                                    if (entry.playable) Row {
+                                    if (entry.playable || entry.id.startsWith("album:")) Row {
                                         FavoriteButton(entry.id, entry.title, model)
-                                        if (!entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
+                                        if (entry.playable && !entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
                                             modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
                                     }
                                 },
@@ -1162,9 +1268,9 @@ fun AppScreen(model: MainModel = viewModel()) {
                     ListItem(headlineContent = { Text(entry.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = if (entry.id.startsWith("radio:")) null else ({ Text(entry.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
                         leadingContent = { EntryArtwork(entry, model) },
                         trailingContent = {
-                            if (entry.playable) Row {
+                            if (entry.playable || entry.id.startsWith("album:")) Row {
                                 FavoriteButton(entry.id, entry.title, model)
-                                if (!entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
+                                if (entry.playable && !entry.id.startsWith("radio:")) IconButton(onClick = { enqueue(listOf(entry.asMediaItem())) }, enabled = browser != null,
                                     modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
                             }
                         }, modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
@@ -1192,15 +1298,15 @@ fun AppScreen(model: MainModel = viewModel()) {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text("Bookstr", style = MaterialTheme.typography.labelSmall)
             }
-        } else (model.activeRemoteEntry?.asMediaItem() ?: current)?.let { item ->
+        } else (model.activeRemoteEntry?.asMediaItem() ?: current ?: model.savedPlaybackEntry?.asMediaItem())?.let { item ->
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 val title = item.mediaMetadata.title?.toString().orEmpty()
-                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).semantics { contentDescription = "Current audio: $title" })
                 FavoriteButton(item.mediaId, title, model)
             }
         }
         val remoteOutput = model.output != "This phone"
-        val outputCurrent = if (remoteOutput) model.activeRemoteEntry?.asMediaItem() ?: current else current
+        val outputCurrent = if (remoteOutput) model.activeRemoteEntry?.asMediaItem() ?: current else current ?: model.savedPlaybackEntry?.asMediaItem()
         val progress = model.speakerProgress
         val sliderDuration = if (remoteOutput) progress?.durationMs ?: 0L else duration
         val sliderPosition = if (remoteOutput) progress?.positionAt(playbackClockMs) ?: 0L else position
@@ -1218,10 +1324,10 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FilledIconButton(enabled = if (bookOwnsPlayer) bookstrState.connected && activeBookId != null
-                else outputCurrent != null && (!remoteOutput || progress != null) && !model.busy, onClick = {
+                else outputCurrent != null && (if (remoteOutput) progress != null else browser != null) && !model.busy, onClick = {
                 if (bookOwnsPlayer) model.bookstr.togglePlayPause()
                 else if (remoteOutput) model.toggleSpeakers()
-                else if (playing) browser?.pause() else { browser?.prepare(); browser?.play() }
+                else if (playing) browser?.pause() else { if (current != null) browser?.prepare(); browser?.play() }
             }) {
                 val isPlaying = if (bookOwnsPlayer) bookstrState.playing else if (remoteOutput) progress?.playing == true else playing
                 Icon(painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
@@ -1314,13 +1420,14 @@ fun AppScreen(model: MainModel = viewModel()) {
                     val player = browser
                     val phoneId = player?.currentMediaItem?.mediaId
                     val route = model.playbackOutputRoute
-                    val id = PlaybackOutputRouting.mediaIdForPhoneReturn(route, phoneId)
+                    val saved = model.savedPlayback.takeIf { phoneId == null && !route.isSpeakers }
+                    val id = PlaybackOutputRouting.mediaIdForPhoneReturn(route, phoneId ?: model.savedPlaybackEntry?.id)
                     if (player != null && id != null) {
-                        val ids = if (route.isSpeakers) listOf(id) else
+                        val ids = if (route.isSpeakers) listOf(id) else saved?.ids ?:
                             (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.ifEmpty { listOf(id) }
-                        val index = if (route.isSpeakers) 0 else player.currentMediaItemIndex.coerceIn(ids.indices)
+                        val index = if (route.isSpeakers) 0 else saved?.index ?: player.currentMediaItemIndex.coerceIn(ids.indices)
                         val resumePosition = handoffResumePosition(id,
-                            if (id == phoneId && player.isCurrentMediaItemSeekable) player.currentPosition else 0L,
+                            if (id == phoneId && player.isCurrentMediaItemSeekable) player.currentPosition else saved?.positionMs ?: 0L,
                             model.speakerProgress, System.nanoTime() / 1_000_000)
                         selectPlayback(ids, index, resumePosition, explicitPhone = true)
                     } else playerError = "Choose something to play on the phone."
