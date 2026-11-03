@@ -112,6 +112,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     internal var speakerSourceMode by mutableStateOf(repository.speakerSourceMode()); private set
     internal fun setSpeakerSourceMode(mode: SpeakerSourceMode) { repository.setSpeakerSourceMode(mode); speakerSourceMode = mode }
     internal var speakerProgress by mutableStateOf<SpeakerProgress?>(null); private set
+    internal var speakerVolumes by mutableStateOf<List<SpeakerVolume>>(emptyList()); private set
+    private val speakerVolumeControl = SpeakerVolumeControl(repository::assistantCommand) { speakerVolumes = it }
     private var activeSpeakers = emptyList<Speaker>()
     var activeSpeakerSelection by mutableStateOf<List<Speaker>>(emptyList()); private set
     private var speakerControlGeneration = 0L
@@ -178,6 +180,13 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         speakerControlGeneration++
         repository.controlSpeakers(targets, if (speakerProgress?.playing == true) "pause" else "play")
         refreshSpeakerProgress()
+    }
+
+    internal suspend fun refreshSpeakerVolumes() = speakerVolumeControl.refresh()
+    fun setSpeakerVolume(id: String, level: Int) = action {
+        try { speakerVolumeControl.setVolume(id, level) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { setStatus("Could not change speaker volume. Check the Music Assistant connection and try again.") }
     }
 
     override fun onCleared() { bookstr.close(); nostr.close(); stopListeningObserver(); super.onCleared() }
@@ -450,6 +459,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
                     activeSpeakers = listOf(target)
                     sleepTimer.updateSpeakers(setOf(target.id))
                     activeSpeakerSelection = listOf(target) + chosen.filterNot { it.id == target.id }
+                    speakerVolumeControl.reset(activeSpeakerSelection)
                     if (result.action != SpeakerHandoffAction.KEEP) speakerProgress = null
                     output = chosen.joinToString { it.name }
                     speakerTracks = null
@@ -470,6 +480,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         if (cancelSpeakerRequests) dismissSpeakers()
         speakerControlGeneration++
         activeSpeakers = emptyList()
+        speakerVolumeControl.reset(emptyList())
         sleepTimer.updateSpeakers(emptySet())
         activeSpeakerSelection = emptyList()
         speakerProgress = null
@@ -624,6 +635,7 @@ fun AppScreen(model: MainModel = viewModel()) {
     var routeDisplayName by remember { mutableStateOf("This phone") }
     val routeObserver = remember(context) { AudioOutputRouteObserver(context) { routeDisplayName = it.displayName } }
     var showOutputPicker by remember { mutableStateOf(false) }
+    var showSpeakerVolume by remember { mutableStateOf(false) }
     var chosenSpeakerIds by remember { mutableStateOf(setOf<String>()) }
     var assistantRemoteId by remember { mutableStateOf(model.repository.assistantRemoteId()) }
     var assistantToken by remember { mutableStateOf("") }
@@ -745,6 +757,12 @@ fun AppScreen(model: MainModel = viewModel()) {
             delay(1000)
         }
     }
+    LaunchedEffect(model.speakerVolumes.map { it.speaker.id }) {
+        while (model.speakerVolumes.isNotEmpty()) {
+            model.refreshSpeakerVolumes()
+            delay(8_000)
+        }
+    }
     LaunchedEffect(model.output) {
         dragging = null
         if (model.output != "This phone") while (true) {
@@ -831,6 +849,7 @@ fun AppScreen(model: MainModel = viewModel()) {
         if (items.size > ListeningStore.MAX_QUEUE) { playerError = "Choose up to 500 items for the phone queue."; return }
         selectPlayback(items.map { it.mediaId }, 0)
     }
+    val bookOwnsPlayer = BooksLibrary.ownsPlayerControls(model.bookstr.state, model.booksPlaybackSelected)
     Column(
         Modifier.fillMaxSize().systemBarsPadding().imePadding()
             .padding(horizontal = 12.dp).padding(top = 2.dp, bottom = 12.dp),
@@ -987,7 +1006,6 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
         val bookstrState = model.bookstr.state
         val visibleBooks = BooksLibrary.filter(bookstrState.books, model.searchTerm)
-        val bookOwnsPlayer = BooksLibrary.ownsPlayerControls(bookstrState, model.booksPlaybackSelected)
         val activeBookId = BooksLibrary.activeBookId(bookstrState)
         if (!globalSearch && model.parent == "books" && bookstrState.error != null) {
             Text(bookstrState.error!!, color = MaterialTheme.colorScheme.error)
@@ -1136,6 +1154,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                     onClick = { selectPlayback(queue.map { it.mediaId }, queueIndex + 1) },
                     modifier = Modifier.semantics { contentDescription = "Next track" }) { Text("›") }
             }
+            if (!bookOwnsPlayer && remoteOutput) TextButton(onClick = { showSpeakerVolume = true }) { Text("Volume") }
             TextButton(
                 onClick = { if (!bookOwnsPlayer) { chosenSpeakerIds = model.activeSpeakerSelection.map { it.id }.toSet(); showOutputPicker = true; model.speakerPicker(current) } },
                 enabled = !bookOwnsPlayer && current != null,
@@ -1195,6 +1214,12 @@ fun AppScreen(model: MainModel = viewModel()) {
         }
     }, confirmButton = { TextButton(onClick = { showQueue = false }) { Text("Done") } },
         dismissButton = { TextButton(onClick = { browser?.clearMediaItems(); model.repository.listening.savePlayback(null); model.refreshSaved() }) { Text("Clear") } })
+    if (showSpeakerVolume && model.output != "This phone" && !bookOwnsPlayer) {
+        AlertDialog(onDismissRequest = { showSpeakerVolume = false }, title = { Text("Speaker volume") }, text = {
+            SpeakerVolumeControls(model.speakerVolumes, !model.busy, model::setSpeakerVolume)
+        }, confirmButton = { TextButton(onClick = { showSpeakerVolume = false }) { Text("Done") } })
+    }
+    LaunchedEffect(model.output, bookOwnsPlayer) { showSpeakerVolume = false }
     if (showOutputPicker) {
         val speakers = model.speakers.orEmpty()
         fun closeOutputs() { showOutputPicker = false; model.dismissSpeakers() }
