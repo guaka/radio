@@ -132,6 +132,24 @@ function loadFunctions(names, globals = {}) {
   return context;
 }
 
+test('radio image fallback uses station data and ignores URLs injected into DOM attributes', () => {
+  const trusted = 'https://station.example/fallback.png';
+  const { applyRadioImageFallback } = loadFunctions(['fallbackThumbDataUrl', 'applyRadioImageFallback'], {
+    radioStations: [{ id: 'radio', fallbackImg: trusted }]
+  });
+  const img = {
+    src: 'broken', onerror: () => {},
+    getAttribute(name) { return name === 'data-radio-image' ? 'radio' : 'data:text/html,<script>alert(1)</script>'; }
+  };
+  applyRadioImageFallback(img);
+  assert.equal(img.src, trusted);
+  assert.equal(img.onerror, null);
+  img.getAttribute = () => '<img src=x onerror=alert(1)>';
+  applyRadioImageFallback(img);
+  assert.match(img.src, /^data:image\/svg\+xml,/);
+  assert.ok(!decodeURIComponent(img.src).includes('alert(1)'));
+});
+
 test('compiled classic scripts parse', () => {
   for (const file of ['player/bootstrap.js', 'player/app.js', 'player/visualizer.js', 'radio/bootstrap.js', 'radio/build-info.js', 'radio/app.js', 'chat/app.js', 'routing/not-found.js', 'channels.js']) {
     const source = readFileSync(resolve(root, 'public/js', file), 'utf8');

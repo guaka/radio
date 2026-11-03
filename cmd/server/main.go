@@ -78,12 +78,24 @@ func registerStatic(mux *http.ServeMux) string {
 	if info, err := os.Stat(staticRoot); err != nil || !info.IsDir() {
 		log.Fatalf("missing static directory: %s", staticRoot)
 	}
-	fs := http.FileServer(http.Dir(staticRoot))
+	public, err := os.OpenRoot(staticRoot)
+	if err != nil {
+		log.Fatalf("open static directory: %v", err)
+	}
+	// Keep the root open for the lifetime of the HTTP server. Root.FS confines
+	// every lookup, including symlinks and concurrent renames, to public/.
+	mux.Handle("/", staticHandler(public.FS()))
+	return staticRoot
+}
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		p := strings.TrimPrefix(filepath.Clean(r.URL.Path), "/")
+func staticHandler(public fs.FS) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), "/")
 		if p == "" {
-			serveHTMLNoCache(w, r, filepath.Join(staticRoot, "index.html"))
+			p = "index.html"
+		}
+		if !fs.ValidPath(p) || strings.Contains(p, `\`) {
+			http.NotFound(w, r)
 			return
 		}
 		// Keep SPA-like behavior for unknown non-API paths.
@@ -91,30 +103,19 @@ func registerStatic(mux *http.ServeMux) string {
 			http.NotFound(w, r)
 			return
 		}
-		full := filepath.Join(staticRoot, p)
-		if info, err := os.Stat(full); err == nil && !info.IsDir() {
-			if strings.EqualFold(filepath.Ext(full), ".html") {
-				serveHTMLNoCache(w, r, full)
-				return
-			}
-			// Prevent stale JS/CSS/assets during development and hard refreshes.
-			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-			w.Header().Set("Pragma", "no-cache")
-			w.Header().Set("Expires", "0")
-			fs.ServeHTTP(w, r)
+		info, err := fs.Stat(public, p)
+		if err != nil && !os.IsNotExist(err) {
+			http.NotFound(w, r)
 			return
 		}
-		serveHTMLNoCache(w, r, filepath.Join(staticRoot, "index.html"))
+		if err != nil || info.IsDir() {
+			p = "index.html"
+		}
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		http.ServeFileFS(w, r, public, p)
 	})
-	return staticRoot
-}
-
-func serveHTMLNoCache(w http.ResponseWriter, r *http.Request, fullPath string) {
-	// Always revalidate HTML to avoid stale SPA shells during local dev.
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
-	http.ServeFile(w, r, fullPath)
 }
 
 func withLogging(next http.Handler) http.Handler {
