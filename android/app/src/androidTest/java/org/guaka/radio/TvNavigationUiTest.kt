@@ -36,7 +36,7 @@ class TvNavigationUiTest {
                             title = "Radio", favorites = setOf("radio:0"), currentTitle = "Station 0",
                             currentId = "radio:0", playing = true, ready = true, busy = false, status = status,
                             hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
-                            onSearch = {}, onSource = { source = it }, onBack = {}, onMore = {}, onRefresh = {},
+                            onSearch = {}, onSource = { source = it }, onBack = {}, onMore = {},
                             onFavorite = { favorite = it }, onSignIn = {}, onSignOut = {},
                             onToggle = { toggles++ }, onPlay = { plays++ }, onPause = { pauses++ },
                             onEntry = { selected = it.id },
@@ -50,7 +50,8 @@ class TvNavigationUiTest {
 
     @Test fun tvLauncherResolvesWithoutATouchscreenRequirement() {
         val context = compose.activity
-        compose.onNodeWithText("Radio Guaka").assertIsDisplayed()
+        compose.onNodeWithText("Radio Guaka").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Radio Guaka").assertIsDisplayed()
         compose.waitUntil(10_000) {
             compose.onAllNodesWithContentDescription("Play 7soul").fetchSemanticsNodes().isNotEmpty()
         }
