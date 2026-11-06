@@ -44,10 +44,11 @@ class TvSpeakersUiTest {
         var result: List<Speaker>? = null
         dialog(onSelect = { result = it })
         compose.onNodeWithContentDescription("Select Living room")
+            .performScrollTo()
             .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             .performKeyInput { pressKey(Key.DirectionCenter) }
         compose.onNodeWithText("✓ Living room").assertExists()
-        compose.onNodeWithContentDescription("Select Kitchen").performClick()
+        compose.onNodeWithContentDescription("Select Kitchen").performScrollTo().performClick()
         compose.onNodeWithText("✓ Kitchen").assertExists()
         compose.onNodeWithText("Play on speakers").performClick()
         compose.runOnIdle { assertEquals(speakers, result) }
