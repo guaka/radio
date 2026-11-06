@@ -1312,7 +1312,12 @@ fun AppScreen(model: MainModel = viewModel()) {
         } else (model.activeRemoteEntry?.asMediaItem() ?: current ?: model.savedPlaybackEntry?.asMediaItem())?.let { item ->
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 val title = item.mediaMetadata.title?.toString().orEmpty()
-                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).semantics { contentDescription = "Current audio: $title" })
+                Column(Modifier.weight(1f)) {
+                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { contentDescription = "Current audio: $title" })
+                    val detail = listOfNotNull(item.mediaMetadata.artist, item.mediaMetadata.station)
+                        .filter { it.isNotBlank() }.joinToString(" · ")
+                    if (detail.isNotBlank()) Text(detail, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                }
                 FavoriteButton(item.mediaId, title, model)
             }
         }
