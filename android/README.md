@@ -18,6 +18,28 @@ The CI workflow uploads a debug-signed APK for development. Beta builds use a st
 
 Stations are bundled for cold startup/offline browsing; streams need a network. After changing the web catalogue, run `node android/scripts/sync-stations.mjs` from the repository root. CI verifies that the snapshot is current.
 
+## Google TV / Android TV
+
+The same APK includes a separate TV launcher and landscape interface for Chromecast with Google TV and other Android TV devices running Android 9 or later. Older Chromecast receivers without Google TV cannot install Android apps. This adds direct TV playback; phone-to-Chromecast casting is not included.
+
+Build the debug APK as above, enable developer debugging on the TV, connect it with Android's ADB tools, then install:
+
+```sh
+adb -s TV_SERIAL install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Open **Radio Guaka** from the TV's app launcher. Use the remote's arrows to move between sources, search, station/track rows and favorites; the highlighted border marks focus. Select plays an item or opens a collection. Rows scroll as focus moves; **Load more** retrieves another page. **Back** returns to the previous collection, then exits at the root. The footer and the remote's media buttons control playback, which continues through the shared background service when you leave the screen.
+
+Radio, Favorites, History, Plex browsing and YouTube search are available. Favorites/history are stored on the TV. For Plex, choose **Sign in to Plex**, open `plex.tv/link` on a phone or computer, and enter the displayed code. If sign-in expires, **New code** restarts it; **Cancel** stops polling. Plex needs reachable HTTPS server connections and direct-play compatible audio, just as on the phone. The TV interface plays through the TV's selected audio output; Music Assistant routing, Bookstr integration, Nostr settings, queue editing and seeking remain in the phone interface.
+
+Automated coverage checks TV launcher discovery, optional touchscreen support, D-pad source/favorite navigation, scrolling beyond visible rows, station selection callbacks, media buttons, and the separate TV/phone Plex PIN request modes. These tests can run on a landscape Android emulator:
+
+```sh
+ANDROID_SERIAL=YOUR_EMULATOR ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.guaka.radio.TvNavigationUiTest
+```
+
+Physical Chromecast/Google TV acceptance still requires checking launcher artwork, D-pad focus and the on-screen keyboard, actual radio playback with Home/screen standby and media keys, and account-backed Plex code sign-in/playback. Emulator tests do not establish device or Plex-account acceptance.
+
 ## Listening flows
 
 - **Radio:** tap a station, lock the phone, use notification/lock-screen controls. Background service owns the player, not the activity.

@@ -114,6 +114,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var operations by mutableIntStateOf(0)
     val busy get() = operations > 0
     var loginUrl by mutableStateOf<String?>(null); private set
+    var tvPlexCode by mutableStateOf<String?>(null); private set
     var plexSignedIn by mutableStateOf(repository.credentials.get("plexToken").isNotBlank()); private set
     var plexAccountName by mutableStateOf(repository.plexAccountName()); private set
     internal var speakerSourceMode by mutableStateOf(repository.speakerSourceMode()); private set
@@ -431,36 +432,46 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         savedPlayback = repository.listening.loadPlayback()
         savedPlaybackPreview = repository.listening.playbackPreview()
     }
-    fun signIn() {
+    fun cancelTvSignIn() {
         loginJob?.cancel()
+        tvPlexCode = null
+    }
+    fun signIn(onTv: Boolean = false) {
+        loginJob?.cancel()
+        tvPlexCode = null
         loginJob = action(failureScope = StatusScope.PLEX) {
-            setStatus("Starting Plex sign-in…", StatusScope.PLEX)
-            val pin = io { repository.api.createPin() }
-            loginUrl = repository.api.loginUrl(pin)
-            setStatus("Finish signing in with Plex in your browser, then return here.", StatusScope.PLEX)
-            repeat(150) {
-                delay(2000)
-                val token = io { repository.api.pinToken(pin) }
-                if (token.isNotEmpty()) {
-                    io { repository.savePlexToken(token) }
-                    plexSignedIn = true
-                    refreshPlexIdentity()
-                    favorites = repository.listening.favoriteIds().toSet()
-                    refreshSaved()
-                    loginUrl = null
-                    plexAuthRequired = false
-                    setStatus("")
-                    if (searchTerm.isNotBlank()) search() else browse("plex")
-                    return@action
+            try {
+                setStatus("Starting Plex sign-in…", StatusScope.PLEX)
+                val pin = io { repository.api.createPin(strong = !onTv) }
+                if (onTv) tvPlexCode = pin.code else loginUrl = repository.api.loginUrl(pin)
+                setStatus(if (onTv) "On your phone or computer, open plex.tv/link and enter the code."
+                    else "Finish signing in with Plex in your browser, then return here.", StatusScope.PLEX)
+                repeat(150) {
+                    delay(2000)
+                    val token = io { repository.api.pinToken(pin) }
+                    if (token.isNotEmpty()) {
+                        io { repository.savePlexToken(token) }
+                        plexSignedIn = true
+                        refreshPlexIdentity()
+                        favorites = repository.listening.favoriteIds().toSet()
+                        refreshSaved()
+                        loginUrl = null
+                        plexAuthRequired = false
+                        setStatus("")
+                        if (searchTerm.isNotBlank()) search() else browse("plex")
+                        return@action
+                    }
                 }
+                loginUrl = null
+                setStatus("Plex sign-in expired. Tap Sign in to try again.", StatusScope.PLEX)
+            } finally {
+                tvPlexCode = null
             }
-            loginUrl = null
-            setStatus("Plex sign-in expired. Tap Sign in to try again.", StatusScope.PLEX)
         }
     }
     fun signOut() {
         dismissSpeakers()
-        loginJob?.cancel(); browseJob?.cancel(); loginUrl = null
+        loginJob?.cancel(); browseJob?.cancel(); loginUrl = null; tvPlexCode = null
         plexBrowseStore.clear()
         action {
             io { repository.savePlexToken("") }
