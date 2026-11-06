@@ -70,7 +70,7 @@ class TvSpeakersUiTest {
             SpeakerVolume(speakers[0], 98), SpeakerVolume(speakers[1], 2),
             SpeakerVolume(Speaker("fixed", "Fixed output"), null),
         ), onVolume = { id, value -> changes += id to value })
-        compose.onNodeWithText("Living room: 98%").assertIsDisplayed()
+        compose.onNodeWithText("Living room: 98%").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Raise volume Living room").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Lower volume Kitchen").performScrollTo().performClick()
         compose.onNodeWithText("Fixed output: Volume unavailable").performScrollTo().assertIsDisplayed()
