@@ -45,6 +45,7 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -71,6 +72,43 @@ internal fun TvScreen(model: MainModel = viewModel()) {
     var error by remember { mutableStateOf("") }
     var selectionEpoch by remember { mutableIntStateOf(0) }
     var showSignIn by remember { mutableStateOf(false) }
+    var showOutputs by remember { mutableStateOf(false) }
+    val remote = model.playbackOutputRoute.isSpeakers
+    val outputItem = if (remote) model.activeRemoteEntry?.asMediaItem() else current
+    LaunchedEffect(model.output) {
+        if (remote) while (true) {
+            model.refreshSpeakerProgress()
+            model.refreshSpeakerVolumes()
+            delay(8_000)
+        }
+    }
+    fun selectLocal(ids: List<String>, index: Int = 0, positionMs: Long = 0L) {
+        val player = browser ?: return
+        val epoch = ++selectionEpoch
+        selecting = true
+        error = ""
+        model.preparePhoneOutput(onReady = {
+            if (epoch != selectionEpoch) return@preparePhoneOutput
+            val result = player.sendCustomCommand(PlaybackSelectionCommand.COMMAND,
+                PlaybackSelectionCommand.bundle(ids, index, positionMs))
+            result.addListener({
+                if (epoch == selectionEpoch) {
+                    selecting = false
+                    val outcome = runCatching { result.get() }.getOrNull()
+                    if (outcome?.resultCode == SessionResult.RESULT_SUCCESS) model.phoneOutput()
+                    else {
+                        model.resumeSpeakerOutputAfterFailure()
+                        error = outcome?.sessionError?.message ?: "Could not play this item. Choose it again to retry."
+                    }
+                }
+            }, context.mainExecutor)
+        }, onFailure = {
+            if (epoch == selectionEpoch) {
+                selecting = false
+                error = "Could not pause speaker playback. Try again."
+            }
+        })
+    }
     DisposableEffect(context) {
         var attached: MediaBrowser? = null
         val listener = object : Player.Listener {
@@ -106,8 +144,9 @@ internal fun TvScreen(model: MainModel = viewModel()) {
     TvContent(
         entries = tvSearchEntries(model.searchTerm, model.entries, model.searchResults),
         title = if (model.searchTerm.isBlank()) model.locationTitle else "Search results", favorites = model.favorites,
-        currentTitle = current?.mediaMetadata?.title?.toString().orEmpty(),
-        currentId = current?.mediaId, playing = playing, ready = browser != null,
+        currentTitle = outputItem?.mediaMetadata?.title?.toString().orEmpty(),
+        currentId = outputItem?.mediaId, playing = if (remote) model.speakerProgress?.playing == true else playing,
+        ready = if (remote) model.speakerProgress != null else browser != null,
         busy = model.busy || selecting || buffering || model.searchingSources.isNotEmpty(),
         status = error.ifBlank { if (model.searchTerm.isBlank()) model.status
             else model.searchErrors.entries.joinToString(" · ") { "${it.key}: ${it.value}" } },
@@ -120,29 +159,55 @@ internal fun TvScreen(model: MainModel = viewModel()) {
         loadArtwork = { model.repository.artwork(it) },
         loadCurrentArtwork = { id -> model.repository.artwork(model.repository.item(id)) },
         onSignIn = { showSignIn = true; model.signIn(onTv = true) }, onSignOut = model::signOut,
-        onToggle = { browser?.let { if (it.isPlaying) it.pause() else { it.prepare(); it.play() } } },
-        onPlay = { browser?.play() }, onPause = { browser?.pause() },
+        outputName = if (remote) model.output else "This TV",
+        onOutputs = { showOutputs = true; model.speakerPicker(outputItem) },
+        connectionSettings = { TvAssistantSettings(model) },
+        onToggle = { if (remote) model.toggleSpeakers() else browser?.let { if (it.isPlaying) it.pause() else { it.prepare(); it.play() } } },
+        onPlay = { if (remote) model.setSpeakersPlaying(true) else browser?.play() },
+        onPause = { if (remote) model.setSpeakersPlaying(false) else browser?.pause() },
         onEntry = { entry ->
             if (!entry.playable) model.browse(entry.id, title = entry.title)
-            else browser?.let { player ->
-                val epoch = ++selectionEpoch
-                selecting = true
+            else if (remote) {
+                ++selectionEpoch
+                selecting = false
                 error = ""
-                val result = player.sendCustomCommand(PlaybackSelectionCommand.COMMAND,
-                    PlaybackSelectionCommand.bundle(listOf(entry.id), 0, 0L))
-                result.addListener({
-                    if (epoch == selectionEpoch) {
-                        selecting = false
-                        val outcome = runCatching { result.get() }.getOrNull()
-                        if (outcome == null || (outcome.resultCode != SessionResult.RESULT_SUCCESS &&
-                                outcome.resultCode != androidx.media3.session.SessionError.INFO_CANCELLED)) {
-                            error = outcome?.sessionError?.message ?: "Could not play this item. Choose it again to retry."
-                        }
-                    }
-                }, context.mainExecutor)
+                model.selectOnCurrentSpeakers(entry.id) { browser?.pause() }
+            } else {
+                val epoch = ++selectionEpoch
+                val albumParent = if (model.searchTerm.isBlank()) model.parent else ""
+                val browseEpoch = model.listEpoch
+                val query = model.searchTerm
+                model.action {
+                    val queue = AlbumTrackQueueBuilder.resolve(albumParent, entry, browse = model.repository::browse)
+                    if (epoch == selectionEpoch && browseEpoch == model.listEpoch && query == model.searchTerm)
+                        selectLocal(queue?.ids ?: listOf(entry.id), queue?.index ?: 0)
+                }
             }
         },
     )
+    if (showOutputs) TvSpeakerDialog(
+        speakers = model.speakers, selected = model.activeSpeakerSelection.map { it.id }.toSet(),
+        volumes = model.speakerVolumes, busy = model.busy, status = model.status,
+        progress = model.speakerProgress,
+        onDismiss = { showOutputs = false; model.dismissSpeakers() },
+        onSelect = { targets -> showOutputs = false; model.selectSpeakers(targets) { browser?.pause() } },
+        onLocal = {
+            showOutputs = false
+            val id = outputItem?.mediaId
+            model.dismissSpeakers()
+            if (id != null) selectLocal(listOf(id), positionMs = if (id.startsWith("radio:")) 0L else model.speakerProgress?.positionAt(System.nanoTime() / 1_000_000) ?: 0L)
+        },
+        onVolume = model::setSpeakerVolume, onSeek = model::seekSpeakers,
+    )
+    model.speakerTracks?.let { tracks ->
+        AlertDialog(onDismissRequest = model::dismissSpeakers, title = { Text("Confirm Music Assistant track") },
+            text = { Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                if (tracks.isEmpty()) Text(model.status)
+                tracks.forEach { track -> TvButton("${track.name} — ${track.artist}", onClick = {
+                    model.playOnSpeaker(track.uri) { browser?.pause() }
+                }) }
+            } }, confirmButton = { TvButton("Cancel", onClick = model::dismissSpeakers) })
+    }
     BackHandler(enabled = showSignIn) { showSignIn = false; model.cancelTvSignIn() }
     if (showSignIn) AlertDialog(
         onDismissRequest = { showSignIn = false; model.cancelTvSignIn() },
@@ -166,6 +231,8 @@ internal fun TvContent(
     onFavorite: (String) -> Unit, onSignIn: () -> Unit, onSignOut: () -> Unit,
     onToggle: () -> Unit, onPlay: () -> Unit, onPause: () -> Unit, onEntry: (Entry) -> Unit,
     paginationFailed: Boolean = false, accountName: String = "",
+    outputName: String = "This TV", onOutputs: () -> Unit = {},
+    connectionSettings: @Composable () -> Unit = {},
     loadArtwork: suspend (Entry) -> ByteArray? = { null },
     loadCurrentArtwork: suspend (String) -> ByteArray? = { null },
 ) {
@@ -226,12 +293,16 @@ internal fun TvContent(
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (settings) {
-                Text("Settings", style = MaterialTheme.typography.headlineMedium)
-                Text("Plex", style = MaterialTheme.typography.titleLarge)
-                Text(if (signedIn) accountName.ifBlank { "Signed in to Plex" } else "Not signed in to Plex")
-                TvButton(if (signedIn) "Sign out of Plex" else "Sign in to Plex",
-                    Modifier.focusRequester(accountFocus), onClick = if (signedIn) onSignOut else onSignIn)
-                TvButton("Close settings", onClick = ::closeSettings)
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Settings", style = MaterialTheme.typography.headlineMedium)
+                    AppVersionInfo()
+                    Text("Plex", style = MaterialTheme.typography.titleLarge)
+                    Text(if (signedIn) accountName.ifBlank { "Signed in to Plex" } else "Not signed in to Plex")
+                    TvButton(if (signedIn) "Sign out of Plex" else "Sign in to Plex",
+                        Modifier.focusRequester(accountFocus), onClick = if (signedIn) onSignOut else onSignIn)
+                    connectionSettings()
+                    TvButton("Close settings", onClick = ::closeSettings)
+                }
             } else {
                 Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 1)
                 OutlinedTextField(search, onValueChange = onSearch, label = { Text("Search radio, Plex and YouTube") }, singleLine = true,
@@ -259,10 +330,11 @@ internal fun TvContent(
                         TvArtwork(id, "", 96, "Now playing artwork") { loadCurrentArtwork(id) }
                     }
                     Column(Modifier.weight(1f)) {
-                        Text("Playing on this TV", style = MaterialTheme.typography.labelMedium)
+                        Text("Playing on $outputName", style = MaterialTheme.typography.labelMedium)
                         Text(currentTitle.ifBlank { "Choose something to play" }, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.titleLarge)
                     }
+                    TvButton("Speakers", enabled = currentId != null, onClick = onOutputs)
                     TvButton(if (playing) "Pause" else "Play", enabled = ready && currentId != null,
                         icon = if (playing) R.drawable.ic_pause else R.drawable.ic_play, onClick = onToggle)
                 }
@@ -272,7 +344,7 @@ internal fun TvContent(
 }
 
 @Composable
-private fun TvButton(
+internal fun TvButton(
     label: String, modifier: Modifier = Modifier, enabled: Boolean = true,
     description: String = label, icon: Int? = null, onClick: () -> Unit,
 ) {

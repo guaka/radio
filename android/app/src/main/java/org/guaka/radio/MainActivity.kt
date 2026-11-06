@@ -209,10 +209,11 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         repository.controlSpeakers(targets, "seek", target)
         if (targets == activeSpeakers) speakerProgress = state.copy(positionMs = target, sampledAtMs = System.nanoTime() / 1_000_000)
     }
-    fun toggleSpeakers() = action {
+    fun toggleSpeakers() = setSpeakersPlaying(speakerProgress?.playing != true)
+    fun setSpeakersPlaying(playing: Boolean) = action {
         val targets = activeSpeakers
         speakerControlGeneration++
-        repository.controlSpeakers(targets, if (speakerProgress?.playing == true) "pause" else "play")
+        repository.controlSpeakers(targets, if (playing) "play" else "pause")
         refreshSpeakerProgress()
     }
 
@@ -1044,6 +1045,17 @@ fun AppScreen(model: MainModel = viewModel()) {
             selectPlayback(selection.ids, selection.index, selection.positionMs, selection.retrySelectedOnly, selection.explicitPhone)
         }
     }
+    fun playAlbumEntry(entry: Entry) {
+        val epoch = ++selectionEpoch
+        val albumParent = model.parent
+        val browseEpoch = model.listEpoch
+        val query = model.searchTerm
+        model.action {
+            val album = AlbumTrackQueueBuilder.resolve(albumParent, entry, browse = model.repository::browse)
+            if (epoch == selectionEpoch && browseEpoch == model.listEpoch && query == model.searchTerm)
+                selectPlayback(album?.ids ?: listOf(entry.id), album?.index ?: 0)
+        }
+    }
     fun play(items: List<MediaItem>) {
         if (items.isEmpty()) return
         if (items.size > ListeningStore.MAX_QUEUE) { playerError = "Choose up to 500 items for the phone queue."; return }
@@ -1285,7 +1297,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                                     modifier = Modifier.semantics { contentDescription = "Queue ${entry.title}" }) { Text("+Q") }
                             }
                         }, modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
-                            if (entry.playable) play(listOf(entry.asMediaItem())) else model.browse(entry.id, title = entry.title)
+                            if (entry.playable) playAlbumEntry(entry) else model.browse(entry.id, title = entry.title)
                         })
                 }
             }

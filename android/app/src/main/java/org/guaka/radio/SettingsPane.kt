@@ -47,7 +47,7 @@ internal fun SettingsPane(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Build: ${BuildConfig.BUILD_TIME} (Lisbon)", style = MaterialTheme.typography.bodySmall)
+            AppVersionInfo()
 
             SettingsSection(title = "Plex") {
                 Text("Plex works away from home when your server's Remote Access is configured.")
