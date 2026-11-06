@@ -60,6 +60,8 @@ class PlaybackService : MediaLibraryService() {
     private var stopCredentialObserver: (() -> Unit)? = null
     private var requestedArtworkTarget: Pair<String, Int>? = null
     private var selectionJob: kotlinx.coroutines.Job? = null
+    private var sleepJob: kotlinx.coroutines.Job? = null
+    private var stopSleepObserver: (() -> Unit)? = null
     private val playbackHandoff = PlaybackHandoff()
     private val audioAttributes = AudioAttributes.Builder()
         .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
@@ -70,6 +72,9 @@ class PlaybackService : MediaLibraryService() {
         attachPlaybackListeners(player)
         val openApp = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         session = MediaLibrarySession.Builder(this, player, Callback()).setSessionActivity(openApp).build()
+        val sleepTimer = (application as RadioApp).sleepTimer
+        stopSleepObserver = sleepTimer.observe { scheduleSleepTimer() }
+        scheduleSleepTimer()
         stopCredentialObserver = listening.observePlexChanges {
             playbackHandoff.invalidate()
             selectionJob?.cancel()
@@ -79,6 +84,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun buildPlayer(handleAudioFocus: Boolean): ExoPlayer = ExoPlayer.Builder(this)
         .setMediaSourceFactory(ScopedSourceFactory())
+        .setLoadControl(PlaybackBuffering.loadControl())
         .setAudioAttributes(audioAttributes, handleAudioFocus)
         .setHandleAudioBecomingNoisy(true)
         .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -128,6 +134,8 @@ class PlaybackService : MediaLibraryService() {
         if (!session.player.playWhenReady) stopSelf()
     }
     override fun onDestroy() {
+        stopSleepObserver?.invoke()
+        sleepJob?.cancel()
         stopCredentialObserver?.invoke()
         stopPeriodicSave()
         artworkJob?.cancel()
@@ -139,6 +147,16 @@ class PlaybackService : MediaLibraryService() {
         session.player.release()
         session.release()
         super.onDestroy()
+    }
+
+    private fun scheduleSleepTimer() {
+        sleepJob?.cancel()
+        val timer = (application as RadioApp).sleepTimer
+        val state = timer.state() ?: return
+        sleepJob = scope.launch {
+            delay((state.deadline - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0))
+            sendBroadcast(timer.intent(state.token))
+        }
     }
 
     private fun purgeStalePlexItems() {
@@ -232,7 +250,9 @@ class PlaybackService : MediaLibraryService() {
         val state = SavedPlayback(indexed.map { it.first }, savedIndex,
             if (!currentWasRetained || currentId.startsWith("radio:")) 0L else player.currentPosition.coerceAtLeast(0L))
         if (state != lastPersisted) {
-            runCatching { listening.savePlayback(state) }.onSuccess { lastPersisted = state }
+            val metadata = player.getMediaItemAt(indexed[savedIndex].second).mediaMetadata
+            val preview = Entry(currentId, metadata.title?.toString().orEmpty(), metadata.artist?.toString().orEmpty(), playable = true)
+            runCatching { listening.savePlayback(state, preview) }.onSuccess { lastPersisted = state }
         }
     }
     private fun <T> future(block: suspend () -> T): ListenableFuture<T> {
@@ -304,13 +324,18 @@ class PlaybackService : MediaLibraryService() {
                         // Focus remains with the old player during preload; acquire it at commit.
                         stagedPlayer.setAudioAttributes(audioAttributes, true)
                         attachPlaybackListeners(stagedPlayer)
-                        session.setPlayer(stagedPlayer)
-                        if (oldPlayer != null && pauseListener != null) oldPlayer.removeListener(pauseListener!!)
-                        stagedPlayer.play()
-                        oldPlayer?.takeIf { it !== stagedPlayer }?.release()
-                        persistPlayback()
-                        requestCurrentArtwork()
+                        try {
+                            session.setPlayer(stagedPlayer)
+                            stagedPlayer.play()
+                        } finally {
+                            if (session.player === stagedPlayer) {
+                                if (oldPlayer != null && pauseListener != null) oldPlayer.removeListener(pauseListener!!)
+                                oldPlayer?.takeIf { it !== stagedPlayer }?.release()
+                            }
+                        }
+                        runCatching { persistPlayback(); requestCurrentArtwork() }
                     },
+                    isAttached = { session.player === it },
                     discard = ExoPlayer::release,
                 )
                 if (!committed) {
@@ -408,6 +433,7 @@ class PlaybackService : MediaLibraryService() {
             if (controller.packageName != packageName) return accepted
             val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
                 .add(PlaybackSelectionCommand.COMMAND)
+                .add(SLEEP_COMMAND)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(commands)
@@ -423,6 +449,12 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<SessionResult> {
             if (controller.packageName == packageName && customCommand.customAction == PlaybackSelectionCommand.ACTION) {
                 return selectPlayback(controller, args)
+            }
+            if (controller.packageName == packageName && customCommand.customAction == SLEEP_COMMAND.customAction) {
+                playbackHandoff.invalidate()
+                selectionJob?.cancel()
+                session.player.pause()
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return super.onCustomCommand(session, controller, customCommand, args)
         }

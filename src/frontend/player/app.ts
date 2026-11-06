@@ -5836,7 +5836,7 @@
                 return (
                   '<li class="radio-item' + (isPlaying ? ' playing' : '') + '" data-radio-id="' + escapeHtml(station.id) + '">' +
                   '<button type="button" class="radio-play-btn" data-radio-play="' + escapeHtml(station.id) + '" aria-label="Play ' + escapeHtml(station.title) + '" title="Play station">&#9654;</button>' +
-                  '<img class="radio-thumb" src="' + escapeHtml(station.img || station.fallbackImg || fallbackThumbDataUrl()) + '" data-fallback="' + escapeHtml(station.fallbackImg || fallbackThumbDataUrl()) + '" alt="" loading="lazy" />' +
+                  '<img class="radio-thumb" src="' + escapeHtml(station.img || station.fallbackImg || fallbackThumbDataUrl()) + '" data-radio-image="' + escapeHtml(station.id) + '" alt="" loading="lazy" />' +
                   '<div class="radio-meta">' +
                   '<div class="radio-title">' + (station.site ? '<a class="meta-link" href="' + escapeHtml(station.site) + '" target="_blank" rel="noopener">' + escapeHtml(station.title) + '</a>' : escapeHtml(station.title)) + '</div>' +
                   '<div class="radio-sub">' + escapeHtml(sub) + '</div>' +
@@ -5875,10 +5875,17 @@
     });
     wrap.querySelectorAll('img.radio-thumb').forEach((img) => {
       img.onerror = () => {
-        const fallback = img.getAttribute('data-fallback') || fallbackThumbDataUrl();
-        if (img.src !== fallback) img.src = fallback;
+        applyRadioImageFallback(img);
       };
     });
+  }
+
+  function applyRadioImageFallback(img) {
+    const id = img.getAttribute('data-radio-image');
+    const station = radioStations.find((candidate) => candidate.id === id);
+    const fallback = station && station.fallbackImg ? station.fallbackImg : fallbackThumbDataUrl();
+    img.onerror = null;
+    img.src = fallback;
   }
 
   function updateNowPlayingStationFavButton(stationId) {

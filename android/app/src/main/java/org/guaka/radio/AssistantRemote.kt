@@ -144,7 +144,7 @@ internal class AssistantRemote(context: Context) {
                             authenticated = true
                             send(command, "command", args)
                         } else if (authenticated && body.optString("message_id") == "command") {
-                            if (body.has("error_code") || body.has("error")) throw IOException("Music Assistant rejected the remote command. Check the token permissions.")
+                            if (body.has("error_code") || body.has("error")) throw AssistantRemoteCommandException(body.optInt("error_code", -1), body.optString("details").take(1024))
                             return@withTimeout body.opt("result") ?: JSONObject.NULL
                         }
                     }
@@ -197,3 +197,7 @@ internal class AssistantRemoteChunks {
         return JSONObject(output.toString("UTF-8"))
     }
 }
+
+internal class AssistantRemoteCommandException(val errorCode: Int, val details: String = "") : IOException(
+    "Music Assistant rejected the command (error $errorCode). Check the source, player, and token permissions."
+)

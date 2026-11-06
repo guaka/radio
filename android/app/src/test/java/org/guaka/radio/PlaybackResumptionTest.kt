@@ -11,6 +11,24 @@ import org.junit.Test
 import java.io.IOException
 
 class PlaybackResumptionTest {
+    @Test fun previewUsesMetadataOnlyForTheSelectedSavedId() {
+        val saved = SavedPlayback(listOf("radio:one", "track:server:42"), 1, 12_345L)
+        val cached = Entry("track:server:42", "Cached song", "Cached artist", true)
+        val station = Entry("radio:one", "Station name", "", true)
+
+        assertEquals(cached, PlaybackResumption.preview(saved, cached, listOf(station), tokenAvailable = true))
+        assertEquals(station, PlaybackResumption.preview(saved.copy(index = 0), cached, listOf(station), tokenAvailable = true))
+    }
+
+    @Test fun previewIgnoresMismatchedCachedMetadataAndHidesPlexWhenSignedOut() {
+        val saved = SavedPlayback(listOf("track:server:42"), 0, 12_345L)
+        val unrelated = Entry("track:server:99", "Wrong cached song", "", true)
+
+        assertEquals("Saved Plex track", PlaybackResumption.preview(saved, unrelated, emptyList(), tokenAvailable = true)?.title)
+        assertNull(PlaybackResumption.preview(saved, unrelated, emptyList(), tokenAvailable = false))
+        assertNull(PlaybackResumption.preview(null, unrelated, emptyList(), tokenAvailable = true))
+    }
+
     @Test fun restoresQueueOrderSelectedIndexAndSeekPosition() = runBlocking {
         val saved = SavedPlayback(listOf("radio:one", "track:server:42", "radio:three"), 1, 12_345L)
         val result = PlaybackResumption.resolve(saved, true, 7L, { 7L }) { id -> entry(id) }

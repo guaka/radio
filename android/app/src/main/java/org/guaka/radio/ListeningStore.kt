@@ -4,32 +4,32 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Persistent listening choices. This store contains media IDs and positions only, never credentials or URLs. */
+/** Persistent listening choices and display text, never credentials or stream URLs. */
 class ListeningStore(context: Context) {
     private val preferences = context.getSharedPreferences("listening", Context.MODE_PRIVATE)
 
     @Synchronized
-    fun favoriteIds(): List<String> = decodeIds(preferences.getString(KEY_FAVORITES, null))
+    fun favoriteIds(): List<String> = decodeFavoriteIds(preferences.getString(KEY_FAVORITES, null))
 
     @Synchronized
-    fun isFavorite(id: String): Boolean = isStableMediaId(id) && favoriteIds().contains(id)
+    fun isFavorite(id: String): Boolean = isFavoriteMediaId(id) && favoriteIds().contains(id)
 
     /** Adds an ID and returns true, or removes it and returns false. */
     @Synchronized
     fun toggleFavorite(id: String): Boolean {
-        require(isStableMediaId(id)) { "Only stable radio and Plex track IDs can be favorited." }
+        require(isFavoriteMediaId(id)) { "Only stable radio, Plex track, and Plex album IDs can be favorited." }
         val ids = favoriteIds().toMutableList()
         val added = if (id in ids) { ids.remove(id); false } else {
             require(ids.size < MAX_FAVORITES) { "You can save up to 500 favorites. Remove one first." }
             ids.add(id); true
         }
-        check(preferences.edit().putString(KEY_FAVORITES, encodeIds(ids)).commit()) { "Could not save favorites." }
+        check(preferences.edit().putString(KEY_FAVORITES, encodeFavoriteIds(ids)).commit()) { "Could not save favorites." }
         return added
     }
 
     @Synchronized
     internal fun replaceFavorites(ids: List<String>) {
-        check(preferences.edit().putString(KEY_FAVORITES, encodeIds(ids)).commit()) { "Could not save favorites." }
+        check(preferences.edit().putString(KEY_FAVORITES, encodeFavoriteIds(ids)).commit()) { "Could not save favorites." }
     }
 
     @Synchronized
@@ -49,7 +49,7 @@ class ListeningStore(context: Context) {
 
     fun observeChanges(onChange: () -> Unit): () -> Unit {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == KEY_FAVORITES || key == KEY_PLAYBACK || key == KEY_HISTORY) onChange()
+            if (key == KEY_FAVORITES || key == KEY_PLAYBACK || key == KEY_HISTORY || key == KEY_PREVIEW) onChange()
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
         return { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -67,7 +67,7 @@ class ListeningStore(context: Context) {
 
     @Synchronized
     fun clearPlex() {
-        val remaining = favoriteIds().filterNot { it.startsWith("track:") }
+        val remaining = favoriteIds().filterNot { it.startsWith("track:") || it.startsWith("album:") }
         val saved = loadPlayback()
         val filtered = saved?.let { state ->
             val pairs = state.ids.mapIndexed { index, id -> id to index }
@@ -78,10 +78,11 @@ class ListeningStore(context: Context) {
                 SavedPlayback(pairs.map { it.first }, newIndex, if (pairs[newIndex].second == state.index) state.positionMs else 0L)
             }
         }
-        val editor = preferences.edit().putString(KEY_FAVORITES, encodeIds(remaining))
+        val editor = preferences.edit().putString(KEY_FAVORITES, encodeFavoriteIds(remaining))
             .putString(KEY_HISTORY, encodeIds(historyIds().filterNot { it.startsWith("track:") }))
             .putLong("plexGeneration", plexGeneration() + 1L)
         if (filtered == null) editor.remove(KEY_PLAYBACK) else editor.putString(KEY_PLAYBACK, encodePlayback(filtered))
+        if (playbackPreview()?.id?.startsWith("track:") == true) editor.remove(KEY_PREVIEW)
         check(editor.commit()) { "Could not clear Plex listening data." }
     }
 
@@ -89,26 +90,46 @@ class ListeningStore(context: Context) {
     fun loadPlayback(): SavedPlayback? = decodePlayback(preferences.getString(KEY_PLAYBACK, null))
 
     @Synchronized
-    fun savePlayback(state: SavedPlayback?) {
+    fun savePlayback(state: SavedPlayback?, preview: Entry? = null) {
         val editor = preferences.edit()
         if (state == null) editor.remove(KEY_PLAYBACK)
         else editor.putString(KEY_PLAYBACK, encodePlayback(state))
+        val selectedId = state?.ids?.getOrNull(state.index)
+        if (preview != null && preview.id == selectedId) editor.putString(KEY_PREVIEW, encodePreview(preview))
+        else if (selectedId == null || playbackPreview()?.id != selectedId) editor.remove(KEY_PREVIEW)
         check(editor.commit()) { "Could not save playback state." }
     }
+
+    @Synchronized
+    fun playbackPreview(): Entry? = decodePreview(preferences.getString(KEY_PREVIEW, null))
 
     companion object {
         private const val KEY_FAVORITES = "favoriteIds"
         private const val KEY_PLAYBACK = "playback"
+        private const val KEY_PREVIEW = "playbackPreview"
         private const val KEY_HISTORY = "historyIds"
         private const val MAX_HISTORY = 500
         private const val MAX_FAVORITES = 500
         const val MAX_QUEUE = 500
         internal const val MAX_POSITION_MS = 7L * 24 * 60 * 60 * 1000
+        internal fun encodePreview(entry: Entry): String = JSONObject()
+            .put("id", entry.id).put("title", entry.title.take(1000)).put("subtitle", entry.subtitle.take(1000)).toString()
+
+        internal fun decodePreview(encoded: String?): Entry? = runCatching {
+            val json = JSONObject(encoded ?: return null)
+            val id = json.getString("id")
+            if (!isStableMediaId(id)) return null
+            Entry(id, json.getString("title").take(1000), json.optString("subtitle").take(1000), playable = true)
+        }.getOrNull()
         private val YOUTUBE_ID = Regex("youtube:[A-Za-z0-9_-]{11}")
         private val RADIO_ID = Regex("radio:[a-zA-Z0-9_-]{1,80}")
         private val TRACK_ID = Regex("track:[a-zA-Z0-9_-]{1,128}:[a-zA-Z0-9_-]{1,128}")
+        private val ALBUM_ID = Regex("album:[a-zA-Z0-9_-]{1,128}:[a-zA-Z0-9_-]{1,128}")
 
         fun isStableMediaId(id: String): Boolean = RADIO_ID.matches(id) || TRACK_ID.matches(id) || YOUTUBE_ID.matches(id)
+
+        /** Favorites may navigate to Plex albums; playback and history IDs stay restricted to playable media. */
+        fun isFavoriteMediaId(id: String): Boolean = isStableMediaId(id) || ALBUM_ID.matches(id)
 
         internal fun updateHistory(ids: List<String>, id: String): List<String> =
             if (!isStableMediaId(id)) ids else (listOf(id) + ids.filterNot { it == id }).take(MAX_HISTORY)
@@ -121,6 +142,17 @@ class ListeningStore(context: Context) {
             val array = JSONArray(encoded ?: return emptyList())
             (0 until minOf(array.length(), MAX_FAVORITES)).mapNotNull { i ->
                 array.optString(i).takeIf(::isStableMediaId)
+            }.distinct()
+        }.getOrDefault(emptyList())
+
+        fun encodeFavoriteIds(ids: List<String>): String = JSONArray().apply {
+            ids.asSequence().filter(::isFavoriteMediaId).distinct().take(MAX_FAVORITES).forEach { put(it) }
+        }.toString()
+
+        fun decodeFavoriteIds(encoded: String?): List<String> = runCatching {
+            val array = JSONArray(encoded ?: return emptyList())
+            (0 until minOf(array.length(), MAX_FAVORITES)).mapNotNull { i ->
+                array.optString(i).takeIf(::isFavoriteMediaId)
             }.distinct()
         }.getOrDefault(emptyList())
 

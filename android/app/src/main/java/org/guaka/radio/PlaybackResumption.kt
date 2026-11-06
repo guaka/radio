@@ -15,6 +15,19 @@ internal data class ResolvedPlayback(
 
 /** Resolves a saved ID queue while preserving its selected item when possible. */
 internal object PlaybackResumption {
+    /** Display the saved selection offline; playback still resolves fresh URLs on Play. */
+    fun preview(saved: SavedPlayback?, cached: Entry?, stations: List<Entry>, tokenAvailable: Boolean): Entry? {
+        val id = saved?.ids?.getOrNull(saved.index) ?: return null
+        if (id.startsWith("track:") && !tokenAvailable) return null
+        return stations.firstOrNull { it.id == id }
+            ?: cached?.takeIf { it.id == id && it.title.isNotBlank() }
+            ?: Entry(id, when {
+                id.startsWith("youtube:") -> "Saved YouTube audio"
+                id.startsWith("radio:") -> "Saved radio station"
+                else -> "Saved Plex track"
+            }, playable = true)
+    }
+
     suspend fun resolve(
         saved: SavedPlayback,
         tokenAvailable: Boolean,

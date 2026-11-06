@@ -23,6 +23,7 @@ val betaKeyAlias = providers.environmentVariable("RADIO_BETA_KEY_ALIAS")
 val betaKeyPassword = providers.environmentVariable("RADIO_BETA_KEY_PASSWORD")
 
 android {
+    testBuildType = providers.gradleProperty("instrumentationBuildType").orElse("debug").get().also { require(it in setOf("debug", "release")) }
     namespace = "org.guaka.radio"
     compileSdk = 36
     defaultConfig {
@@ -99,6 +100,7 @@ dependencies {
     testRuntimeOnly("fr.acinq.secp256k1:secp256k1-kmp-jni-jvm:0.22.0")
     testImplementation("org.json:json:20240303")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:5.3.2")
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.04.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

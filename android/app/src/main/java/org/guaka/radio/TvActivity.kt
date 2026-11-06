@@ -99,15 +99,18 @@ internal fun TvScreen(model: MainModel = viewModel()) {
     }
     LaunchedEffect(model.plexSignedIn) { if (model.plexSignedIn) showSignIn = false }
     TvContent(
-        entries = model.entries, title = model.locationTitle, favorites = model.favorites,
+        entries = tvSearchEntries(model.searchTerm, model.entries, model.searchResults),
+        title = if (model.searchTerm.isBlank()) model.locationTitle else "Search results", favorites = model.favorites,
         currentTitle = current?.mediaMetadata?.title?.toString().orEmpty(),
         currentId = current?.mediaId, playing = playing, ready = browser != null,
-        busy = model.busy || selecting || buffering, status = error.ifBlank { model.status },
-        hasMore = model.hasMore, canGoBack = model.canGoBack, listEpoch = model.listEpoch,
+        busy = model.busy || selecting || buffering || model.searchingSources.isNotEmpty(),
+        status = error.ifBlank { if (model.searchTerm.isBlank()) model.status
+            else model.searchErrors.entries.joinToString(" · ") { "${it.key}: ${it.value}" } },
+        hasMore = model.searchTerm.isBlank() && model.hasMore, canGoBack = model.canGoBack, listEpoch = model.listEpoch,
         search = model.searchTerm, signedIn = model.plexSignedIn,
         onSearch = model::updateFilter, onSource = { model.browse(it); error = "" },
         onBack = model::back, onMore = { if (model.paginationFailed) model.retryLoadMore() else model.loadMore() },
-        onRefresh = { model.refresh(); error = "" }, onFavorite = model::favorite,
+        onRefresh = { if (model.searchTerm.isBlank()) model.refresh() else model.search(); error = "" }, onFavorite = model::favorite,
         onSignIn = { showSignIn = true; model.signIn(onTv = true) }, onSignOut = model::signOut,
         onToggle = { browser?.let { if (it.isPlaying) it.pause() else { it.prepare(); it.play() } } },
         onPlay = { browser?.play() }, onPause = { browser?.pause() },
@@ -191,7 +194,7 @@ internal fun TvContent(
                 TvButton(if (signedIn) "Sign out of Plex" else "Sign in to Plex",
                     onClick = if (signedIn) onSignOut else onSignIn)
             }
-            OutlinedTextField(search, onValueChange = onSearch, label = { Text("Search $title") }, singleLine = true,
+            OutlinedTextField(search, onValueChange = onSearch, label = { Text("Search radio, Plex and YouTube") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth())
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(entries, key = { it.id }) { entry ->

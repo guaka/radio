@@ -18,6 +18,9 @@ internal object PlaybackHttpClient {
             .followSslRedirects(credential == null)
             .callTimeout(0, TimeUnit.MILLISECONDS)
             .apply {
+                if (entry.id.startsWith("youtube:")) {
+                    addNetworkInterceptor(YouTubePlaybackInterceptor())
+                }
                 if (credential != null && origin != null) {
                     addInterceptor { chain ->
                         val request = chain.request()

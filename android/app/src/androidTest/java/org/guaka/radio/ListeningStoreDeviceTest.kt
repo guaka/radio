@@ -25,6 +25,7 @@ class ListeningStoreDeviceTest {
         val store = ListeningStore(context)
         store.toggleFavorite("radio:7soul")
         store.toggleFavorite("track:server:42")
+        store.toggleFavorite("album:server:9")
         store.savePlayback(SavedPlayback(listOf("track:server:42", "radio:7soul"), 0, 1234))
         val before = store.plexGeneration()
         store.clearPlex()

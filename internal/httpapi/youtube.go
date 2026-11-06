@@ -440,6 +440,10 @@ func (h *Handler) handleYouTubeStreamProxy(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "url required", http.StatusBadRequest)
 		return
 	}
+	if !youtubeStreamURLPattern.MatchString(raw) {
+		http.Error(w, "upstream host not allowed", http.StatusBadRequest)
+		return
+	}
 	u, err := url.Parse(raw)
 	if err != nil || u == nil || u.Scheme != "https" || strings.TrimSpace(u.Host) == "" {
 		http.Error(w, "invalid url", http.StatusBadRequest)
@@ -463,14 +467,7 @@ func (h *Handler) handleYouTubeStreamProxy(w http.ResponseWriter, r *http.Reques
 	}
 	req.Header.Set("User-Agent", "radio-guaka/yt-proxy")
 	req.Header.Set("Accept", "*/*")
-	client := newOutboundHTTPClient(0, false)
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 5 || !allowedYouTubeStreamURL(req.URL) {
-			return errors.New("stream redirect not allowed")
-		}
-		return nil
-	}
-	resp, err := client.Do(req)
+	resp, err := youtubeStreamHTTPClient.Do(req)
 	if err != nil {
 		log.Printf("[youtube-stream] fail host=%s err=%v", host, err)
 		http.Error(w, "stream proxy error: "+err.Error(), http.StatusBadGateway)
@@ -501,7 +498,7 @@ func (h *Handler) handleYouTubeStreamProxy(w http.ResponseWriter, r *http.Reques
 var youtubeVideoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
 func allowedYouTubeStreamURL(u *url.URL) bool {
-	if u == nil || u.Scheme != "https" || u.User != nil || (u.Port() != "" && u.Port() != "443") {
+	if u == nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" || (u.Port() != "" && u.Port() != "443") || !youtubeStreamURLPattern.MatchString(u.String()) {
 		return false
 	}
 	host := strings.ToLower(u.Hostname())

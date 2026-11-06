@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 class RadioApp : Application() {
     override fun onCreate() { super.onCreate(); SettingsMigration.migrate(this) }
     val repository by lazy { MusicRepository(this) }
+    internal val sleepTimer by lazy { SleepTimer(this) }
 }
 
 class MusicRepository(private val context: Context) {
@@ -35,9 +36,18 @@ class MusicRepository(private val context: Context) {
     }
     val api = ApiClient(clientId)
     private val assistantRemote = AssistantRemote(context)
+    internal val phoneRelay = PhoneAudioRelay(context.applicationContext)
     private val youtube = YouTubeAudio()
     private val discovery = PlexDiscoveryCache()
     private val entries = ConcurrentHashMap<String, Entry>()
+    private val savedMetadata by lazy {
+        val storage = context.getSharedPreferences("saved_metadata", Context.MODE_PRIVATE)
+        SavedMetadataCache(
+            read = { storage.getString("entries", null) },
+            write = { storage.edit().putString("entries", it).apply() },
+            currentGeneration = listening::plexGeneration,
+        )
+    }
     private val somaArtworkCache = SomaArtworkCache()
     private val stationArtworkCache = StationArtworkCache(
         diskDirectory = java.io.File(context.cacheDir, "station-artwork-v1")
@@ -94,7 +104,10 @@ class MusicRepository(private val context: Context) {
             id == "root" -> Entry("root", "Radio Guaka")
             id == "youtube" -> Entry("youtube", "YouTube")
             id == "history" -> Entry("history", "History")
-            id.startsWith("youtube:") -> runInterruptible { youtube.item(id) }
+            id.startsWith("youtube:") -> runInterruptible { youtube.item(id) }.also {
+                entries[id] = it.copy(url = "", token = "")
+                savedMetadata.put(it, listening.plexGeneration())
+            }
             id in listOf("radio", "plex", "favorites") -> browse("root").first { it.id == id }
             id.startsWith("server:") -> {
                 val serverId = id.removePrefix("server:")
@@ -208,27 +221,35 @@ class MusicRepository(private val context: Context) {
     }
 
     private suspend fun plexMetadata(id: String): Entry {
+        val generation = listening.plexGeneration()
         val parts = id.split(':', limit = 3)
         require(parts.size == 3 && parts[0] in listOf("track", "artist", "album") && validPathKey(parts[1]) && validPathKey(parts[2]))
         val payload = plexRequest(parts[1], "/library/metadata/${parts[2]}")
         val row = IntegrationParser.metadata(payload).optJSONObject(0)
             ?: throw ApiRequestException(404)
         if (row.optString("type").isBlank()) row.put("type", parts[0])
-        return IntegrationParser.mediaEntry(row, parts[1], "")?.takeIf { it.id == id }?.also { entries[id] = it }
+        check(generation == listening.plexGeneration()) { "Plex sign-in changed. Try again." }
+        return IntegrationParser.mediaEntry(row, parts[1], "")?.takeIf { it.id == id }?.also {
+            entries[id] = it
+            savedMetadata.put(it, generation)
+        }
             ?: throw ApiRequestException(422)
     }
 
     private suspend fun favoriteEntries(start: Int = 0, size: Int = Int.MAX_VALUE): List<Entry> =
         savedEntries(listening.favoriteIds().drop(start).take(size))
 
-    private suspend fun savedEntries(ids: List<String>, history: Boolean = false): List<Entry> =
-        resolveFavoriteEntries(
+    private suspend fun savedEntries(ids: List<String>, history: Boolean = false): List<Entry> {
+        val generation = listening.plexGeneration()
+        return resolveFavoriteEntries(
             ids = ids,
             tokenAvailable = credentials.get("plexToken").isNotBlank(),
-            cachedEntry = { entries[it] },
-            resolveEntry = { item(it) },
+            cachedEntry = { entries[it] ?: savedMetadata.get(it) },
+            resolveEntry = { id -> item(id).also { savedMetadata.put(it, generation) } },
             history = history,
+            maxConcurrentLookups = if (history) HISTORY_LOOKUPS else FAVORITE_LOOKUPS,
         )
+    }
 
     private suspend fun plexScopes(parent: String): List<Triple<String, String, String?>> {
         suspend fun sections(serverId: String): List<Triple<String, String, String?>> {
@@ -379,7 +400,10 @@ class MusicRepository(private val context: Context) {
 
 
     suspend fun playable(id: String): Entry = withContext(Dispatchers.IO) {
-        if (id.startsWith("youtube:")) return@withContext runInterruptible { youtube.playable(id) }.also { entries[id] = it.copy(url = "") }
+        if (id.startsWith("youtube:")) return@withContext runInterruptible { youtube.playable(id) }.also {
+            entries[id] = it.copy(url = "")
+            savedMetadata.put(it, listening.plexGeneration())
+        }
         if (id.startsWith("radio:")) return@withContext stations.first { it.id == id }
         require(id.startsWith("track:")) { "Unknown media item." }
         val generation = listening.plexGeneration()
@@ -401,7 +425,10 @@ class MusicRepository(private val context: Context) {
         val parsed = IntegrationParser.mediaEntry(track, server.id, "")?.takeIf { it.id == id && it.playable }
             ?: throw IOException("Plex returned unsupported track metadata.")
         check(generation == listening.plexGeneration()) { "Plex sign-in changed. Choose the track again." }
-        parsed.copy(url = stream.toString(), token = server.token, credentialGeneration = generation).also { entries[id] = it }
+        parsed.copy(url = stream.toString(), token = server.token, credentialGeneration = generation).also {
+            entries[id] = it
+            savedMetadata.put(it, generation)
+        }
     }
 
     /** Explicit user retry re-discovers endpoints after a Wi-Fi/mobile or Plex server change. */
@@ -414,7 +441,7 @@ class MusicRepository(private val context: Context) {
         credentials.set("plexToken", token)
         if (previous != token) preferences.edit().remove("plexAccountName").apply()
         discovery.reset()
-        if (previous != token) listening.clearPlex()
+        if (previous != token) { phoneRelay.stopPlex(); listening.clearPlex(); savedMetadata.invalidatePlex() }
         entries.keys.filter { it.startsWith("track:") || it.startsWith("album:") || it.startsWith("artist:") || it.startsWith("library:") || it.startsWith("catalog:") || it.startsWith("server:") }
             .forEach { entries.remove(it) }
     }
@@ -443,10 +470,63 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("assistantRemoteId", normalized).remove("assistantUrl").apply()
         credentials.set("assistantToken", "")
     }
-    private suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
+    internal suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
         assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
         IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
+    }
+    internal fun speakerSourceMode(): SpeakerSourceMode =
+        runCatching { SpeakerSourceMode.valueOf(preferences.getString("speakerSourceMode", "").orEmpty()) }.getOrDefault(SpeakerSourceMode.PHONE_RELAY)
+    internal fun setSpeakerSourceMode(mode: SpeakerSourceMode) { preferences.edit().putString("speakerSourceMode", mode.name).apply() }
+    internal suspend fun prepareSpeakerMedia(entry: Entry): SpeakerMedia {
+        var ownedRelay: PhoneAudioRelaySession? = null
+        return try {
+            withContext(Dispatchers.IO) {
+                if (speakerSourceMode() == SpeakerSourceMode.PHONE_RELAY && (entry.id.startsWith("track:") || entry.id.startsWith("youtube:"))) {
+                    val resolved = playable(entry.id)
+                    val generation = resolved.credentialGeneration
+                    check(resolved.token.isBlank() || generation == listening.plexGeneration()) { "Plex sign-in changed. Choose the track again." }
+                    var selected: PhoneAudioRelaySession? = null
+                    for (address in phoneRelayAddresses()) {
+                        val relay = phoneRelay.prepare(resolved, api.http, address) { resolved.token.isBlank() || generation == listening.plexGeneration() }
+                        try {
+                            val item = assistantCommand("music/item_by_uri", JSONObject().put("uri", "builtin://track/${relay.uri}"))
+                            check(item is JSONObject && item.optString("media_type") == "track") { "Music Assistant did not recognize the relayed audio as a track." }
+                            relay.awaitReceiver()
+                            selected = relay
+                            break
+                        } catch (e: kotlinx.coroutines.CancellationException) { phoneRelay.discard(relay); throw e }
+                        catch (_: Exception) { phoneRelay.discard(relay) }
+                    }
+                    val relay = selected ?: throw IOException("Music Assistant cannot reach this phone’s relay over Nebula or LAN. Check VPN routing and firewall access.")
+                    ownedRelay = relay
+                    SpeakerMedia("builtin://track/${relay.uri}", relay)
+                } else {
+                    val uri = speakerStream(entry)
+                    SpeakerMedia(if (entry.id.startsWith("youtube:")) "builtin://track/$uri" else uri)
+                }
+            }
+        } catch (error: Exception) {
+            phoneRelay.discard(ownedRelay)
+            throw error
+        }
+    }
+    suspend fun synchronizedSpeaker(speakers: List<Speaker>, previous: List<Speaker>): Speaker = withContext(Dispatchers.IO) {
+        synchronizedSpeakerTarget(
+            speakers,
+            previous = previous,
+            group = { leader, followers ->
+                assistantCommand("players/cmd/group_many", JSONObject()
+                    .put("target_player", leader.id)
+                    .put("child_player_ids", JSONArray(followers.map { it.id })))
+            },
+            ungroup = { removed ->
+                assistantCommand("players/cmd/ungroup_many", JSONObject()
+                    .put("player_ids", JSONArray(removed.map { it.id })))
+            },
+            readSpeakers = { this@MusicRepository.speakers() },
+            wait = { kotlinx.coroutines.delay(500) },
+        )
     }
     suspend fun speakerStream(entry: Entry): String = withContext(Dispatchers.IO) {
         when {
@@ -458,12 +538,32 @@ class MusicRepository(private val context: Context) {
         }
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
-        val args = JSONObject().put("search_query", "${entry.title} ${entry.subtitle.substringBefore(" · ")}").put("media_types", JSONArray().put("track")).put("library_only", true).put("limit", 10)
-        IntegrationParser.speakerTracks(assistantCommand("music/search", args) as JSONObject)
+        findSpeakerTracks(entry) { query, libraryOnly ->
+            val args = JSONObject().put("search_query", query)
+                .put("media_types", JSONArray().put("track"))
+                .put("library_only", libraryOnly)
+                .put("limit", 10)
+            val result = assistantCommand("music/search", args)
+            IntegrationParser.speakerTracks(result as? JSONObject
+                ?: throw IOException("Music Assistant returned an invalid track search result."))
+        }
     }
     internal suspend fun speakerProgress(speaker: Speaker): SpeakerProgress? = withContext(Dispatchers.IO) {
         val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
         queue?.let(SpeakerProgress::parse)
+    }
+    internal suspend fun speakerQueueSnapshot(speaker: Speaker): SpeakerQueueSnapshot? = withContext(Dispatchers.IO) {
+        val queue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", speaker.id)) as? JSONObject
+        parseSpeakerQueueSnapshot(queue)
+    }
+    internal suspend fun transferSpeaker(source: SpeakerQueueSnapshot, target: Speaker): Unit = withContext(Dispatchers.IO) {
+        val targetQueue = assistantCommand("player_queues/get_active_queue", JSONObject().put("player_id", target.id)) as? JSONObject
+            ?: throw IOException("The target speaker has no active Music Assistant queue.")
+        val targetSnapshot = parseSpeakerQueueSnapshot(targetQueue)
+            ?: throw IOException("The target speaker has no active Music Assistant queue.")
+        if (source.queueId == targetSnapshot.queueId) return@withContext
+        assistantCommand("player_queues/transfer", speakerTransferArgs(source.queueId, targetSnapshot.queueId))
+        Unit
     }
     suspend fun controlSpeakers(speakers: List<Speaker>, command: String, positionMs: Long? = null) = withContext(Dispatchers.IO) {
         val queues = mutableSetOf<String>()
@@ -483,8 +583,9 @@ class MusicRepository(private val context: Context) {
         }
         check(failures.isEmpty()) { "Could not update: ${failures.joinToString()}. Other speakers were still attempted." }
     }
-    suspend fun playSpeaker(speaker: Speaker, media: String) = withContext(Dispatchers.IO) {
-        assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media)).put("option", "replace"))
+    internal suspend fun playSpeaker(speaker: Speaker, media: SpeakerMedia) = withContext(Dispatchers.IO) {
+        assistantCommand("player_queues/play_media", JSONObject().put("queue_id", speaker.id).put("media", JSONArray().put(media.uri)).put("option", "replace"))
+        media.relay?.awaitReceiver()
     }
 
     companion object {
