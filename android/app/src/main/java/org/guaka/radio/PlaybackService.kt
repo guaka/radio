@@ -89,6 +89,7 @@ class PlaybackService : MediaLibraryService() {
         .setHandleAudioBecomingNoisy(true)
         .setWakeMode(C.WAKE_MODE_NETWORK)
         .build()
+        .also { it.addListener(RadioMetadataListener(it)) }
 
     private fun attachPlaybackListeners(player: ExoPlayer) {
         player.addListener(object : androidx.media3.common.Player.Listener {
