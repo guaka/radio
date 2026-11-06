@@ -646,7 +646,7 @@
       if (audio) {
         const newVolume = Math.max(0, Math.min(audio.volume + delta, 1));
         audio.volume = newVolume;
-        // Update Alpine.js state to keep slider in sync
+        // Preserve volume when switching stations or recreating the audio element
         if (window.appState) {
           window.appState.volume = newVolume;
         }
@@ -1160,14 +1160,6 @@
         
         get hasValidDuration() {
           return isFinite(this.duration) && this.duration > 0;
-        },
-        
-        setVolume(value) {
-          const audio = document.getElementById('player');
-          if (audio) {
-            this.volume = parseFloat(value);
-            audio.volume = this.volume;
-          }
         },
         
         navigateTo(hash) {
