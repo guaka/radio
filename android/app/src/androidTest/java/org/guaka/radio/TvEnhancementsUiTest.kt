@@ -194,13 +194,15 @@ class TvEnhancementsUiTest {
         compose.waitForIdle()
         compose.runOnIdle { assertEquals(0, requests) }
 
-        content(entries = entries(2), hasMore = true, paginationFailed = true, onMore = { requests++ })
+        content(entries = entries(30), hasMore = true, paginationFailed = true, onMore = { requests++ })
         compose.waitForIdle()
         compose.runOnIdle { assertEquals(0, requests) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasContentDescription("Retry loading"))
         compose.onNodeWithContentDescription("Retry loading").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(1, requests) }
 
         content(entries = entries(2), hasMore = true, paginationFailed = true, busy = true, onMore = { requests++ })
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasContentDescription("Retry loading"))
         compose.onNodeWithContentDescription("Retry loading").assertIsNotEnabled()
         compose.runOnIdle { assertEquals(1, requests) }
     }

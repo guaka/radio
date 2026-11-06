@@ -121,3 +121,12 @@ References: [Media3 background playback](https://developer.android.com/media/med
 For a connected beta-signed installation, build with `-PinstrumentationBuildType=release assembleReleaseAndroidTest` using the established signing identity. Install the matching test APK, open the app, and run `PhoneAudioRelayDeviceTest` with `relayServerProbe=true`. This asks the configured Music Assistant server to inspect a generated one-second WAV from the phone relay without playing it on speakers. It uses the saved token inside the target app and does not export credentials. Keep the app foreground for foreground-service startup. The default instrumentation build type remains debug.
 
 The optional `PhoneAudioRelayMediaDeviceTest` with `relayMediaProbe=true` checks a public YouTube source and a previously selected Plex track through the real relay and configured Music Assistant server, without starting speaker playback. The Plex check is skipped when no saved/history/favorite Plex track exists. Tokens and private source URLs are not exported in test output.
+
+
+## TV speaker controls and album playback
+
+On Android TV, open **Settings → Music Assistant**, enter the Remote ID and access token, then choose **Connect and save**. Settings on TV and phone show the installed version name, version code and build time. TV settings also offer relay through the TV or Music Assistant sources, using the same connection and playback logic as the phone.
+
+After selecting something to play, choose **Speakers** in the TV playback bar. Select one or more speakers, then **Play on speakers**. The TV remote's play/pause keys control the selected output. Reopen Speakers to change destinations, adjust each active speaker's volume in 5% steps, seek a non-live track by 30 seconds, or return playback to **This TV**. Unavailable volumes are disabled. Multiple speakers use the shared Music Assistant synchronization flow. Returning to TV playback preserves the available track position; a failed return keeps the speaker output selected.
+
+For playback on the TV or phone, selecting a Plex track while browsing an album queues that album in order and starts at the chosen track, so the remaining tracks play automatically. Albums load beyond the first browse page, up to the existing 500-item queue limit. Search results, favorites and track catalog selections retain single-item playback. Music Assistant speaker selections retain the existing single-track handoff behavior.
