@@ -27,19 +27,21 @@ class TvNavigationUiTest {
     private var pauses = 0
 
     private fun showContent(status: String = "") {
-        compose.activity.setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface {
-                    TvContent(
-                        entries = (0..59).map { Entry("radio:$it", "Station $it", playable = true) },
-                        title = "Radio", favorites = setOf("radio:0"), currentTitle = "Station 0",
-                        currentId = "radio:0", playing = true, ready = true, busy = false, status = status,
-                        hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
-                        onSearch = {}, onSource = { source = it }, onBack = {}, onMore = {}, onRefresh = {},
-                        onFavorite = { favorite = it }, onSignIn = {}, onSignOut = {},
-                        onToggle = { toggles++ }, onPlay = { plays++ }, onPause = { pauses++ },
-                        onEntry = { selected = it.id },
-                    )
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    Surface {
+                        TvContent(
+                            entries = (0..59).map { Entry("radio:$it", "Station $it", playable = true) },
+                            title = "Radio", favorites = setOf("radio:0"), currentTitle = "Station 0",
+                            currentId = "radio:0", playing = true, ready = true, busy = false, status = status,
+                            hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
+                            onSearch = {}, onSource = { source = it }, onBack = {}, onMore = {}, onRefresh = {},
+                            onFavorite = { favorite = it }, onSignIn = {}, onSignOut = {},
+                            onToggle = { toggles++ }, onPlay = { plays++ }, onPause = { pauses++ },
+                            onEntry = { selected = it.id },
+                        )
+                    }
                 }
             }
         }
