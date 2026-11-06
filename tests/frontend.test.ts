@@ -7,6 +7,29 @@ const test = require('node:test');
 const root = resolve(__dirname, '..');
 const html = readFileSync(resolve(root, 'public/js/player/app.js'), 'utf8');
 
+test('radio page omits the retired volume slider and its bindings', () => {
+  const page = readFileSync(resolve(root, 'public/radio.html'), 'utf8');
+  assert.doesNotMatch(page, /volume-control|setVolume\(|title="Volume"/);
+  assert.match(page, /Change volume ↑ ↓/);
+});
+
+test('radio keyboard volume changes remain bounded and persist in playback state', () => {
+  const source = readFileSync(resolve(root, 'public/js/radio/app.js'), 'utf8');
+  const start = source.indexOf('function volChange(delta) {');
+  const end = source.indexOf('function nextChannel(', start);
+  let audio = { volume: 0.5 };
+  const window = { appState: { volume: 0.5 } };
+  const context = vm.createContext({ window, document: { getElementById: () => audio } });
+  vm.runInContext(source.slice(start, end), context);
+  for (const [delta, expected] of [[0.1, 0.6], [1, 1], [-2, 0], [0.1, 0.1]]) {
+    context.volChange(delta);
+    assert.equal(audio.volume, expected);
+    assert.equal(window.appState.volume, expected);
+  }
+  audio = null;
+  assert.doesNotThrow(() => context.volChange(0.1));
+});
+
 function loadRadioListenerSetup() {
   const source = readFileSync(resolve(root, 'public/js/radio/app.js'), 'utf8');
   const timers = new Map();
