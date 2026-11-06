@@ -46,7 +46,10 @@ class RadioMetadataDeviceTest {
                     .asMediaItem().buildUpon().setUri("https://example.test/other").build())
                 assertEquals("Other station", player.mediaMetadata.title.toString())
                 assertNull(player.mediaMetadata.artist)
-                val plex = Entry("track:test", "Plex song", "Plex artist", true).asMediaItem()
+                val plexEntry = Entry("track:test", "Plex song", "Plex artist", true)
+                // ExoPlayer needs a playback URI even when this offline test never prepares it.
+                val plex = plexEntry.asMediaItem().buildUpon()
+                    .setUri("https://example.test/plex.mp3").setTag(plexEntry).build()
                 player.setMediaItem(plex)
                 update("Unrelated - Metadata")
                 assertEquals(plex, player.currentMediaItem)
