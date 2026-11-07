@@ -1326,9 +1326,7 @@ fun AppScreen(model: MainModel = viewModel()) {
                 val title = item.mediaMetadata.title?.toString().orEmpty()
                 Column(Modifier.weight(1f)) {
                     Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { contentDescription = "Current audio: $title" })
-                    val detail = listOfNotNull(item.mediaMetadata.artist, item.mediaMetadata.station)
-                        .filter { it.isNotBlank() }.joinToString(" · ")
-                    if (detail.isNotBlank()) Text(detail, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                    NowPlayingDetails(item.mediaMetadata.artist?.toString(), item.mediaMetadata.station?.toString(), title)
                 }
                 FavoriteButton(item.mediaId, title, model)
             }

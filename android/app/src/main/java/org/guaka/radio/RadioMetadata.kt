@@ -31,6 +31,11 @@ internal class RadioMetadataListener(private val player: Player) : Player.Listen
                 .setTitle(track.title)
                 .setArtist(track.artist)
                 .setStation(entry.title)
+                // Auto/legacy controllers read media descriptions rather than station.
+                .setDisplayTitle(track.title)
+                .setSubtitle(listOfNotNull(track.artist, entry.title).joinToString(" · "))
+                .setDescription(entry.title)
+                .setAlbumTitle(entry.title)
                 .build()
             if (updated != item.mediaMetadata) {
                 // Metadata-only replacement preserves the prepared stream, tag, URI and artwork.

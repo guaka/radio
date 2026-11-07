@@ -26,14 +26,16 @@ class TvNavigationUiTest {
     private var plays = 0
     private var pauses = 0
 
-    private fun showContent(status: String = "") {
+    private fun showContent(status: String = "", trackMetadata: Boolean = false) {
         compose.runOnUiThread {
             compose.activity.setContent {
                 MaterialTheme(colorScheme = darkColorScheme()) {
                     Surface {
                         TvContent(
                             entries = (0..59).map { Entry("radio:$it", "Station $it", playable = true) },
-                            title = "Radio", favorites = setOf("radio:0"), currentTitle = "Station 0",
+                            title = "Radio", favorites = setOf("radio:0"), currentTitle = if (trackMetadata) "Current song" else "Station 0",
+                            currentArtist = if (trackMetadata) "Current artist" else null,
+                            currentStation = if (trackMetadata) "Current station" else null,
                             currentId = "radio:0", playing = true, ready = true, busy = false, status = status,
                             hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
                             onSearch = {}, onSource = { source = it }, onBack = {}, onMore = {},
@@ -46,6 +48,13 @@ class TvNavigationUiTest {
             }
         }
         compose.waitForIdle()
+    }
+
+    @Test fun nowPlayingShowsTrackArtistAndStation() {
+        showContent(trackMetadata = true)
+        compose.onNodeWithText("Current song").assertIsDisplayed()
+        compose.onNodeWithText("Current artist").assertIsDisplayed()
+        compose.onNodeWithText("Current station").assertIsDisplayed()
     }
 
     @Test fun tvLauncherResolvesWithoutATouchscreenRequirement() {
