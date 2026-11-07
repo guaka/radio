@@ -20,6 +20,7 @@ class RadioMetadataDeviceTest {
             try {
                 val station = Entry("radio:groovesalad", "Groove Salad", "soma,ambient", true,
                     "https://ice.somafm.com/groovesalad")
+                assertEquals("Groove Salad", station.asMediaItem().mediaMetadata.station.toString())
                 val artwork = byteArrayOf(1, 2, 3)
                 val item = station.asMediaItem().buildUpon().setUri(station.url).setTag(station)
                     .setMediaMetadata(station.asMediaItem().mediaMetadata.buildUpon()
@@ -32,6 +33,10 @@ class RadioMetadataDeviceTest {
                 assertEquals("Song - Live", updated.mediaMetadata.title.toString())
                 assertEquals("Artist", updated.mediaMetadata.artist.toString())
                 assertEquals("Groove Salad", updated.mediaMetadata.station.toString())
+                assertEquals("Song - Live", updated.mediaMetadata.displayTitle.toString())
+                assertEquals("Artist · Groove Salad", updated.mediaMetadata.subtitle.toString())
+                assertEquals("Groove Salad", updated.mediaMetadata.description.toString())
+                assertEquals("Groove Salad", updated.mediaMetadata.albumTitle.toString())
                 assertEquals(item.mediaId, updated.mediaId)
                 assertEquals(item.localConfiguration, updated.localConfiguration)
                 assertArrayEquals(artwork, updated.mediaMetadata.artworkData)
@@ -40,11 +45,14 @@ class RadioMetadataDeviceTest {
                 assertEquals(updated, player.currentMediaItem)
                 update("Next song")
                 assertEquals("Next song", player.mediaMetadata.title.toString())
+                assertEquals("Groove Salad", player.mediaMetadata.subtitle.toString())
                 assertNull(player.mediaMetadata.artist)
                 // A station switch starts with the station name, never the previous song.
                 player.setMediaItem(Entry("radio:other", "Other station", playable = true)
                     .asMediaItem().buildUpon().setUri("https://example.test/other").build())
                 assertEquals("Other station", player.mediaMetadata.title.toString())
+                assertEquals("Other station", player.mediaMetadata.station.toString())
+                assertNull(player.mediaMetadata.subtitle)
                 assertNull(player.mediaMetadata.artist)
                 val plexEntry = Entry("track:test", "Plex song", "Plex artist", true)
                 // ExoPlayer needs a playback URI even when this offline test never prepares it.

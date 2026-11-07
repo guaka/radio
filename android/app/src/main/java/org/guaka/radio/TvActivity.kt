@@ -145,6 +145,8 @@ internal fun TvScreen(model: MainModel = viewModel()) {
         entries = tvSearchEntries(model.searchTerm, model.entries, model.searchResults),
         title = if (model.searchTerm.isBlank()) model.locationTitle else "Search results", favorites = model.favorites,
         currentTitle = outputItem?.mediaMetadata?.title?.toString().orEmpty(),
+        currentArtist = outputItem?.mediaMetadata?.artist?.toString(),
+        currentStation = outputItem?.mediaMetadata?.station?.toString(),
         currentId = outputItem?.mediaId, playing = if (remote) model.speakerProgress?.playing == true else playing,
         ready = if (remote) model.speakerProgress != null else browser != null,
         busy = model.busy || selecting || buffering || model.searchingSources.isNotEmpty(),
@@ -230,6 +232,7 @@ internal fun TvContent(
     onSearch: (String) -> Unit, onSource: (String) -> Unit, onBack: () -> Unit, onMore: () -> Unit,
     onFavorite: (String) -> Unit, onSignIn: () -> Unit, onSignOut: () -> Unit,
     onToggle: () -> Unit, onPlay: () -> Unit, onPause: () -> Unit, onEntry: (Entry) -> Unit,
+    currentArtist: String? = null, currentStation: String? = null,
     paginationFailed: Boolean = false, accountName: String = "",
     outputName: String = "This TV", onOutputs: () -> Unit = {},
     connectionSettings: @Composable () -> Unit = {},
@@ -333,6 +336,7 @@ internal fun TvContent(
                         Text("Playing on $outputName", style = MaterialTheme.typography.labelMedium)
                         Text(currentTitle.ifBlank { "Choose something to play" }, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.titleLarge)
+                        NowPlayingDetails(currentArtist, currentStation, currentTitle)
                     }
                     TvButton("Speakers", enabled = currentId != null, onClick = onOutputs)
                     TvButton(if (playing) "Pause" else "Play", enabled = ready && currentId != null,
