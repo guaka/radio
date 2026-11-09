@@ -10,6 +10,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,8 @@ import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -287,11 +290,10 @@ internal fun TvContent(
         Column(Modifier.width(160.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Image(painterResource(R.drawable.ic_radio), "Radio Guaka", Modifier.size(56.dp))
             Spacer(Modifier.height(12.dp))
-            listOf("radio" to "Radio", "favorites" to "Favorites", "history" to "History", "plex" to "Plex", "youtube" to "YouTube").forEachIndexed { i, (id, label) ->
-                TvButton(label, Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+            listOf("favorites" to "Favorites", "radio" to "Radio", "history" to "History", "plex" to "Plex", "youtube" to "YouTube").forEachIndexed { i, (id, label) ->
+                TvListRow(label, Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
                     onClick = { settings = false; onSource(id) })
             }
-            TvButton("Settings", Modifier.fillMaxWidth().focusRequester(settingsFocus), onClick = { settings = true })
             if (canGoBack && !settings) TvButton("Back", onClick = onBack)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -307,17 +309,27 @@ internal fun TvContent(
                     TvButton("Close settings", onClick = ::closeSettings)
                 }
             } else {
-                Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 1)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
+                    var settingsFocused by remember { mutableStateOf(false) }
+                    IconButton(onClick = { settings = true }, modifier = Modifier.focusRequester(settingsFocus)
+                        .onFocusChanged { settingsFocused = it.isFocused }
+                        .border(if (settingsFocused) 3.dp else 1.dp,
+                            if (settingsFocused) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+                        .semantics { contentDescription = "Settings" }) {
+                        Icon(painterResource(R.drawable.ic_settings), contentDescription = null)
+                    }
+                }
                 OutlinedTextField(search, onValueChange = onSearch, label = { Text("Search radio, Plex and YouTube") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth())
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(entries, key = { it.id }) { entry ->
+                    items(tvFavoriteFirstEntries(entries, favorites), key = { it.id }) { entry ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TvArtwork(entry.id, entry.artwork, 48, "Artwork ${entry.id}") { loadArtwork(entry) }
-                            TvButton(entry.title, Modifier.weight(1f), enabled = !entry.playable || ready,
+                            TvListRow(entry.title, Modifier.weight(1f), enabled = !entry.playable || ready,
                                 description = if (entry.playable) "Play ${entry.title}" else "Open ${entry.title}",
                                 onClick = { onEntry(entry) })
-                            if (entry.playable) TvButton(if (entry.id in favorites) "★" else "☆",
+                            if (entry.playable) TvFavoriteButton(entry.id in favorites,
                                 description = if (entry.id in favorites) "Remove ${entry.title} from favorites" else "Favorite ${entry.title}",
                                 onClick = { onFavorite(entry.id) })
                         }
@@ -344,6 +356,40 @@ internal fun TvContent(
                 }
             }
         }
+    }
+}
+
+internal fun tvFavoriteFirstEntries(entries: List<Entry>, favorites: Set<String>): List<Entry> =
+    entries.sortedBy { if (it.playable && it.id in favorites) 0 else 1 }
+
+@Composable
+internal fun TvListRow(
+    label: String, modifier: Modifier = Modifier, enabled: Boolean = true,
+    description: String = label, onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    Box(modifier.heightIn(min = 56.dp).fillMaxWidth()
+        .onFocusChanged { focused = it.isFocused }
+        .border(if (focused) 3.dp else 1.dp, if (focused) MaterialTheme.colorScheme.primary else Color.Transparent,
+            RoundedCornerShape(4.dp))
+        .clickable(enabled = enabled, onClick = onClick)
+        .semantics { contentDescription = description; role = Role.Button }
+        .padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
+        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.testTag("TV row text $label"))
+    }
+}
+
+@Composable
+internal fun TvFavoriteButton(favorite: Boolean, description: String, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    IconButton(onClick = onClick, modifier = Modifier.onFocusChanged { focused = it.isFocused }
+        .border(if (focused) 3.dp else 1.dp,
+            if (focused) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+        .semantics { contentDescription = description }) {
+        Icon(painterResource(if (favorite) R.drawable.ic_star else R.drawable.ic_star_outline), contentDescription = null)
     }
 }
 

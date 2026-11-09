@@ -85,7 +85,9 @@ object IntegrationParser {
                 .filter { it.isNotBlank() }.distinct().joinToString(" · ")
         }
         val id = "$kind:$serverId:$ratingKey"
-        return Entry(id, title, subtitle, playable = kind == "track", artwork = safeArtworkPath(row.optString("thumb")), plexKey = ratingKey,
+        val artwork = listOf(row.optString("thumb"), row.optString("parentThumb"), row.optString("grandparentThumb"))
+            .asSequence().map(::safeArtworkPath).firstOrNull(String::isNotEmpty).orEmpty()
+        return Entry(id, title, subtitle, playable = kind == "track", artwork = artwork, plexKey = ratingKey,
             plexSection = sectionId.ifBlank { row.optString("librarySectionID") },
             plexParentKey = row.optString("parentRatingKey"), plexGrandparentKey = row.optString("grandparentRatingKey"))
     }
