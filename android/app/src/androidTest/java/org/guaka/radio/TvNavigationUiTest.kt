@@ -105,13 +105,12 @@ class TvNavigationUiTest {
         compose.onNodeWithContentDescription("Radio Guaka", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithContentDescription("Radio").performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("radio", source) }
-        for (label in listOf("Plex", "YouTube", "Favorites", "History")) {
-            compose.onNodeWithTag("TV row icon $label", useUnmergedTree = true).assertIsDisplayed()
-            compose.onNodeWithTag("TV row text $label", useUnmergedTree = true).assertDoesNotExist()
-        }
         for ((label, id) in listOf("Plex" to "plex", "YouTube" to "youtube", "Favorites" to "favorites", "History" to "history")) {
             compose.onNode(isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
-            compose.onNodeWithContentDescription(label).assertIsFocused().performKeyInput {
+            compose.onNodeWithContentDescription(label).assertIsFocused()
+            compose.onNodeWithTag("TV row icon $label", useUnmergedTree = true).assertIsDisplayed()
+            compose.onNodeWithTag("TV row text $label", useUnmergedTree = true).assertDoesNotExist()
+            compose.onNodeWithContentDescription(label).performKeyInput {
                 pressKey(Key.DirectionCenter)
             }
             compose.runOnIdle { assertEquals(id, source) }

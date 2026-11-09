@@ -3,12 +3,34 @@ on:
   push:
     paths: ['android/**', 'src/frontend/channels.ts', '.github/workflows/android.yml']
   pull_request:
-    paths: ['android/**', 'src/frontend/channels.ts', '.github/workflows/android.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.detect.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+      - id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          android=true
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            changed=$(git diff --name-only "$BASE_SHA" HEAD -- android/ src/frontend/channels.ts .github/workflows/android.yml)
+            if [[ -z "$changed" ]]; then android=false; fi
+          fi
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +61,8 @@ jobs:
             android/app/build/reports/lint-results-debug.html
 
   instrumented-tests:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -71,3 +95,23 @@ jobs:
           path: |
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/
+
+
+  android-ci:
+    if: always()
+    needs: [changes, build, instrumented-tests]
+    runs-on: ubuntu-latest
+    env:
+      CHANGES: ${{ needs.changes.result }}
+      ANDROID: ${{ needs.changes.outputs.android }}
+      BUILD: ${{ needs.build.result }}
+      DEVICE_TESTS: ${{ needs.instrumented-tests.result }}
+    steps:
+      - name: Verify Android CI result
+        run: |
+          [[ "$CHANGES" == success ]] || exit 1
+          case "$ANDROID" in
+            true) [[ "$BUILD" == success && "$DEVICE_TESTS" == success ]] ;;
+            false) [[ "$BUILD" == skipped && "$DEVICE_TESTS" == skipped ]] ;;
+            *) exit 1 ;;
+          esac
