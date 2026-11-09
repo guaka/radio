@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
 
@@ -27,7 +28,7 @@ class TvAssistantPhoneSetupUiTest {
         compose.onNodeWithText(
             "Can't open the link? Use the same Wi-Fi, check VPN or guest-network settings, and keep http:// (not https://). A computer on this network also works.",
             substring = true,
-        ).assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Close").assertIsDisplayed()
     }
 }
