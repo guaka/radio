@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
@@ -35,7 +37,13 @@ class MusicRepository(private val context: Context) {
         preferences.edit().putString("clientId", it).apply()
     }
     val api = ApiClient(clientId)
-    private val assistantRemote = AssistantRemote(context)
+    private val assistantRemote by lazy { AssistantRemote(context) }
+    private val localAssistant = LocalAssistant(api)
+    private val assistantSetupMutex = Mutex()
+    private val localAssistantStore = LocalAssistantConnectionStore(
+        read = { credentials.get("assistantLocalConnection") },
+        write = { credentials.set("assistantLocalConnection", it) },
+    )
     internal val phoneRelay = PhoneAudioRelay(context.applicationContext)
     private val youtube = YouTubeAudio()
     private val discovery = PlexDiscoveryCache()
@@ -456,22 +464,47 @@ class MusicRepository(private val context: Context) {
         return name
     }
     fun assistantRemoteId() = preferences.getString("assistantRemoteId", "").orEmpty()
+    fun assistantConnectionMode() = preferences.getString("assistantConnectionMode", null)
+        ?: if (assistantRemoteId().isNotBlank()) "remote" else "local"
+    fun assistantLocalUrl() = localAssistantStore.current()?.url.orEmpty()
+    fun assistantLocalServerId() = localAssistantStore.current()?.serverId.orEmpty()
+    fun hasLocalAssistantToken(url: String): Boolean = runCatching {
+        localAssistantStore.current()?.url == localAssistantUrl(url)
+    }.getOrDefault(false)
+
+    suspend fun saveLocalAssistant(url: String, token: String) = assistantSetupMutex.withLock {
+        localAssistantStore.save(url, token, localAssistant::validate)
+        preferences.edit().putString("assistantConnectionMode", "local").apply()
+    }
+
+    fun disconnectLocalAssistant() {
+        localAssistantStore.forget()
+        if (assistantConnectionMode() == "local")
+            preferences.edit().putString("assistantConnectionMode", "none").apply()
+    }
     fun hasAssistantToken(id: String): Boolean =
         runCatching { AssistantRemoteIdentity.normalize(id) == assistantRemoteId() }.getOrDefault(false) &&
             credentials.get("assistantRemoteToken").isNotBlank()
 
-    suspend fun saveAssistant(id: String, token: String) {
+    suspend fun saveAssistant(id: String, token: String) = assistantSetupMutex.withLock {
         val normalized = AssistantRemoteIdentity.normalize(id)
         val selectedToken = assistantTokenForServer(normalized, token, assistantRemoteId(), credentials.get("assistantRemoteToken"))
         val players = assistantRemote.command(normalized, selectedToken, "players/all")
         check(players is JSONArray) { "Music Assistant did not return a player list." }
         currentCoroutineContext().ensureActive()
         credentials.set("assistantRemoteToken", selectedToken)
-        preferences.edit().putString("assistantRemoteId", normalized).remove("assistantUrl").apply()
-        credentials.set("assistantToken", "")
+        preferences.edit().putString("assistantRemoteId", normalized).putString("assistantConnectionMode", "remote").apply()
     }
     internal suspend fun assistantCommand(command: String, args: JSONObject = JSONObject()): Any =
-        assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
+        when (assistantConnectionMode()) {
+            "local" -> {
+                val saved = localAssistantStore.current()
+                    ?: throw IOException("Connect a local Music Assistant server in Settings first.")
+                localAssistant.command(saved.url, saved.token, saved.serverId, command, args)
+            }
+            "remote" -> assistantRemote.command(assistantRemoteId(), credentials.get("assistantRemoteToken"), command, args)
+            else -> throw IOException("Connect Music Assistant in Settings before choosing speakers.")
+        }
     suspend fun speakers(): List<Speaker> = withContext(Dispatchers.IO) {
         IntegrationParser.speakers(assistantCommand("players/all") as JSONArray)
     }

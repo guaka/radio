@@ -62,6 +62,7 @@ class SettingsPaneUiTest {
         compose.onNodeWithText("Nostr favorites").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Music Assistant").performScrollTo().assertIsDisplayed()
 
+        compose.onNodeWithText("Remote access").performScrollTo().performClick()
         compose.onNodeWithText("Remote ID").performScrollTo()
         compose.onNodeWithText("Remote ID").performTextInput("remote-id-example")
         compose.onNodeWithText("Connect and save").assertIsDisplayed()

@@ -36,8 +36,9 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
     .followRedirects(false).followSslRedirects(false).build()) {
     suspend fun request(url: String, token: String = "", body: RequestBody? = null, assistant: Boolean = false): Any {
         val req = Request.Builder().url(url).header("Accept", "application/json")
-        if (assistant) req.header("Authorization", "Bearer $token")
-        else {
+        if (assistant) {
+            if (token.isNotBlank()) req.header("Authorization", "Bearer $token")
+        } else {
             req.plexHeaders(token)
         }
         if (body != null) req.post(body)
@@ -186,7 +187,9 @@ class ApiClient(val clientId: String, val http: OkHttpClient = OkHttpClient.Buil
             val players = command(base, token, "players/all")
             check(players is JSONArray) { "The server did not return a Music Assistant player list. Check the Music Assistant URL." }
         } catch (e: ApiRequestException) {
-            if (e.statusCode in listOf(404, 405, 410)) throw IOException("Music Assistant API not found. Enter the Music Assistant server URL.")
+            if (e.statusCode in listOf(404, 405, 410)) {
+                throw IOException("Music Assistant API not found. Enter the Music Assistant server URL.")
+            }
             throw e
         } catch (e: org.json.JSONException) {
             throw IOException("The server did not return a Music Assistant response. Check the server URL.")
