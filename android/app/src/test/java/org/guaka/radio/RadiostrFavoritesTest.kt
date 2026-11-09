@@ -45,10 +45,10 @@ class RadiostrFavoritesTest {
         val lowerIdStar = event("fluid", "star", now - 20, id = "1".repeat(64))
         val higherIdUnstar = event("fluid", "unstar", now - 20, id = "f".repeat(64))
         val result = RadiostrFavorites.merge(
-            listOf("radio:fluid", "radio:local", "track:server:77"),
+            listOf("radio:fluid", "radio:local", "track:server:77", "album:server:78"),
             listOf(lowerIdStar, higherIdUnstar), author, now
         )
-        assertEquals(listOf("radio:local", "track:server:77"), result)
+        assertEquals(listOf("radio:local", "track:server:77", "album:server:78"), result)
     }
 
     @Test fun newestStarredEventsOrderRemoteFavoritesAndMergeCapsAt500() {

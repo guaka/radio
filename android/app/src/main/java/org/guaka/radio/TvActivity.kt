@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -74,6 +75,7 @@ internal fun TvScreen(model: MainModel = viewModel()) {
     var selecting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var selectionEpoch by remember { mutableIntStateOf(0) }
+    var albumShuffleActive by remember { mutableStateOf(false) }
     var showSignIn by remember { mutableStateOf(false) }
     var showOutputs by remember { mutableStateOf(false) }
     val remote = model.playbackOutputRoute.isSpeakers
@@ -114,7 +116,7 @@ internal fun TvScreen(model: MainModel = viewModel()) {
     }
     DisposableEffect(context) {
         var attached: MediaBrowser? = null
-        val listener = object : Player.Listener {
+        val playerListener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
                 current = player.currentMediaItem
                 playing = player.isPlaying
@@ -124,21 +126,31 @@ internal fun TvScreen(model: MainModel = viewModel()) {
                 error = PlaybackRecovery.guidance(PlaybackRecovery.classify(failure, failure.errorCode))
             }
         }
-        val future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
+        val browserListener = object : MediaBrowser.Listener {
+            override fun onExtrasChanged(controller: androidx.media3.session.MediaController, extras: Bundle) {
+                albumShuffleActive = extras.containsKey(PlaybackSelectionCommand.KEY_ALBUM_SCOPE)
+            }
+            override fun onError(controller: androidx.media3.session.MediaController, sessionError: androidx.media3.session.SessionError) {
+                error = sessionError.message ?: "Playback command failed."
+            }
+        }
+        val future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
+            .setListener(browserListener).buildAsync()
         var disposed = false
         future.addListener({
             if (!disposed) runCatching { future.get() }.onSuccess {
                 attached = it
                 browser = it
+                albumShuffleActive = it.sessionExtras.containsKey(PlaybackSelectionCommand.KEY_ALBUM_SCOPE)
                 current = it.currentMediaItem
                 playing = it.isPlaying
                 buffering = it.playbackState == Player.STATE_BUFFERING
-                it.addListener(listener)
+                it.addListener(playerListener)
             }.onFailure { error = "Could not connect to playback. Reopen the app." }
         }, context.mainExecutor)
         onDispose {
             disposed = true
-            attached?.removeListener(listener)
+            attached?.removeListener(playerListener)
             MediaBrowser.releaseFuture(future)
         }
     }
@@ -147,6 +159,45 @@ internal fun TvScreen(model: MainModel = viewModel()) {
     TvContent(
         entries = tvSearchEntries(model.searchTerm, model.entries, model.searchResults),
         title = if (model.searchTerm.isBlank()) model.locationTitle else "Search results", favorites = model.favorites,
+        locationId = model.parent, browseKey = "${model.parent}|${model.searchTerm}",
+        albumShuffleActive = albumShuffleActive,
+        albumShuffleEnabled = !remote && browser != null && !selecting,
+        onShuffleAlbums = { scope ->
+            val player = browser
+            if (player != null && !remote) {
+                val epoch = ++selectionEpoch
+                selecting = true
+                error = ""
+                model.preparePhoneOutput(onReady = {
+                    if (epoch != selectionEpoch) return@preparePhoneOutput
+                    val result = player.sendCustomCommand(PlaybackSelectionCommand.COMMAND, Bundle().apply {
+                        putString(PlaybackSelectionCommand.KEY_ALBUM_SCOPE, scope)
+                    })
+                    result.addListener({
+                        if (epoch == selectionEpoch) {
+                            selecting = false
+                            val outcome = runCatching { result.get() }.getOrNull()
+                            if (outcome?.resultCode == SessionResult.RESULT_SUCCESS) {
+                                model.phoneOutput()
+                                albumShuffleActive = true
+                            } else {
+                                model.resumeSpeakerOutputAfterFailure()
+                                error = outcome?.sessionError?.message ?: "Could not start album shuffle. Try again."
+                            }
+                        }
+                    }, context.mainExecutor)
+                }, onFailure = {
+                    if (epoch == selectionEpoch) {
+                        selecting = false
+                        error = "Could not pause speaker playback. Try again."
+                    }
+                })
+            }
+        },
+        onStopAlbumShuffle = {
+            browser?.sendCustomCommand(PlaybackSelectionCommand.STOP_SHUFFLE_COMMAND, Bundle.EMPTY)
+                ?.addListener({ albumShuffleActive = false }, context.mainExecutor)
+        },
         currentTitle = outputItem?.mediaMetadata?.title?.toString().orEmpty(),
         currentArtist = outputItem?.mediaMetadata?.artist?.toString(),
         currentStation = outputItem?.mediaMetadata?.station?.toString(),
@@ -236,6 +287,9 @@ internal fun TvContent(
     onFavorite: (String) -> Unit, onSignIn: () -> Unit, onSignOut: () -> Unit,
     onToggle: () -> Unit, onPlay: () -> Unit, onPause: () -> Unit, onEntry: (Entry) -> Unit,
     currentArtist: String? = null, currentStation: String? = null,
+    locationId: String = "", browseKey: String = title,
+    albumShuffleActive: Boolean = false, albumShuffleEnabled: Boolean = false,
+    onShuffleAlbums: (String) -> Unit = {}, onStopAlbumShuffle: () -> Unit = {},
     paginationFailed: Boolean = false, accountName: String = "",
     outputName: String = "This TV", onOutputs: () -> Unit = {},
     connectionSettings: @Composable () -> Unit = {},
@@ -258,11 +312,36 @@ internal fun TvContent(
     }
     val inputMode = LocalInputModeManager.current
     val listState = rememberLazyListState()
+    val browseViewports = remember { mutableStateMapOf<String, TvBrowseViewport>() }
+    val rowRequesters = remember(browseKey) { mutableMapOf<String, FocusRequester>() }
+    var pendingContentFocus by remember { mutableStateOf<String?>(null) }
+    val listEntries = remember(entries, favorites) { tvFavoriteFirstEntries(entries, favorites) }
+    fun captureViewport(focusedId: String) {
+        browseViewports[browseKey] = TvBrowseViewport(
+            listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, focusedId,
+        )
+    }
     LaunchedEffect(Unit) {
         inputMode.requestInputMode(InputMode.Keyboard)
         firstFocus.requestFocus()
     }
-    LaunchedEffect(listEpoch) { listState.scrollToItem(0) }
+    LaunchedEffect(browseKey, listEpoch, listEntries.firstOrNull()?.id) {
+        val saved = browseViewports[browseKey]
+        if (saved != null && listEntries.isEmpty()) return@LaunchedEffect
+        if (saved != null) {
+            val logicalIndex = listEntries.indexOfFirst { it.id == saved.focusedId }.takeIf { it >= 0 } ?: saved.index
+            listState.scrollToItem(logicalIndex.coerceAtMost((listEntries.size - 1).coerceAtLeast(0)), saved.offset)
+            withFrameNanos { }
+            rowRequesters[saved.focusedId]?.let { runCatching { it.requestFocus() } }
+        } else if (pendingContentFocus == browseKey.substringBefore('|') && listEntries.isNotEmpty()) {
+            listState.scrollToItem(0)
+            withFrameNanos { }
+            rowRequesters[listEntries.first().id]?.let { runCatching { it.requestFocus() } }
+            pendingContentFocus = null
+        } else if (listEntries.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
     val requestMore by rememberUpdatedState(onMore)
     val entryCount by rememberUpdatedState(entries.size)
     val canLoadMore by rememberUpdatedState(hasMore && !busy && !paginationFailed && !settings)
@@ -336,6 +415,9 @@ internal fun TvContent(
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(title, Modifier.weight(1f).testTag("TV content heading"), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
+                    if (search.isBlank() && locationId.startsWith("album:")) TvFavoriteButton(locationId in favorites,
+                        description = if (locationId in favorites) "Remove album $title from favorites" else "Favorite album $title",
+                        onClick = { onFavorite(locationId) })
                     var settingsFocused by remember { mutableStateOf(false) }
                     IconButton(onClick = { settings = true }, modifier = Modifier.focusRequester(settingsFocus)
                         .onFocusChanged { settingsFocused = it.isFocused }
@@ -347,14 +429,26 @@ internal fun TvContent(
                 }
                 OutlinedTextField(search, onValueChange = onSearch, label = { Text("Search radio, Plex and YouTube") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth())
+                if (search.isBlank()) AlbumShuffleControls(locationId, albumShuffleActive, albumShuffleEnabled,
+                    start = onShuffleAlbums, stop = onStopAlbumShuffle)
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(tvFavoriteFirstEntries(entries, favorites), key = { it.id }) { entry ->
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    itemsIndexed(listEntries, key = { _, entry -> entry.id }) { _, entry ->
+                        val requester = remember(entry.id) { FocusRequester() }
+                        rowRequesters[entry.id] = requester
+                        Row(Modifier.onFocusChanged {
+                            if (it.hasFocus) {
+                                captureViewport(entry.id)
+                            }
+                        }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TvArtwork(entry.id, entry.artwork, 48, "Artwork ${entry.id}") { loadArtwork(entry) }
-                            TvListRow(entry.title, Modifier.weight(1f), enabled = !entry.playable || ready,
+                            TvListRow(entry.title, Modifier.weight(1f).focusRequester(requester), enabled = !entry.playable || ready,
                                 description = if (entry.playable) "Play ${entry.title}" else "Open ${entry.title}",
-                                onClick = { onEntry(entry) })
-                            if (entry.playable) TvFavoriteButton(entry.id in favorites,
+                                onClick = {
+                                    captureViewport(entry.id)
+                                    if (!entry.playable) pendingContentFocus = entry.id
+                                    onEntry(entry)
+                                })
+                            if (ListeningStore.isFavoriteMediaId(entry.id)) TvFavoriteButton(entry.id in favorites,
                                 description = if (entry.id in favorites) "Remove ${entry.title} from favorites" else "Favorite ${entry.title}",
                                 onClick = { onFavorite(entry.id) })
                         }
@@ -383,6 +477,8 @@ internal fun TvContent(
         }
     }
 }
+
+private data class TvBrowseViewport(val index: Int, val offset: Int, val focusedId: String)
 
 internal fun tvFavoriteFirstEntries(entries: List<Entry>, favorites: Set<String>): List<Entry> =
     entries.sortedBy { if (it.playable && it.id in favorites) 0 else 1 }

@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.input.key.Key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -135,6 +136,122 @@ class TvNavigationUiTest {
         compose.onNodeWithContentDescription("Play Station 15").assertIsFocused().assertIsDisplayed()
             .performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("radio:15", selected) }
+    }
+
+    @Test fun albumFavoritesCanBeStarredAndUnstarredFromRowsAndAlbumHeading() {
+        val favorites = mutableStateOf(emptySet<String>())
+        val album = Entry("album:server:42", "Test Album")
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    Surface {
+                        TvContent(
+                            entries = listOf(album), title = "Albums", favorites = favorites.value,
+                            currentTitle = "", currentId = null, playing = false, ready = true, busy = false,
+                            status = "", hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
+                            onSearch = {}, onSource = {}, onBack = {}, onMore = {},
+                            onFavorite = { id -> favorites.value = if (id in favorites.value) favorites.value - id else favorites.value + id },
+                            onSignIn = {}, onSignOut = {}, onToggle = {}, onPlay = {}, onPause = {}, onEntry = {},
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Favorite Test Album").performClick()
+        compose.onNodeWithContentDescription("Remove Test Album from favorites").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Favorite Test Album").assertIsDisplayed()
+
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    Surface {
+                        TvContent(
+                            entries = emptyList(), title = "Test Album", favorites = favorites.value,
+                            currentTitle = "", currentId = null, playing = false, ready = true, busy = false,
+                            status = "", hasMore = false, canGoBack = true, listEpoch = 1, search = "", signedIn = false,
+                            locationId = album.id, onSearch = {}, onSource = {}, onBack = {}, onMore = {},
+                            onFavorite = { id -> favorites.value = if (id in favorites.value) favorites.value - id else favorites.value + id },
+                            onSignIn = {}, onSignOut = {}, onToggle = {}, onPlay = {}, onPause = {}, onEntry = {},
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Favorite album Test Album").performClick()
+        compose.onNodeWithContentDescription("Remove album Test Album from favorites").assertIsDisplayed()
+    }
+
+    @Test fun backRestoresTheSelectedArtistFocusAndViewport() {
+        val parent = mutableStateOf("artists")
+        val epoch = mutableStateOf(0)
+        val artists = (0..59).map { Entry("artist:server:$it", "Artist $it") }
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    Surface {
+                        val child = parent.value != "artists"
+                        TvContent(
+                            entries = if (child) listOf(Entry("album:server:1", "Album")) else artists,
+                            title = if (child) "Artist 15" else "Artists", favorites = emptySet(), currentTitle = "",
+                            currentId = null, playing = false, ready = true, busy = false, status = "",
+                            hasMore = false, canGoBack = child, listEpoch = epoch.value, search = "", signedIn = false,
+                            locationId = parent.value, browseKey = parent.value, onSearch = {}, onSource = {}, onBack = {
+                                parent.value = "artists"
+                                epoch.value++
+                            }, onMore = {}, onFavorite = {}, onSignIn = {}, onSignOut = {}, onToggle = {},
+                            onPlay = {}, onPause = {}, onEntry = {
+                                parent.value = "artist:server:15"
+                                epoch.value++
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Open Artist 0")
+            .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        repeat(15) {
+            compose.onNode(isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+            compose.waitForIdle()
+        }
+        compose.onNodeWithContentDescription("Open Artist 15").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Open Album").assertIsFocused()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Open Artist 15").assertIsDisplayed().assertIsFocused()
+    }
+
+    @Test fun tvAlbumShuffleUsesTheCurrentLibraryScopeAndCanStop() {
+        val active = mutableStateOf(false)
+        var started = ""
+        var stopped = 0
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    Surface {
+                        TvContent(
+                            entries = emptyList(), title = "Library", favorites = emptySet(), currentTitle = "",
+                            currentId = null, playing = false, ready = true, busy = false, status = "",
+                            hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
+                            locationId = "library:server:1", albumShuffleActive = active.value, albumShuffleEnabled = true,
+                            onShuffleAlbums = { started = it; active.value = true }, onStopAlbumShuffle = { stopped++; active.value = false },
+                            onSearch = {}, onSource = {}, onBack = {}, onMore = {}, onFavorite = {},
+                            onSignIn = {}, onSignOut = {}, onToggle = {}, onPlay = {}, onPause = {}, onEntry = {},
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Shuffle albums").performClick()
+        compose.runOnIdle { assertEquals("catalog:server:1:albums", started) }
+        compose.onNodeWithText("Stop album shuffle").performClick()
+        compose.runOnIdle { assertEquals(1, stopped) }
     }
 
     @Test fun remoteMediaKeysAndPauseButtonControlPlayback() {
