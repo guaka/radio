@@ -77,11 +77,18 @@ class TvNavigationUiTest {
 
     @Test fun remoteNavigatesSourcesAndActivatesFavorites() {
         showContent()
-        compose.onNodeWithContentDescription("Favorites").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Radio").assertIsFocused()
+        compose.onNodeWithTag("TV row icon Plex", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("TV row icon YouTube", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("TV row text Plex", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("TV row text YouTube", useUnmergedTree = true).assertDoesNotExist()
+        for ((label, id) in listOf("Plex" to "plex", "YouTube" to "youtube", "Favorites" to "favorites", "History" to "history")) {
+            compose.onNode(isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+            compose.onNodeWithContentDescription(label).assertIsFocused().performKeyInput {
+                pressKey(Key.DirectionCenter)
+            }
+            compose.runOnIdle { assertEquals(id, source) }
         }
-        compose.runOnIdle { assertEquals("radio", source) }
         compose.onNodeWithContentDescription("Favorites").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             .performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("favorites", source) }

@@ -290,8 +290,9 @@ internal fun TvContent(
         Column(Modifier.width(160.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Image(painterResource(R.drawable.ic_radio), "Radio Guaka", Modifier.size(56.dp))
             Spacer(Modifier.height(12.dp))
-            listOf("favorites" to "Favorites", "radio" to "Radio", "history" to "History", "plex" to "Plex", "youtube" to "YouTube").forEachIndexed { i, (id, label) ->
+            listOf("radio" to "Radio", "plex" to "Plex", "youtube" to "YouTube", "favorites" to "Favorites", "history" to "History").forEachIndexed { i, (id, label) ->
                 TvListRow(label, Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                    icon = when (id) { "plex" -> R.drawable.ic_plex; "youtube" -> R.drawable.ic_youtube; else -> null },
                     onClick = { settings = false; onSource(id) })
             }
             if (canGoBack && !settings) TvButton("Back", onClick = onBack)
@@ -365,7 +366,7 @@ internal fun tvFavoriteFirstEntries(entries: List<Entry>, favorites: Set<String>
 @Composable
 internal fun TvListRow(
     label: String, modifier: Modifier = Modifier, enabled: Boolean = true,
-    description: String = label, onClick: () -> Unit,
+    description: String = label, icon: Int? = null, onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     Box(modifier.heightIn(min = 56.dp).fillMaxWidth()
@@ -375,7 +376,10 @@ internal fun TvListRow(
         .clickable(enabled = enabled, onClick = onClick)
         .semantics { contentDescription = description; role = Role.Button }
         .padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
-        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        if (icon != null) Icon(painterResource(icon), contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(28.dp).testTag("TV row icon $label"))
+        else Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis,
             color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.testTag("TV row text $label"))
