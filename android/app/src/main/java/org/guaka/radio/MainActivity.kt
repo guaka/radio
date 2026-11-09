@@ -142,6 +142,12 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     private var stationArtworkPreloadJob: Job? = null
     private var speakerEpoch = SpeakerRequestEpoch()
     private val history = mutableListOf<Pair<String, String>>()
+    private val browseSnapshots = mutableListOf<BrowseLocation?>()
+    internal var browseIndex = 0
+    internal var browseOffset = 0
+    internal var restoredIndex = 0; private set
+    internal var restoredOffset = 0; private set
+    val backTitle get() = history.lastOrNull()?.second.orEmpty()
     private var playedHistory = repository.listening.historyIds()
     private val plexBrowseStore = PlexBrowseStore(application)
     private var plexScrollIndex = 0
@@ -174,6 +180,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     private fun restorePlexBrowse(state: PlexBrowseState) {
         history.clear()
+        browseSnapshots.clear()
         history.addAll(state.breadcrumbs.map { it.id to it.title })
         parent = state.parent
         locationTitle = state.title
@@ -281,7 +288,27 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             dismissSpeakers()
             setStatus("")
         }
-        if (remember && id != parent) history.add(parent to locationTitle)
+        if (remember && id != parent) {
+            history.add(parent to locationTitle)
+            browseSnapshots.add(BrowseLocation(
+                id = parent,
+                title = locationTitle,
+                query = searchTerm,
+                appliedQuery = appliedQuery,
+                searchResults = searchResults.mapValues { (_, rows) -> rows.toList() },
+                searchErrors = searchErrors,
+                searchingSources = searchingSources,
+                status = status,
+                statusScope = statusScope,
+                entries = entries.toList(),
+                nextPage = nextPage,
+                hasMore = hasMore,
+                index = browseIndex,
+                offset = browseOffset,
+                plexGeneration = repository.listening.plexGeneration(),
+            ))
+            if (history.size > 30) { history.removeAt(0); browseSnapshots.removeAt(0) }
+        }
         parent = id
         locationTitle = title
         filterJob?.cancel()
@@ -297,6 +324,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         plexScrollIndex = index.coerceIn(0, 599)
         plexScrollOffset = offset.coerceIn(0, 10_000)
         persistPlexBrowse()
+    }
+    internal fun captureBrowseViewport(index: Int, offset: Int) {
+        browseIndex = index.coerceAtLeast(0)
+        browseOffset = offset.coerceAtLeast(0)
     }
     internal fun consumePendingPlexScroll(): Pair<Int, Int>? = pendingPlexScroll.also { pendingPlexScroll = null }
     private fun persistPlexBrowse() {
@@ -388,6 +419,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             loadingMore = false
             paginationFailed = false
             setStatus("")
+            browseIndex = 0; browseOffset = 0; restoredIndex = 0; restoredOffset = 0
             entries = emptyList(); nextPage = 0; hasMore = false; listEpoch++
         }
         val folder = parent
@@ -420,7 +452,42 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun back() { if (history.isNotEmpty()) { val (id, title) = history.removeAt(history.lastIndex); browse(id, false, title) } }
+    fun back() {
+        val previous = history.removeLastOrNull() ?: return
+        val snapshot = browseSnapshots.removeLastOrNull()
+        if (snapshot == null || snapshot.plexGeneration != repository.listening.plexGeneration()) {
+            browse(previous.first, remember = false, title = previous.second)
+            return
+        }
+        browseJob?.cancel(); filterJob?.cancel()
+        searchGeneration++
+        parent = snapshot.id; locationTitle = snapshot.title
+        searchTerm = snapshot.query; appliedQuery = snapshot.appliedQuery
+        searchResults = snapshot.searchResults; searchErrors = snapshot.searchErrors
+        searchingSources = emptySet()
+        entries = snapshot.entries; nextPage = snapshot.nextPage; hasMore = snapshot.hasMore
+        browseIndex = snapshot.index; browseOffset = snapshot.offset
+        restoredIndex = snapshot.index; restoredOffset = snapshot.offset
+        if (PlexBrowseState.isPlexLocation(parent)) {
+            plexScrollIndex = snapshot.index.coerceIn(0, 599)
+            plexScrollOffset = snapshot.offset.coerceIn(0, 10_000)
+            pendingPlexScroll = snapshot.index to snapshot.offset
+            restoringPlexBrowse = false
+            persistPlexBrowse()
+        } else {
+            plexBrowseStore.markInactive()
+            pendingPlexScroll = null
+            restoringPlexBrowse = false
+        }
+        loadingMore = false; paginationFailed = false; setStatus("")
+        status = snapshot.status; statusScope = snapshot.statusScope
+        listEpoch++
+        if (entries.isEmpty()) load(reset = true)
+        if (searchTerm.isNotBlank() && snapshot.searchingSources.isNotEmpty()) {
+            val generation = searchGeneration
+            filterJob = viewModelScope.launch { searchAll(searchTerm.trim(), generation) }
+        }
+    }
     fun clearHistory() = action { repository.listening.clearHistory() }
     fun favorite(mediaId: String) = action {
         val starred = io { repository.listening.toggleFavorite(mediaId) }
@@ -471,6 +538,8 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun signOut() {
+        history.clear()
+        browseSnapshots.clear()
         dismissSpeakers()
         loginJob?.cancel(); browseJob?.cancel(); loginUrl = null; tvPlexCode = null
         plexBrowseStore.clear()
@@ -483,7 +552,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             favorites = updated
             if (changed && parent == "favorites") refresh()
             refreshSaved()
-            phoneOutput(); browse("radio")
+            phoneOutput(); browse("radio", remember = false)
         }
     }
     fun speakerPicker(item: MediaItem?) {
@@ -863,9 +932,11 @@ fun AppScreen(model: MainModel = viewModel()) {
     var assistantToken by remember { mutableStateOf("") }
     var saveAttempted by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    var albumShuffleActive by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     fun browseSource(id: String) {
+        model.captureBrowseViewport(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         model.savePlexScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         model.browse(id)
     }
@@ -930,14 +1001,17 @@ fun AppScreen(model: MainModel = viewModel()) {
     }
     LaunchedEffect(model.listEpoch) {
         if (model.restoringPlexBrowse) snapshotFlow { model.restoringPlexBrowse }.first { !it }
-        val restore = model.consumePendingPlexScroll()
+        val restore = model.consumePendingPlexScroll() ?:
+            if (model.restoredIndex != 0 || model.restoredOffset != 0) model.restoredIndex to model.restoredOffset else null
         if (restore == null) listState.scrollToItem(0)
         else {
             val lastIndex = model.entries.lastIndex.coerceAtLeast(0)
             listState.scrollToItem(restore.first.coerceAtMost(lastIndex), restore.second)
         }
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) -> model.captureBrowseViewport(index, offset) }
     }
-    LaunchedEffect(listState, model.parent) {
+    LaunchedEffect(listState, model.parent, model.searchTerm) {
         snapshotFlow {
             val layout = listState.layoutInfo
             val index = layout.visibleItemsInfo.firstOrNull()?.index ?: listState.firstVisibleItemIndex
@@ -959,6 +1033,9 @@ fun AppScreen(model: MainModel = viewModel()) {
     DisposableEffect(Unit) {
         val future = MediaBrowser.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
             .setListener(object : MediaBrowser.Listener {
+                override fun onExtrasChanged(controller: androidx.media3.session.MediaController, extras: Bundle) {
+                    albumShuffleActive = extras.containsKey(PlaybackSelectionCommand.KEY_ALBUM_SCOPE)
+                }
                 override fun onError(controller: androidx.media3.session.MediaController, sessionError: androidx.media3.session.SessionError) {
                     showSessionError(sessionError)
                 }
@@ -991,6 +1068,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
         }
         future.addListener({ runCatching { future.get() }.onSuccess {
+            albumShuffleActive = it.sessionExtras.containsKey(PlaybackSelectionCommand.KEY_ALBUM_SCOPE)
             browser = it; it.addListener(listener); sync(it); model.refreshSaved()
         }.onFailure { playerError = "Could not connect to the playback service. Reopen the app." } }, context.mainExecutor)
         onDispose { browser?.removeListener(listener); MediaBrowser.releaseFuture(future) }
@@ -1225,8 +1303,36 @@ fun AppScreen(model: MainModel = viewModel()) {
                 model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })))
         val showClearHistoryButton = !globalSearch && model.parent == "history" && model.entries.isNotEmpty()
         val showListedActions = !globalSearch && model.parent !in setOf("radio", "books") && playable.isNotEmpty()
+        if (model.canGoBack) TextButton(onClick = {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            model.back()
+        }) { Text("‹ ${model.backTitle}") }
         if (!globalSearch && model.parent !in setOf("radio", "plex", "favorites", "history", "books", "youtube"))
-            Text(model.locationTitle, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(model.locationTitle, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                if (model.parent.startsWith("album:")) FavoriteButton(model.parent, model.locationTitle, model)
+            }
+        if (!globalSearch) AlbumShuffleControls(model.parent, albumShuffleActive, browser != null && !pendingSelection && model.output == "This phone",
+            start = { scope ->
+                val player = browser
+                if (player != null) {
+                    val request = ++selectionEpoch
+                    pendingSelection = true
+                    playerError = ""; playerFailure = null
+                    val result = player.sendCustomCommand(PlaybackSelectionCommand.COMMAND, Bundle().apply {
+                        putString(PlaybackSelectionCommand.KEY_ALBUM_SCOPE, scope)
+                    })
+                    result.addListener({
+                        if (request == selectionEpoch) {
+                            pendingSelection = false
+                            val outcome = runCatching { result.get() }.getOrNull()
+                            outcome?.sessionError?.let(::showSessionError)
+                            if (outcome == null) playerError = "Could not start album shuffle. Try again."
+                        }
+                    }, context.mainExecutor)
+                }
+            }, stop = { browser?.sendCustomCommand(PlaybackSelectionCommand.STOP_SHUFFLE_COMMAND, Bundle.EMPTY) })
         OutlinedTextField(model.searchTerm, model::updateFilter,
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Search radio, YouTube and Plex" }.onPreviewKeyEvent { event ->
                 if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
@@ -1316,7 +1422,11 @@ fun AppScreen(model: MainModel = viewModel()) {
                                     }
                                 },
                                 modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
-                                    if (entry.playable) play(listOf(entry.asMediaItem())) else model.browse(entry.id, title = entry.title)
+                                    if (entry.playable) play(listOf(entry.asMediaItem())) else {
+                                        model.captureBrowseViewport(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                                        keyboardController?.hide(); focusManager.clearFocus()
+                                        model.browse(entry.id, title = entry.title)
+                                    }
                                 },
                             )
                         }
@@ -1360,6 +1470,11 @@ fun AppScreen(model: MainModel = viewModel()) {
                             }
                         }, modifier = Modifier.clickable(enabled = !entry.playable || browser != null) {
                             if (entry.playable) playAlbumEntry(entry) else model.browse(entry.id, title = entry.title)
+                            if (!entry.playable) {
+                                model.captureBrowseViewport(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                                keyboardController?.hide(); focusManager.clearFocus()
+                                model.browse(entry.id, title = entry.title)
+                            }
                         })
                 }
             }

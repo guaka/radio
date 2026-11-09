@@ -11,6 +11,10 @@ internal object PlaybackSelectionCommand {
     const val KEY_POSITION_MS = "positionMs"
     const val KEY_RETRY_SELECTED_ONLY = "retrySelectedOnly"
 
+    const val KEY_ALBUM_SCOPE = "albumShuffleScope"
+    const val STOP_SHUFFLE = "org.guaka.radio.STOP_ALBUM_SHUFFLE"
+    val STOP_SHUFFLE_COMMAND = SessionCommand(STOP_SHUFFLE, Bundle.EMPTY)
+
     val COMMAND = SessionCommand(ACTION, Bundle.EMPTY)
 
     fun bundle(ids: List<String>, index: Int, positionMs: Long, retrySelectedOnly: Boolean = false): Bundle = Bundle().apply {

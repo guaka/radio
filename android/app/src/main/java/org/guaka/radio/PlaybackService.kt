@@ -63,6 +63,17 @@ class PlaybackService : MediaLibraryService() {
     private var selectionJob: kotlinx.coroutines.Job? = null
     private var sleepJob: kotlinx.coroutines.Job? = null
     private var stopSleepObserver: (() -> Unit)? = null
+    private var albumShuffleScope: String? = null
+    private var lastShuffledAlbum: String? = null
+    private var shuffleController: MediaSession.ControllerInfo? = null
+
+    private fun stopAlbumShuffle() {
+        albumShuffleScope = null
+        lastShuffledAlbum = null
+        shuffleController = null
+        session.setSessionExtras(android.os.Bundle.EMPTY)
+    }
+
     private val playbackHandoff = PlaybackHandoff()
     private val audioAttributes = AudioAttributes.Builder()
         .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
@@ -77,6 +88,7 @@ class PlaybackService : MediaLibraryService() {
         stopSleepObserver = sleepTimer.observe { scheduleSleepTimer() }
         scheduleSleepTimer()
         stopCredentialObserver = listening.observePlexChanges {
+            stopAlbumShuffle()
             playbackHandoff.invalidate()
             selectionJob?.cancel()
             scope.launch { purgeStalePlexItems(); persistPlayback() }
@@ -127,9 +139,30 @@ class PlaybackService : MediaLibraryService() {
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (!isCurrentPlayer(player)) return
+                if (playbackState == androidx.media3.common.Player.STATE_ENDED && player.playWhenReady) continueAlbumShuffle(player)
                 if (playbackState == androidx.media3.common.Player.STATE_READY || playbackState == androidx.media3.common.Player.STATE_ENDED) persistPlayback()
             }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (isCurrentPlayer(player) && playWhenReady &&
+                    player.playbackState == androidx.media3.common.Player.STATE_ENDED) continueAlbumShuffle(player)
+            }
         })
+    }
+
+    /** A pause while the next album is being staged cancels that handoff. Resume at ENDED must retry it. */
+    private fun continueAlbumShuffle(player: ExoPlayer) {
+        val parent = albumShuffleScope ?: return
+        val controller = shuffleController ?: return
+        scope.launch {
+            selectionJob?.join()
+            if (isCurrentPlayer(player) && player.playWhenReady &&
+                player.playbackState == androidx.media3.common.Player.STATE_ENDED &&
+                albumShuffleScope == parent && shuffleController == controller && selectionJob == null) {
+                selectPlayback(controller, android.os.Bundle().apply {
+                    putString(PlaybackSelectionCommand.KEY_ALBUM_SCOPE, parent)
+                })
+            }
+        }
     }
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = session
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -265,15 +298,17 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun selectPlayback(controller: MediaSession.ControllerInfo, args: android.os.Bundle): ListenableFuture<SessionResult> {
-        val ids = args.getStringArrayList(PlaybackSelectionCommand.KEY_MEDIA_IDS)?.toList().orEmpty()
-        val index = args.getInt(PlaybackSelectionCommand.KEY_START_INDEX, -1)
-        val positionMs = args.getLong(PlaybackSelectionCommand.KEY_POSITION_MS, -1L)
+        var ids = args.getStringArrayList(PlaybackSelectionCommand.KEY_MEDIA_IDS)?.toList().orEmpty()
+        val shuffleScope = args.getString(PlaybackSelectionCommand.KEY_ALBUM_SCOPE)
+        val index = if (shuffleScope != null) 0 else args.getInt(PlaybackSelectionCommand.KEY_START_INDEX, -1)
+        val positionMs = if (shuffleScope != null) 0L else args.getLong(PlaybackSelectionCommand.KEY_POSITION_MS, -1L)
         val retrySelectedOnly = args.getBoolean(PlaybackSelectionCommand.KEY_RETRY_SELECTED_ONLY, false)
         val previous = selectionJob
         val request = playbackHandoff.begin()
         previous?.cancel()
         val result = SettableFuture.create<SessionResult>()
         val job = scope.launch {
+            val thisJob = kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]
             var pauseListener: androidx.media3.common.Player.Listener? = null
             val oldPlayer = session.player as? ExoPlayer
             val wasPlaying = oldPlayer?.playWhenReady == true
@@ -289,6 +324,10 @@ class PlaybackService : MediaLibraryService() {
                         }
                     }.also(oldPlayer::addListener)
                 }
+                val shuffled = shuffleScope?.let { parent ->
+                    AlbumShuffle.next(parent, lastShuffledAlbum, browse = repository::browse)
+                }
+                if (shuffled != null) ids = shuffled.tracks
                 val reusable = if (retrySelectedOnly) {
                     require(oldPlayer != null && oldPlayer.mediaItemCount == ids.size) {
                         "The current queue is no longer available. Choose it again."
@@ -328,6 +367,16 @@ class PlaybackService : MediaLibraryService() {
                         attachPlaybackListeners(stagedPlayer)
                         try {
                             session.setPlayer(stagedPlayer)
+                            if (oldPlayer != null && pauseListener != null) oldPlayer.removeListener(pauseListener!!)
+                            if (shuffleScope != null) {
+                                albumShuffleScope = shuffleScope
+                                lastShuffledAlbum = shuffled?.albumId
+                                shuffleController = controller
+                                session.setSessionExtras(android.os.Bundle().apply {
+                                    putString(PlaybackSelectionCommand.KEY_ALBUM_SCOPE, shuffleScope)
+                                })
+                            } else if (!retrySelectedOnly && (oldPlayer == null || ids !=
+                                (0 until oldPlayer.mediaItemCount).map { oldPlayer.getMediaItemAt(it).mediaId })) stopAlbumShuffle()
                             stagedPlayer.play()
                         } finally {
                             if (session.player === stagedPlayer) {
@@ -350,6 +399,7 @@ class PlaybackService : MediaLibraryService() {
                 if (!result.isCancelled) result.set(SessionResult(SessionError.INFO_CANCELLED))
             } catch (e: Exception) {
                 if (!result.isCancelled && playbackHandoff.isCurrent(request)) {
+                    if (shuffleScope != null && oldPlayer?.playbackState == androidx.media3.common.Player.STATE_ENDED) stopAlbumShuffle()
                     val safe = SessionError(LibraryErrors.code(e), LibraryErrors.message(e))
                     result.set(SessionResult(safe))
                     session.sendError(controller, safe)
@@ -358,7 +408,7 @@ class PlaybackService : MediaLibraryService() {
                 }
             } finally {
                 if (oldPlayer != null && pauseListener != null) oldPlayer.removeListener(pauseListener!!)
-                if (playbackHandoff.isCurrent(request)) selectionJob = null
+                if (selectionJob === thisJob) selectionJob = null
             }
         }
         selectionJob = job
@@ -436,6 +486,7 @@ class PlaybackService : MediaLibraryService() {
             val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
                 .add(PlaybackSelectionCommand.COMMAND)
                 .add(SLEEP_COMMAND)
+                .add(PlaybackSelectionCommand.STOP_SHUFFLE_COMMAND)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(commands)
@@ -449,6 +500,12 @@ class PlaybackService : MediaLibraryService() {
             customCommand: SessionCommand,
             args: android.os.Bundle,
         ): ListenableFuture<SessionResult> {
+            if (controller.packageName == packageName && customCommand.customAction == PlaybackSelectionCommand.STOP_SHUFFLE) {
+                stopAlbumShuffle()
+                playbackHandoff.invalidate()
+                selectionJob?.cancel()
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
             if (controller.packageName == packageName && customCommand.customAction == PlaybackSelectionCommand.ACTION) {
                 return selectPlayback(controller, args)
             }
@@ -478,6 +535,8 @@ class PlaybackService : MediaLibraryService() {
                 playbackHandoff.invalidate()
                 selectionJob?.cancel()
             }
+            if (playerCommand == androidx.media3.common.Player.COMMAND_CHANGE_MEDIA_ITEMS ||
+                playerCommand == androidx.media3.common.Player.COMMAND_STOP) stopAlbumShuffle()
             return super.onPlayerCommandRequest(session, controller, playerCommand)
         }
 
