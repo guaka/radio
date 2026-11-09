@@ -300,7 +300,13 @@ internal fun TvContent(
             Spacer(Modifier.height(12.dp))
             listOf("plex" to "Plex", "youtube" to "YouTube", "favorites" to "Favorites", "history" to "History").forEach { (id, label) ->
                 TvListRow(label, Modifier.fillMaxWidth(),
-                    icon = when (id) { "plex" -> R.drawable.ic_plex; "youtube" -> R.drawable.ic_youtube; else -> null },
+                    icon = when (id) {
+                        "plex" -> R.drawable.ic_plex
+                        "youtube" -> R.drawable.ic_youtube
+                        "favorites" -> R.drawable.ic_star
+                        "history" -> R.drawable.ic_history
+                        else -> null
+                    },
                     onClick = { settings = false; onSource(id) })
             }
         }
