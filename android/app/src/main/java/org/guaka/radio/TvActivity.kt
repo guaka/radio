@@ -300,11 +300,12 @@ internal fun TvContent(
     val settingsFocus = remember { FocusRequester() }
     val accountFocus = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
+    var confirmSignOut by remember(settings, signedIn) { mutableStateOf(false) }
     var restoreSettingsFocus by remember { mutableStateOf(false) }
     fun closeSettings() { settings = false; restoreSettingsFocus = true }
-    BackHandler(enabled = settings) { closeSettings() }
-    LaunchedEffect(settings) {
-        if (settings) accountFocus.requestFocus()
+    BackHandler(enabled = settings && !confirmSignOut) { closeSettings() }
+    LaunchedEffect(settings, confirmSignOut) {
+        if (settings && !confirmSignOut) accountFocus.requestFocus()
         else if (restoreSettingsFocus) {
             settingsFocus.requestFocus()
             restoreSettingsFocus = false
@@ -397,7 +398,9 @@ internal fun TvContent(
                     Text("Plex", style = MaterialTheme.typography.titleLarge)
                     Text(if (signedIn) accountName.ifBlank { "Signed in to Plex" } else "Not signed in to Plex")
                     TvButton(if (signedIn) "Sign out of Plex" else "Sign in to Plex",
-                        Modifier.focusRequester(accountFocus), onClick = if (signedIn) onSignOut else onSignIn)
+                        Modifier.focusRequester(accountFocus), onClick = {
+                            if (signedIn) confirmSignOut = true else onSignIn()
+                        })
                     connectionSettings()
                     TvButton("Close settings", onClick = ::closeSettings)
                 }
@@ -475,6 +478,24 @@ internal fun TvContent(
                 }
             }
         }
+    }
+    if (confirmSignOut) {
+        val cancelFocus = remember { FocusRequester() }
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text("Sign out of Plex?") },
+            text = { Text("You’ll need to sign in again to browse and play your Plex library.") },
+            dismissButton = {
+                TvButton("Cancel", Modifier.focusRequester(cancelFocus), onClick = { confirmSignOut = false })
+                LaunchedEffect(Unit) { cancelFocus.requestFocus() }
+            },
+            confirmButton = {
+                TvButton("Sign out", onClick = {
+                    confirmSignOut = false
+                    onSignOut()
+                })
+            },
+        )
     }
 }
 
