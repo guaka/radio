@@ -55,6 +55,7 @@ internal fun TvAssistantPhoneSetup(local: Boolean, target: String, onDismiss: ()
                 Image(bitmap, "Scan to set up Music Assistant", Modifier.size(200.dp))
                 Text("Expires in five minutes. Local HTTP connection.")
             }
+            Text("Can't open the link? Use the same Wi-Fi, check VPN or guest-network settings, and keep http:// (not https://). A computer on this network also works.")
             error?.let { Text(it) }
         }
     }, confirmButton = { TvButton("Close", onClick = onDismiss) })
