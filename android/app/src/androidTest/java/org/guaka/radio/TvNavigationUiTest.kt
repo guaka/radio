@@ -25,8 +25,9 @@ class TvNavigationUiTest {
     private var toggles = 0
     private var plays = 0
     private var pauses = 0
+    private var backs = 0
 
-    private fun showContent(status: String = "", trackMetadata: Boolean = false) {
+    private fun showContent(status: String = "", trackMetadata: Boolean = false, canGoBack: Boolean = false) {
         compose.runOnUiThread {
             compose.activity.setContent {
                 MaterialTheme(colorScheme = darkColorScheme()) {
@@ -37,8 +38,8 @@ class TvNavigationUiTest {
                             currentArtist = if (trackMetadata) "Current artist" else null,
                             currentStation = if (trackMetadata) "Current station" else null,
                             currentId = "radio:0", playing = true, ready = true, busy = false, status = status,
-                            hasMore = false, canGoBack = false, listEpoch = 0, search = "", signedIn = false,
-                            onSearch = {}, onSource = { source = it }, onBack = {}, onMore = {},
+                            hasMore = false, canGoBack = canGoBack, listEpoch = 0, search = "", signedIn = false,
+                            onSearch = {}, onSource = { source = it }, onBack = { backs++ }, onMore = {},
                             onFavorite = { favorite = it }, onSignIn = {}, onSignOut = {},
                             onToggle = { toggles++ }, onPlay = { plays++ }, onPause = { pauses++ },
                             onEntry = { selected = it.id },
@@ -48,6 +49,27 @@ class TvNavigationUiTest {
             }
         }
         compose.waitForIdle()
+    }
+
+    @Test fun backIconIsBesideHeadingAndWorksWithRemote() {
+        showContent(canGoBack = true)
+        val back = compose.onNodeWithContentDescription("Back")
+        back.assertIsDisplayed().assertHasClickAction()
+        compose.onNodeWithText("Back").assertDoesNotExist()
+        val backBounds = back.fetchSemanticsNode().boundsInRoot
+        val heading = compose.onNodeWithTag("TV content heading").fetchSemanticsNode().boundsInRoot
+        assertTrue(backBounds.right <= heading.left)
+        assertEquals(heading.center.y, backBounds.center.y, 1f)
+        back.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            .assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, backs) }
+        back.performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription("Settings").assertIsFocused()
+    }
+
+    @Test fun backIconIsHiddenAtSourceRoot() {
+        showContent()
+        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
     }
 
     @Test fun nowPlayingShowsTrackArtistAndStation() {
