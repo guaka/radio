@@ -135,3 +135,9 @@ On Android TV, open **Settings → Music Assistant**, enter the Remote ID and ac
 After selecting something to play, choose **Speakers** in the TV playback bar. Select one or more speakers, then **Play on speakers**. The TV remote's play/pause keys control the selected output. Reopen Speakers to change destinations, adjust each active speaker's volume in 5% steps, seek a non-live track by 30 seconds, or return playback to **This TV**. Unavailable volumes are disabled. Multiple speakers use the shared Music Assistant synchronization flow. Returning to TV playback preserves the available track position; a failed return keeps the speaker output selected.
 
 For playback on the TV or phone, selecting a Plex track while browsing an album queues that album in order and starts at the chosen track, so the remaining tracks play automatically. Albums load beyond the first browse page, up to the existing 500-item queue limit. Search results, favorites and track catalog selections retain single-item playback. Music Assistant speaker selections retain the existing single-track handoff behavior.
+
+### TV phone setup
+
+In TV Settings → Music Assistant, choose Local network or Remote access, then Set up with phone. Scan the QR code from a phone on the same trusted LAN, enter the server URL or Remote ID and an access token from Music Assistant Settings → Profile, and select Send to TV. Finish with Connect and save on the TV; the existing authenticated connection check runs before settings are saved. Local server discovery can prefill the URL before opening phone setup.
+
+The temporary form uses local HTTP, expires after five minutes, accepts one submission, and closes when its dialog closes. Use manual setup if the phone cannot reach the TV (for example, guest Wi-Fi/client isolation). No token is included in the QR code.

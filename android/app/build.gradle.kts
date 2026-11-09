@@ -79,6 +79,7 @@ gradle.taskGraph.whenReady {
     }
 }
 dependencies {
+    implementation("com.google.zxing:core:3.5.3")
     implementation("io.github.webrtc-sdk:android:150.7871.01")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")

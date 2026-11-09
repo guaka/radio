@@ -60,7 +60,7 @@ class TvNavigationUiTest {
     @Test fun tvLauncherResolvesWithoutATouchscreenRequirement() {
         val context = compose.activity
         compose.onNodeWithText("Radio Guaka").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Radio Guaka").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Radio Guaka", useUnmergedTree = true).assertIsDisplayed()
         compose.waitUntil(10_000) {
             compose.onAllNodesWithContentDescription("Play 7soul").fetchSemanticsNodes().isNotEmpty()
         }
@@ -78,6 +78,10 @@ class TvNavigationUiTest {
     @Test fun remoteNavigatesSourcesAndActivatesFavorites() {
         showContent()
         compose.onNodeWithContentDescription("Radio").assertIsFocused()
+        compose.onNodeWithTag("TV row text Radio", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Radio Guaka", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Radio").performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals("radio", source) }
         compose.onNodeWithTag("TV row icon Plex", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("TV row icon YouTube", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("TV row text Plex", useUnmergedTree = true).assertDoesNotExist()
