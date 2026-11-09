@@ -11,18 +11,46 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun TvAssistantSettings(model: MainModel) {
+    var choice by remember(model) { mutableStateOf(AssistantConnectionChoice.saved(model.repository.assistantConnectionMode())) }
     var remoteId by remember { mutableStateOf(model.repository.assistantRemoteId()) }
+    var localUrl by remember { mutableStateOf(model.repository.assistantLocalUrl()) }
+    var localToken by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     Text("Music Assistant", style = MaterialTheme.typography.titleLarge)
-    Text("Enable Settings → Remote Access in Music Assistant and copy its Remote ID. Create an access token in Settings → Profile.")
-    OutlinedTextField(remoteId, { remoteId = it; saved = false }, label = { Text("Remote ID") }, singleLine = true)
-    OutlinedTextField(token, { token = it; saved = false }, label = { Text("Access token") }, singleLine = true,
-        visualTransformation = PasswordVisualTransformation())
-    if (model.repository.hasAssistantToken(remoteId)) Text("Token saved securely. Leave blank to reuse it.")
+    TvButton("Local network${if (choice == AssistantConnectionChoice.LOCAL) " ✓" else ""}", enabled = !model.busy,
+        onClick = { choice = AssistantConnectionChoice.LOCAL; saved = false })
+    TvButton("Remote access${if (choice == AssistantConnectionChoice.REMOTE) " ✓" else ""}", enabled = !model.busy,
+        onClick = { choice = AssistantConnectionChoice.REMOTE; saved = false })
+    if (choice == AssistantConnectionChoice.LOCAL) {
+        LocalAssistantFields(
+            url = localUrl, onUrlChange = { localUrl = it; saved = false },
+            token = localToken, onTokenChange = { localToken = it; saved = false },
+            tokenSavedForUrl = model.repository.hasLocalAssistantToken(localUrl), enabled = !model.busy, isTv = true,
+        )
+        if (model.repository.assistantLocalServerId().isNotBlank()) {
+            Text("A local server connection is saved on this device.")
+            TvButton("Forget local connection", enabled = !model.busy, onClick = {
+                model.disconnectLocalAssistant()
+                localUrl = ""
+                localToken = ""
+                saved = false
+            })
+        }
+    } else {
+        Text("Enable Settings → Remote Access in Music Assistant and copy its Remote ID. Create an access token in Settings → Profile.")
+        OutlinedTextField(remoteId, { remoteId = it; saved = false }, label = { Text("Remote ID") }, singleLine = true, enabled = !model.busy)
+        OutlinedTextField(token, { token = it; saved = false }, label = { Text("Access token") }, singleLine = true,
+            enabled = !model.busy, visualTransformation = PasswordVisualTransformation())
+        if (model.repository.hasAssistantToken(remoteId)) Text("Token saved securely. Leave blank to reuse it.")
+    }
     TvButton("Connect and save", enabled = !model.busy, onClick = {
         saved = false
-        model.saveAssistant(remoteId, token) { token = ""; saved = true }
+        if (choice == AssistantConnectionChoice.LOCAL) {
+            model.saveLocalAssistant(localUrl, localToken) { localToken = ""; saved = true }
+        } else {
+            model.saveAssistant(remoteId, token) { token = ""; saved = true }
+        }
     })
     if (saved) Text("Connected. Settings saved.") else if (model.status.isNotBlank()) Text(model.status)
     Text("Speaker audio", style = MaterialTheme.typography.titleMedium)

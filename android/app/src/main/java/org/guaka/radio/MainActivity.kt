@@ -698,10 +698,32 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         dismissSpeakers()
         action {
             setStatus("Connecting to Music Assistant…")
+            val previousMode = repository.assistantConnectionMode()
+            val previousId = repository.assistantRemoteId()
             io { repository.saveAssistant(url, token) }
+            if (previousMode != "remote" || previousId != repository.assistantRemoteId()) phoneOutput()
             setStatus("Connected to Music Assistant. Settings saved.")
             onSaved()
         }
+    }
+
+    fun saveLocalAssistant(url: String, token: String, onSaved: () -> Unit) {
+        dismissSpeakers()
+        action {
+            setStatus("Checking local Music Assistant…")
+            val previousMode = repository.assistantConnectionMode()
+            val previousId = repository.assistantLocalServerId()
+            io { repository.saveLocalAssistant(url, token) }
+            if (previousMode != "local" || previousId != repository.assistantLocalServerId()) phoneOutput()
+            setStatus("Connected locally. Choose speakers from the output selector.")
+            onSaved()
+        }
+    }
+
+    fun disconnectLocalAssistant() {
+        if (repository.assistantConnectionMode() == "local") phoneOutput()
+        repository.disconnectLocalAssistant()
+        setStatus("Local connection forgotten. Revoke its token in Music Assistant → Settings → Profile if needed.")
     }
 }
 

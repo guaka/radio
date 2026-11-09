@@ -7,6 +7,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -31,6 +35,9 @@ internal fun SettingsPane(
     onSaved: () -> Unit,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
+    var connectionChoice by remember(model) { mutableStateOf(AssistantConnectionChoice.saved(model.repository.assistantConnectionMode())) }
+    var localUrl by remember(model) { mutableStateOf(model.repository.assistantLocalUrl()) }
+    var localToken by remember(model) { mutableStateOf("") }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             TextButton(onClick = onClose) { Text("‹  Back") }
@@ -65,32 +72,51 @@ internal fun SettingsPane(
 
             SettingsSection(title = "Music Assistant") {
                 Text("Connect a Music Assistant server to play stations on its speakers.")
-                OutlinedTextField(
-                    value = assistantRemoteId,
-                    onValueChange = onAssistantRemoteIdChange,
-                    label = { Text("Remote ID") },
-                    placeholder = { Text("From Music Assistant → Settings → Remote Access") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                )
-                OutlinedTextField(
-                    value = assistantToken,
-                    onValueChange = onAssistantTokenChange,
-                    label = { Text("Access token") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
-                )
-                if (model.repository.hasAssistantToken(assistantRemoteId)) {
-                    Text("Token saved securely. Leave blank to use it, or enter a replacement.", style = MaterialTheme.typography.bodySmall)
+                AssistantConnectionModeSelector(connectionChoice, enabled = !model.busy) { connectionChoice = it }
+                if (connectionChoice == AssistantConnectionChoice.LOCAL) {
+                    LocalAssistantFields(
+                        url = localUrl, onUrlChange = { localUrl = it }, token = localToken,
+                        onTokenChange = { localToken = it }, enabled = !model.busy,
+                        tokenSavedForUrl = model.repository.hasLocalAssistantToken(localUrl),
+                    )
+                    if (model.repository.assistantLocalServerId().isNotBlank()) {
+                        Text("A local server connection is saved on this device.", style = MaterialTheme.typography.bodySmall)
+                        TextButton(enabled = !model.busy, onClick = {
+                            model.disconnectLocalAssistant()
+                            localUrl = ""
+                            localToken = ""
+                        }) { Text("Forget local connection") }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = assistantRemoteId,
+                        onValueChange = onAssistantRemoteIdChange,
+                        label = { Text("Remote ID") },
+                        placeholder = { Text("From Music Assistant → Settings → Remote Access") },
+                        singleLine = true,
+                        enabled = !model.busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    )
+                    OutlinedTextField(
+                        value = assistantToken,
+                        onValueChange = onAssistantTokenChange,
+                        label = { Text("Access token") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        enabled = !model.busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+                    )
+                    if (model.repository.hasAssistantToken(assistantRemoteId)) {
+                        Text("Token saved securely. Leave blank to use it, or enter a replacement.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(
+                        "Enable Music Assistant → Settings → Remote Access and copy its Remote ID. Create an access token in Settings → Profile.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-                Text(
-                    "Enable Music Assistant → Settings → Remote Access and copy its Remote ID. Create an access token in Settings → Profile.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 HorizontalDivider()
                 Text("Speaker audio", style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -117,7 +143,11 @@ internal fun SettingsPane(
             Spacer(Modifier.width(8.dp))
             Button(enabled = !model.busy, onClick = {
                 onSaveStarted()
-                model.saveAssistant(assistantRemoteId, assistantToken, onSaved)
+                if (connectionChoice == AssistantConnectionChoice.LOCAL) {
+                    model.saveLocalAssistant(localUrl, localToken) { localToken = ""; onSaved() }
+                } else {
+                    model.saveAssistant(assistantRemoteId, assistantToken, onSaved)
+                }
             }) {
                 Text(if (model.busy) "Checking connection…" else "Connect and save")
             }
