@@ -182,6 +182,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         history.clear()
         browseSnapshots.clear()
         history.addAll(state.breadcrumbs.map { it.id to it.title })
+        browseSnapshots.addAll(List(history.size) { null })
         parent = state.parent
         locationTitle = state.title
         searchTerm = ""
@@ -273,17 +274,6 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             restorePlexBrowse(storedPlex)
             return
         }
-        if (id != parent) {
-            plexScrollIndex = 0
-            plexScrollOffset = 0
-        }
-        if (!PlexBrowseState.isPlexLocation(id)) {
-            plexBrowseStore.markInactive()
-            pendingPlexScroll = null
-            restoringPlexBrowse = false
-            plexScrollIndex = 0
-            plexScrollOffset = 0
-        }
         if (id == "radio") {
             dismissSpeakers()
             setStatus("")
@@ -305,9 +295,22 @@ class MainModel(application: Application) : AndroidViewModel(application) {
                 hasMore = hasMore,
                 index = browseIndex,
                 offset = browseOffset,
+                plexScrollIndex = plexScrollIndex,
+                plexScrollOffset = plexScrollOffset,
                 plexGeneration = repository.listening.plexGeneration(),
             ))
             if (history.size > 30) { history.removeAt(0); browseSnapshots.removeAt(0) }
+        }
+        if (id != parent) {
+            plexScrollIndex = 0
+            plexScrollOffset = 0
+        }
+        if (!PlexBrowseState.isPlexLocation(id)) {
+            plexBrowseStore.markInactive()
+            pendingPlexScroll = null
+            restoringPlexBrowse = false
+            plexScrollIndex = 0
+            plexScrollOffset = 0
         }
         parent = id
         locationTitle = title
@@ -328,6 +331,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     internal fun captureBrowseViewport(index: Int, offset: Int) {
         browseIndex = index.coerceAtLeast(0)
         browseOffset = offset.coerceAtLeast(0)
+        if (PlexBrowseState.isPlexLocation(parent) && searchTerm.isBlank() && !restoringPlexBrowse) {
+            plexScrollIndex = browseIndex.coerceIn(0, 599)
+            plexScrollOffset = browseOffset.coerceIn(0, 10_000)
+        }
     }
     internal fun consumePendingPlexScroll(): Pair<Int, Int>? = pendingPlexScroll.also { pendingPlexScroll = null }
     private fun persistPlexBrowse() {
@@ -352,6 +359,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
     }
     fun refresh() = load(reset = true)
     fun updateFilter(value: String) {
+        restoredIndex = 0; restoredOffset = 0
         searchTerm = value
         filterJob?.cancel()
         val generation = ++searchGeneration
@@ -465,13 +473,17 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         searchTerm = snapshot.query; appliedQuery = snapshot.appliedQuery
         searchResults = snapshot.searchResults; searchErrors = snapshot.searchErrors
         searchingSources = emptySet()
-        entries = snapshot.entries; nextPage = snapshot.nextPage; hasMore = snapshot.hasMore
+        val restoredEntries = if (snapshot.id == "favorites") {
+            val latestFavorites = repository.listening.favoriteIds().toSet()
+            snapshot.entries.filter { it.id in latestFavorites }
+        } else snapshot.entries
+        entries = restoredEntries; nextPage = snapshot.nextPage; hasMore = snapshot.hasMore
         browseIndex = snapshot.index; browseOffset = snapshot.offset
         restoredIndex = snapshot.index; restoredOffset = snapshot.offset
         if (PlexBrowseState.isPlexLocation(parent)) {
-            plexScrollIndex = snapshot.index.coerceIn(0, 599)
-            plexScrollOffset = snapshot.offset.coerceIn(0, 10_000)
-            pendingPlexScroll = snapshot.index to snapshot.offset
+            plexScrollIndex = snapshot.plexScrollIndex.coerceIn(0, 599)
+            plexScrollOffset = snapshot.plexScrollOffset.coerceIn(0, 10_000)
+            pendingPlexScroll = if (searchTerm.isBlank()) plexScrollIndex to plexScrollOffset else null
             restoringPlexBrowse = false
             persistPlexBrowse()
         } else {
@@ -482,7 +494,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         loadingMore = false; paginationFailed = false; setStatus("")
         status = snapshot.status; statusScope = snapshot.statusScope
         listEpoch++
-        if (entries.isEmpty()) load(reset = true)
+        if (entries.isEmpty() && searchTerm.isBlank()) load(reset = true)
         if (searchTerm.isNotBlank() && snapshot.searchingSources.isNotEmpty()) {
             val generation = searchGeneration
             filterJob = viewModelScope.launch { searchAll(searchTerm.trim(), generation) }
@@ -1005,8 +1017,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             if (model.restoredIndex != 0 || model.restoredOffset != 0) model.restoredIndex to model.restoredOffset else null
         if (restore == null) listState.scrollToItem(0)
         else {
-            val lastIndex = model.entries.lastIndex.coerceAtLeast(0)
-            listState.scrollToItem(restore.first.coerceAtMost(lastIndex), restore.second)
+            listState.scrollToItem(restore.first, restore.second)
         }
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
             .collect { (index, offset) -> model.captureBrowseViewport(index, offset) }

@@ -23,9 +23,16 @@ class PlexBrowseUiTest {
         assertTrue(stopped)
     }
 
-    @Test fun radioHasNoShuffleActionAndDisabledControlCannotStart() {
+    @Test fun radioHasNoShuffleAction() {
         compose.setContent { MaterialTheme { AlbumShuffleControls("radio", false, false, {}, {}) } }
         compose.onNodeWithText("Shuffle albums").assertDoesNotExist()
+    }
+
+    @Test fun shuffleIsDisabledUntilPhonePlaybackIsAvailable() {
+        compose.setContent { MaterialTheme {
+            AlbumShuffleControls("library:s:1", false, false, { error("Disabled") }, {})
+        } }
+        compose.onNodeWithText("Shuffle albums").assertIsNotEnabled()
     }
 
     @Test fun albumFavoritePersistsAndSignOutRemovesIt() {

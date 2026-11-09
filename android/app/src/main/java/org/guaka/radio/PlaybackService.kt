@@ -307,7 +307,7 @@ class PlaybackService : MediaLibraryService() {
         val request = playbackHandoff.begin()
         previous?.cancel()
         val result = SettableFuture.create<SessionResult>()
-        val job = scope.launch {
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             val thisJob = kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]
             var pauseListener: androidx.media3.common.Player.Listener? = null
             val oldPlayer = session.player as? ExoPlayer
@@ -411,8 +411,10 @@ class PlaybackService : MediaLibraryService() {
                 if (selectionJob === thisJob) selectionJob = null
             }
         }
+        // Publish ownership before execution: even immediate validation failures must clear their job.
         selectionJob = job
         result.addListener({ if (result.isCancelled) job.cancel() }, mainExecutor)
+        job.start()
         return result
     }
 

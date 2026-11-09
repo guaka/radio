@@ -39,15 +39,12 @@ class PlexNavigationUiTest {
             compose.onNodeWithContentDescription("Remove favorite Test album").assertIsDisplayed()
             compose.onNodeWithContentDescription("Remove favorite Test album").performClick()
             compose.waitUntil(5_000) { "album:navigation-test:35" !in model.favorites }
-            compose.onNodeWithContentDescription("Favorite Test album").assertIsDisplayed()
-            compose.onNodeWithContentDescription("Favorite Test album").performClick()
-            compose.waitUntil(5_000) { "album:navigation-test:35" in model.favorites }
-            compose.onNodeWithContentDescription("Remove favorite Test album").assertIsDisplayed()
             compose.onNodeWithText("‹ Favorites").performClick()
             compose.waitUntil(10_000) { model.parent == "favorites" && !model.busy }
             compose.runOnIdle {
                 assertEquals("", model.searchTerm)
-                assertEquals(count, model.entries.size)
+                assertEquals(count - 1, model.entries.size)
+                assertFalse(model.entries.any { it.id == "album:navigation-test:35" })
                 assertEquals(index, model.browseIndex)
                 assertEquals(offset, model.browseOffset)
             }

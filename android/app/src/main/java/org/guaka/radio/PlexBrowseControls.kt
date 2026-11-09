@@ -30,5 +30,7 @@ internal data class BrowseLocation(
     val hasMore: Boolean,
     val index: Int,
     val offset: Int,
+    val plexScrollIndex: Int,
+    val plexScrollOffset: Int,
     val plexGeneration: Long,
 )
