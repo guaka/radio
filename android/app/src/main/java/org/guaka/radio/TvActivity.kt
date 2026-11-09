@@ -288,10 +288,18 @@ internal fun TvContent(
         } else false
     }.padding(horizontal = 40.dp, vertical = 24.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         Column(Modifier.width(160.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Image(painterResource(R.drawable.ic_radio), "Radio Guaka", Modifier.size(56.dp))
+            var radioFocused by remember { mutableStateOf(false) }
+            IconButton(onClick = { settings = false; onSource("radio") },
+                modifier = Modifier.size(72.dp).focusRequester(firstFocus)
+                    .onFocusChanged { radioFocused = it.isFocused }
+                    .border(3.dp, if (radioFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        RoundedCornerShape(8.dp))
+                    .semantics { contentDescription = "Radio" }) {
+                Image(painterResource(R.drawable.ic_radio), "Radio Guaka", Modifier.size(56.dp))
+            }
             Spacer(Modifier.height(12.dp))
-            listOf("radio" to "Radio", "plex" to "Plex", "youtube" to "YouTube", "favorites" to "Favorites", "history" to "History").forEachIndexed { i, (id, label) ->
-                TvListRow(label, Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+            listOf("plex" to "Plex", "youtube" to "YouTube", "favorites" to "Favorites", "history" to "History").forEach { (id, label) ->
+                TvListRow(label, Modifier.fillMaxWidth(),
                     icon = when (id) { "plex" -> R.drawable.ic_plex; "youtube" -> R.drawable.ic_youtube; else -> null },
                     onClick = { settings = false; onSource(id) })
             }

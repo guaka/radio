@@ -17,7 +17,22 @@ internal fun TvAssistantSettings(model: MainModel) {
     var localToken by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
+    var phoneDetailsReceived by remember { mutableStateOf(false) }
     Text("Music Assistant", style = MaterialTheme.typography.titleLarge)
+    var phoneSetup by remember { mutableStateOf(false) }
+    TvButton("Set up with phone", enabled = !model.busy, onClick = { phoneSetup = true })
+    if (phoneSetup) TvAssistantPhoneSetup(
+        local = choice == AssistantConnectionChoice.LOCAL,
+        target = if (choice == AssistantConnectionChoice.LOCAL) localUrl else remoteId,
+        onDismiss = { phoneSetup = false },
+        onReceived = { details ->
+            if (choice == AssistantConnectionChoice.LOCAL) { localUrl = details.target; localToken = details.token }
+            else { remoteId = details.target; token = details.token }
+            saved = false
+            phoneDetailsReceived = true
+            phoneSetup = false
+        },
+    )
     TvButton("Local network${if (choice == AssistantConnectionChoice.LOCAL) " ✓" else ""}", enabled = !model.busy,
         onClick = { choice = AssistantConnectionChoice.LOCAL; saved = false })
     TvButton("Remote access${if (choice == AssistantConnectionChoice.REMOTE) " ✓" else ""}", enabled = !model.busy,
@@ -44,6 +59,7 @@ internal fun TvAssistantSettings(model: MainModel) {
             enabled = !model.busy, visualTransformation = PasswordVisualTransformation())
         if (model.repository.hasAssistantToken(remoteId)) Text("Token saved securely. Leave blank to reuse it.")
     }
+    if (phoneDetailsReceived && !saved) Text("Details received from your phone. Select Connect and save to finish.")
     TvButton("Connect and save", enabled = !model.busy, onClick = {
         saved = false
         if (choice == AssistantConnectionChoice.LOCAL) {
