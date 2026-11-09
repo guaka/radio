@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
@@ -97,7 +98,30 @@ class TvEnhancementsUiTest {
         compose.waitForIdle()
         compose.onNodeWithContentDescription("Sign out of Plex").assertIsFocused()
             .performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(0, signOuts) }
+        compose.onNodeWithText("Sign out of Plex?").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Cancel").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.onNodeWithText("Sign out of Plex?").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Sign out of Plex").assertIsFocused()
+        compose.runOnIdle { assertEquals(0, signOuts) }
+
+        compose.onNodeWithContentDescription("Sign out of Plex")
+            .performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.onNodeWithContentDescription("Cancel").assertIsFocused()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithText("Sign out of Plex?").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Sign out of Plex").assertIsFocused()
+        compose.runOnIdle { assertEquals(0, signOuts) }
+
+        compose.onNodeWithContentDescription("Sign out of Plex")
+            .performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.onNodeWithContentDescription("Cancel").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription("Sign out").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, signOuts) }
+        compose.onNodeWithText("Sign out of Plex?").assertDoesNotExist()
     }
 
     @Test fun paginationRequestsNearEndAndRefillsAcrossShortPages() {

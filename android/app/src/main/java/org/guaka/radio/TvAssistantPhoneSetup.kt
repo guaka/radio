@@ -2,6 +2,8 @@ package org.guaka.radio
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,7 +45,7 @@ internal fun TvAssistantPhoneSetup(local: Boolean, target: String, onDismiss: ()
         finally { session?.close(); messages.close() }
     }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Set up with phone") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Scan with a phone on the same trusted Wi-Fi. Paste your Music Assistant token there, then select Connect and save on this TV.")
             url?.let { link ->
                 val bitmap = remember(link) {
@@ -55,6 +57,7 @@ internal fun TvAssistantPhoneSetup(local: Boolean, target: String, onDismiss: ()
                 Image(bitmap, "Scan to set up Music Assistant", Modifier.size(200.dp))
                 Text("Expires in five minutes. Local HTTP connection.")
             }
+            Text("Can't open the link? Use the same Wi-Fi, check VPN or guest-network settings, and keep http:// (not https://). A computer on this network also works.")
             error?.let { Text(it) }
         }
     }, confirmButton = { TvButton("Close", onClick = onDismiss) })
