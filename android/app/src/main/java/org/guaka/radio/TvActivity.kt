@@ -300,10 +300,15 @@ internal fun TvContent(
             Spacer(Modifier.height(12.dp))
             listOf("plex" to "Plex", "youtube" to "YouTube", "favorites" to "Favorites", "history" to "History").forEach { (id, label) ->
                 TvListRow(label, Modifier.fillMaxWidth(),
-                    icon = when (id) { "plex" -> R.drawable.ic_plex; "youtube" -> R.drawable.ic_youtube; else -> null },
+                    icon = when (id) {
+                        "plex" -> R.drawable.ic_plex
+                        "youtube" -> R.drawable.ic_youtube
+                        "favorites" -> R.drawable.ic_star
+                        "history" -> R.drawable.ic_history
+                        else -> null
+                    },
                     onClick = { settings = false; onSource(id) })
             }
-            if (canGoBack && !settings) TvButton("Back", onClick = onBack)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (settings) {
@@ -319,7 +324,18 @@ internal fun TvContent(
                 }
             } else {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
+                    if (canGoBack) {
+                        var backFocused by remember { mutableStateOf(false) }
+                        IconButton(onClick = onBack, modifier = Modifier.size(48.dp)
+                            .onFocusChanged { backFocused = it.isFocused }
+                            .border(3.dp, if (backFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                RoundedCornerShape(8.dp))
+                            .semantics { contentDescription = "Back" }) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = null)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(title, Modifier.weight(1f).testTag("TV content heading"), style = MaterialTheme.typography.headlineMedium, maxLines = 1)
                     var settingsFocused by remember { mutableStateOf(false) }
                     IconButton(onClick = { settings = true }, modifier = Modifier.focusRequester(settingsFocus)
                         .onFocusChanged { settingsFocused = it.isFocused }
