@@ -77,10 +77,13 @@ class TvNavigationUiTest {
 
     @Test fun remoteNavigatesSourcesAndActivatesFavorites() {
         showContent()
-        compose.onNodeWithContentDescription("Radio").assertIsFocused().performKeyInput {
+        compose.onNodeWithContentDescription("Favorites").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionCenter)
         }
+        compose.runOnIdle { assertEquals("radio", source) }
+        compose.onNodeWithContentDescription("Favorites").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            .performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("favorites", source) }
         compose.onNodeWithContentDescription("Remove Station 0 from favorites")
             .performSemanticsAction(SemanticsActions.RequestFocus) { it() }

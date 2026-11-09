@@ -720,15 +720,55 @@ private fun FavoriteButton(mediaId: String, title: String, model: MainModel) {
 private fun EntryArtwork(entry: Entry, model: MainModel) {
     var bitmap by remember(entry.id, entry.artwork) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(entry.id, entry.artwork) {
-        bitmap = withContext(Dispatchers.IO) {
-            val bytes = model.repository.artwork(entry) ?: return@withContext null
-            Artwork.decode(bytes)?.asImageBitmap()
-        }
+        bitmap = try {
+            withContext(Dispatchers.IO) {
+                val bytes = model.repository.artwork(entry) ?: return@withContext null
+                Artwork.decode(bytes)?.asImageBitmap()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) { null }
     }
     val image = bitmap
     if (image != null) Image(image, null, Modifier.size(48.dp), contentScale = ContentScale.Crop)
     else Box(Modifier.size(48.dp)) { Text(if (entry.playable) "♫" else "▤", style = MaterialTheme.typography.headlineMedium) }
 }
+
+@Composable
+private fun MediaItemArtwork(mediaId: String, model: MainModel) {
+    val loadEntry: suspend (String) -> Entry? = remember(model.repository) {
+        { id -> if (isArtworkMediaId(id)) model.repository.item(id) else null }
+    }
+    ResolvedMediaArtwork(
+        mediaId = mediaId,
+        loadEntry = loadEntry,
+        content = { EntryArtwork(it, model) },
+        fallback = { Box(Modifier.size(48.dp)) { Text("♫", style = MaterialTheme.typography.headlineMedium) } },
+    )
+}
+
+@Composable
+internal fun ResolvedMediaArtwork(
+    mediaId: String,
+    loadEntry: suspend (String) -> Entry?,
+    content: @Composable (Entry) -> Unit,
+    fallback: @Composable () -> Unit,
+) {
+    var entry by remember(mediaId) { mutableStateOf<Entry?>(null) }
+    LaunchedEffect(mediaId) {
+        entry = try {
+            loadEntry(mediaId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) { null }
+    }
+    val resolved = entry
+    if (resolved != null) content(resolved) else fallback()
+}
+
+internal fun isArtworkMediaId(mediaId: String): Boolean =
+    mediaId.startsWith("track:") || mediaId.startsWith("album:") ||
+        mediaId.startsWith("artist:") || mediaId.startsWith("youtube:") || mediaId.startsWith("radio:")
 
 private fun durationLabel(millis: Long): String {
     val seconds = millis.coerceAtLeast(0) / 1000
@@ -1323,6 +1363,8 @@ fun AppScreen(model: MainModel = viewModel()) {
             }
         } else (model.activeRemoteEntry?.asMediaItem() ?: current ?: model.savedPlaybackEntry?.asMediaItem())?.let { item ->
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                MediaItemArtwork(item.mediaId, model)
+                Spacer(Modifier.width(8.dp))
                 val title = item.mediaMetadata.title?.toString().orEmpty()
                 Column(Modifier.weight(1f)) {
                     Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { contentDescription = "Current audio: $title" })
@@ -1417,8 +1459,15 @@ fun AppScreen(model: MainModel = viewModel()) {
         else LazyColumn(Modifier.heightIn(max = 420.dp)) {
             itemsIndexed(queue) { index, item ->
                 Column {
-                    TextButton(onClick = { selectPlayback(queue.map { it.mediaId }, index) }) {
-                        Text("${if (index == queueIndex) "▶ " else ""}${item.mediaMetadata.title ?: "Track"}")
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { selectPlayback(queue.map { it.mediaId }, index) }
+                            .semantics { selected = index == queueIndex },
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        MediaItemArtwork(item.mediaId, model)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${if (index == queueIndex) "▶  " else ""}${item.mediaMetadata.title ?: "Track"}",
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Row {
                         TextButton(enabled = index > 0, onClick = { browser?.moveMediaItem(index, index - 1) }) { Text("Up") }
