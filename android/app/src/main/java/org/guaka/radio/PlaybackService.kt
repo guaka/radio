@@ -475,7 +475,7 @@ class PlaybackService : MediaLibraryService() {
             val http = OkHttpDataSource.Factory(PlaybackHttpClient.forEntry(repository.api.http, entry))
             val factory = DefaultMediaSourceFactory(DefaultDataSource.Factory(this@PlaybackService, http))
             drm?.let { factory.setDrmSessionManagerProvider(it) }
-            factory.setLoadErrorHandlingPolicy(policy ?: PlaybackRecovery.loadErrorPolicy())
+            factory.setLoadErrorHandlingPolicy(policy ?: PlaybackRecovery.loadErrorPolicy(entry.id))
             return factory.createMediaSource(item)
         }
     }
