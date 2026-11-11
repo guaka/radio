@@ -2,7 +2,7 @@ name: CodeQL analysis
 
 on:
   push:
-    branches: [main, codex/codeql-android-build]
+    branches: [main]
   pull_request:
     branches: [main]
   schedule:
@@ -60,4 +60,3 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:${{ matrix.language }}
-          upload: never
