@@ -18,7 +18,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PlaybackRecoveryDeviceTest {
     @Test fun installedLoadPolicyRetriesTransientFailuresButStopsForPermanentFailuresAndExhaustion() {
-        val policy = PlaybackRecovery.loadErrorPolicy()
+        val policy = PlaybackRecovery.loadErrorPolicy("radio:beatblender")
         val transient = loadErrorInfo(IOException("connection reset"), errorCount = 1)
         val server = loadErrorInfo(httpError(503), errorCount = 2)
         val authentication = loadErrorInfo(httpError(401), errorCount = 1)
@@ -30,6 +30,19 @@ class PlaybackRecoveryDeviceTest {
         assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(authentication))
         assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(notFound))
         assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(exhausted))
+    }
+
+    @Test fun youtubeRetriesTransientLoadsSixTimesAndStillStopsOnPermanentErrors() {
+        val policy = PlaybackRecovery.loadErrorPolicy("youtube:aqz-KE-bpKQ")
+        val expectedDelays = listOf(1_000L, 2_000L, 4_000L, 4_000L, 4_000L, 4_000L)
+        assertEquals(expectedDelays.size, policy.getMinimumLoadableRetryCount(C.DATA_TYPE_MEDIA))
+        expectedDelays.forEachIndexed { index, delayMs ->
+            assertEquals(delayMs, policy.getRetryDelayMsFor(loadErrorInfo(httpError(503), index + 1)))
+        }
+        assertEquals(4_000L, policy.getRetryDelayMsFor(loadErrorInfo(IOException("connection reset"), 6)))
+        assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(loadErrorInfo(httpError(503), 7)))
+        assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(loadErrorInfo(httpError(403), 1)))
+        assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(loadErrorInfo(httpError(404), 1)))
     }
 
     private fun loadErrorInfo(exception: IOException, errorCount: Int): LoadErrorHandlingPolicy.LoadErrorInfo {

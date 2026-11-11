@@ -29,8 +29,10 @@ class YouTubeAudioDeviceTest {
         instrumentation.runOnMainSync {
             val context = ApplicationProvider.getApplicationContext<android.content.Context>()
             val http = OkHttpDataSource.Factory(PlaybackHttpClient.forEntry(ApiClient("youtube-test").http, entry))
+            val mediaSourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http))
+                .setLoadErrorHandlingPolicy(PlaybackRecovery.loadErrorPolicy(entry.id))
             player = ExoPlayer.Builder(context)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
+                .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(PlaybackBuffering.loadControl())
                 .build()
             player.setMediaItem(entry.asMediaItem().buildUpon().setUri(entry.url).build())

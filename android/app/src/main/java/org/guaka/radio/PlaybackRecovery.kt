@@ -2,6 +2,7 @@
 
 package org.guaka.radio
 
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
@@ -14,7 +15,6 @@ import java.net.ConnectException
 import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
-import java.util.concurrent.TimeUnit
 
 enum class PlaybackFailure {
     AUTHENTICATION,
@@ -29,6 +29,7 @@ enum class PlaybackFailure {
 /** Converts playback errors into safe, actionable copy without exposing request URLs or credentials. */
 object PlaybackRecovery {
     const val MAX_RETRIES = 3
+    private const val YOUTUBE_MAX_RETRIES = 6
 
     fun classify(error: Throwable?, playbackErrorCode: Int? = null): PlaybackFailure {
         val causes = generateSequence(error) { it.cause }.take(12).toList()
@@ -61,10 +62,12 @@ object PlaybackRecovery {
         failure == PlaybackFailure.TRANSIENT_NETWORK || failure == PlaybackFailure.SERVER
 
     /** Returns the delay for this failure count, or null when retries are exhausted or unsafe. */
-    fun retryDelayMs(failure: PlaybackFailure, errorCount: Int): Long? {
-        if (!isRetryable(failure) || errorCount !in 1..MAX_RETRIES) return null
-        val exponent = (errorCount - 1).coerceAtMost(2)
-        return minOf(TimeUnit.SECONDS.toMillis(1L shl exponent), 4_000L)
+    fun retryDelayMs(failure: PlaybackFailure, errorCount: Int): Long? =
+        retryDelayMs(failure, errorCount, MAX_RETRIES)
+
+    private fun retryDelayMs(failure: PlaybackFailure, errorCount: Int, maxRetries: Int): Long? {
+        if (!isRetryable(failure) || errorCount !in 1..maxRetries) return null
+        return 1_000L shl (errorCount - 1).coerceAtMost(2)
     }
 
     fun guidance(failure: PlaybackFailure): String = when (failure) {
@@ -76,15 +79,16 @@ object PlaybackRecovery {
         PlaybackFailure.UNKNOWN -> "Playback failed. Try again or choose another station or track."
     }
 
-    /** Three bounded retries with capped exponential delays; permanent HTTP/media failures stop immediately. */
+    /** Give YouTube streams more time to recover from transient load failures. */
     @UnstableApi
-    fun loadErrorPolicy(): LoadErrorHandlingPolicy = BoundedLoadErrorPolicy()
+    fun loadErrorPolicy(mediaId: String): LoadErrorHandlingPolicy =
+        BoundedLoadErrorPolicy(if (mediaId.startsWith("youtube:")) YOUTUBE_MAX_RETRIES else MAX_RETRIES)
 
     @UnstableApi
-    private class BoundedLoadErrorPolicy : DefaultLoadErrorHandlingPolicy(MAX_RETRIES) {
+    private class BoundedLoadErrorPolicy(private val maxRetries: Int) : DefaultLoadErrorHandlingPolicy(maxRetries) {
         override fun getRetryDelayMsFor(info: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
             val failure = classify(info.exception)
-            return retryDelayMs(failure, info.errorCount) ?: androidx.media3.common.C.TIME_UNSET
+            return retryDelayMs(failure, info.errorCount, maxRetries) ?: C.TIME_UNSET
         }
     }
 }
