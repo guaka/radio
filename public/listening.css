@@ -1,4 +1,5 @@
 body > header {
+  display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   padding: .55rem clamp(.65rem, 3vw, 2rem);
   gap: .45rem 1rem;

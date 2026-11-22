@@ -55,6 +55,9 @@ test('filters Radio, preserves audio in Favorites and History, and restores paus
 
 test('opens existing favorites links and keeps Plex setup in Plex', async ({ page }) => {
   await page.goto('/#favorites');
+  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await expect(page.getByText('Connections', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   const sources = page.getByRole('navigation', { name: 'Listening sources' });
   await expect(sources.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('button', { name: 'Connect to Plex' })).toBeHidden();
