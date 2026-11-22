@@ -32,7 +32,17 @@ internal class NostrRelays(
         check(results.any { it.isSuccess }) { "Favorites remain on this phone; relay publishing failed. Retry sync." }
     }
 
-    private suspend fun exchange(relay: String, signer: NostrSigner, event: JSONObject?): List<JSONObject> =
+    suspend fun history(relay: String, signer: NostrSigner): List<JSONObject> = exchange(relay, signer, null,
+        JSONObject().put("kinds", JSONArray().put(NostrHistory.KIND)).put("authors", JSONArray().put(signer.pubkey))
+            .put("#t", JSONArray().put(NostrHistory.TOPIC)).put("limit", 500))
+
+    suspend fun publishHistory(relay: String, event: JSONObject, signer: NostrSigner) {
+        exchange(relay, signer, event)
+    }
+
+    private suspend fun exchange(
+        relay: String, signer: NostrSigner, event: JSONObject?, filter: JSONObject? = null
+    ): List<JSONObject> =
         withTimeout(90_000) { coroutineScope {
             val scope = this
             suspendCancellableCoroutine { continuation ->
@@ -42,7 +52,7 @@ internal class NostrRelays(
                 val authId = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 var challenged = false
                 val request = if (event != null) JSONArray().put("EVENT").put(event) else JSONArray()
-                    .put("REQ").put(subscription).put(JSONObject().put("kinds", JSONArray().put(1))
+                    .put("REQ").put(subscription).put(filter ?: JSONObject().put("kinds", JSONArray().put(1))
                         .put("authors", JSONArray().put(signer.pubkey))
                         .put("#t", JSONArray().put("radiostr").put("favorite"))
                         .put("since", System.currentTimeMillis() / 1000 - 30L * 86400).put("limit", 500))
@@ -88,11 +98,11 @@ internal class NostrRelays(
                                         else finish(webSocket, "Relay authentication failed.")
                                     } else if (event != null && id == event.optString("id")) {
                                         if (message.optBoolean(2)) finish(webSocket)
-                                        else if (!message.optString(3).startsWith("auth-required:")) finish(webSocket, "Relay rejected the favorite update.")
+                                        else if (!message.optString(3).startsWith("auth-required:")) finish(webSocket, "Relay rejected the update.")
                                     }
                                 }
                                 "CLOSED" -> if (message.optString(1) == subscription && !message.optString(2).startsWith("auth-required:"))
-                                    finish(webSocket, "Relay could not read favorites.")
+                                    finish(webSocket, "Relay could not read the subscription.")
                             }
                         }
                     }

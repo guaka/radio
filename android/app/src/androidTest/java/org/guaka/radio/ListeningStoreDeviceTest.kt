@@ -52,6 +52,39 @@ class ListeningStoreDeviceTest {
         assertTrue(ListeningStore(context).historyIds().isEmpty())
     }
 
+    @Test fun pendingHistoryIsAccountScopedAndClearSurvivesProcessRecreation() {
+        val context = isolatedContext()
+        context.getSharedPreferences("listening", Context.MODE_PRIVATE).edit().clear().commit()
+        val account = "a".repeat(64)
+        val relay = "wss://history.example/"
+        val store = ListeningStore(context)
+        store.recordPlayed("radio:local-before")
+        store.configureHistorySync(account, relay)
+        store.recordPlayed("track:server:42")
+        store.recordPlayed("radio:shared")
+        val started = requireNotNull(store.historySync())
+        assertEquals(listOf("radio:shared"), started.local.entries.map { it.id })
+        assertTrue(started.dirty)
+        val remote = NostrHistory.Snapshot(entries = listOf(NostrHistory.Play("youtube:dQw4w9WgXcQ", System.currentTimeMillis())))
+        store.acceptRemoteHistory(started, listOf(remote))
+        assertTrue(store.historyIds().contains("youtube:dQw4w9WgXcQ"))
+
+        store.configureHistorySync("b".repeat(64), relay)
+        assertFalse(store.historyIds().contains("youtube:dQw4w9WgXcQ"))
+        assertNull(store.acceptRemoteHistory(started, listOf(remote)))
+        assertFalse(requireNotNull(store.historySync()).dirty)
+        store.configureHistorySync(account, relay)
+        store.clearHistory()
+        val reopened = ListeningStore(context)
+        val clear = requireNotNull(reopened.historySync())
+        assertTrue(clear.clearPending)
+        assertTrue(reopened.historyIds().isEmpty())
+        reopened.acceptRemoteHistory(clear, listOf(remote))
+        assertTrue(reopened.historyIds().isEmpty())
+        reopened.acknowledgeHistory(clear, 1)
+        assertFalse(requireNotNull(reopened.historySync()).clearPending)
+    }
+
     @Test fun fullFavoritesRejectNewItemsButAllowRemoval() {
         val context = isolatedContext()
         val ids = (0 until 500).map { "radio:station$it" }

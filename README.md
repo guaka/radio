@@ -21,6 +21,10 @@ This is a static site that can be deployed on GitHub Pages. The current implemen
 - Plain CSS
 - History API for routing
 
+## Listening sync
+
+Radio favorites and encrypted radio and YouTube history can sync between the web player and Android. See [Listening sync](docs/LISTENING-SYNC.md) for setup.
+
 ## Channels
 
 Channels are defined in `src/frontend/channels.ts`. You're welcome to add channels and metadata by editing (i.e. fork and send pull requests).

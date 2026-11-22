@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun NostrConnections(nostr: NostrFavoritesController, bridge: AndroidSignerBridge) {
     var bunker by remember { mutableStateOf("") }
+    var historyRelay by remember(nostr.historyRelay) { mutableStateOf(nostr.historyRelay) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Nostr favorites", style = MaterialTheme.typography.titleMedium)
         Text("Share radio stars publicly with Radiostr. Your signer keeps your private key. Plex favorites stay on this phone.")
@@ -32,6 +33,22 @@ internal fun NostrConnections(nostr: NostrFavoritesController, bridge: AndroidSi
                 TextButton(enabled = !nostr.busy, onClick = nostr::sync) { Text("Sync favorites") }
                 TextButton(onClick = nostr::disconnect) { Text("Disconnect") }
             }
+        }
+        if (nostr.pubkey.isNotBlank()) {
+            Text("Listening history", style = MaterialTheme.typography.titleMedium)
+            Text("Radio and YouTube history is encrypted for your Nostr account. Use the same relay on each device. Relays may keep older encrypted copies.")
+            OutlinedTextField(historyRelay, { historyRelay = it }, label = { Text("History relay URL") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !nostr.historyEnabled && !nostr.historyBusy)
+            Row {
+                TextButton(enabled = !nostr.historyBusy && (nostr.historyEnabled || historyRelay.isNotBlank()),
+                    onClick = { if (nostr.historyEnabled) nostr.disableHistory() else nostr.configureHistory(historyRelay) }) {
+                    Text(if (nostr.historyEnabled) "Turn off history sync" else "Sync listening history")
+                }
+                if (nostr.historyEnabled) TextButton(enabled = !nostr.historyBusy, onClick = nostr::syncHistory) {
+                    Text("Retry history sync")
+                }
+            }
+            if (nostr.historyStatus.isNotBlank()) Text(nostr.historyStatus, style = MaterialTheme.typography.bodySmall)
         }
         if (nostr.busy) {
             LinearProgressIndicator(Modifier.fillMaxWidth())

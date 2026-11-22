@@ -113,6 +113,31 @@ class AndroidNostrSignerTest {
         assertTrue("Expected invalid event to fail", error is IllegalArgumentException)
     }
 
+    @Test fun historyEncryptionUsesTheConnectedAccountAsRecipientAndRejectsDenial() = runBlocking {
+        var calls = 0
+        lateinit var bridge: AndroidSignerBridge
+        bridge = AndroidSignerBridge(launchIntent = { request ->
+            ++calls
+            assertEquals(SIGNER_PACKAGE, request.`package`)
+            assertEquals(pubkey, request.getStringExtra("current_user"))
+            assertEquals(pubkey, request.getStringExtra("pubkey"))
+            val response = Intent().putExtra("id", request.getStringExtra("id"))
+            if (calls == 1) {
+                assertEquals("nip44_encrypt", request.getStringExtra("type"))
+                assertEquals("history JSON", request.data?.schemeSpecificPart)
+                response.putExtra("result", "ciphertext")
+            } else {
+                assertEquals("nip44_decrypt", request.getStringExtra("type"))
+                assertEquals("ciphertext", request.data?.schemeSpecificPart)
+                response.putExtra("rejected", true)
+            }
+            bridge.onResult(Activity.RESULT_OK, response)
+        })
+        val signer = bridge.restore(pubkey, SIGNER_PACKAGE)
+        assertEquals("ciphertext", signer.encryptHistory("history JSON"))
+        assertTrue(runCatching { signer.decryptHistory("ciphertext") }.exceptionOrNull() is IOException)
+    }
+
     private fun template() = JSONObject()
         .put("created_at", 1_750_000_000L)
         .put("kind", 1)

@@ -500,7 +500,10 @@ class MainModel(application: Application) : AndroidViewModel(application) {
             filterJob = viewModelScope.launch { searchAll(searchTerm.trim(), generation) }
         }
     }
-    fun clearHistory() = action { repository.listening.clearHistory() }
+    fun clearHistory() = action {
+        repository.listening.clearHistory()
+        nostr.syncHistory()
+    }
     fun favorite(mediaId: String) = action {
         val starred = io { repository.listening.toggleFavorite(mediaId) }
         nostr.favoriteChanged(mediaId, starred)
@@ -973,7 +976,11 @@ fun AppScreen(model: MainModel = viewModel()) {
                     model.startStationArtworkPreload()
                     routeObserver.start()
                 }
-                Lifecycle.Event.ON_RESUME -> if (model.parent == "books") model.refreshBooks()
+                Lifecycle.Event.ON_RESUME -> {
+                    if (model.parent == "books") model.refreshBooks()
+                    model.nostr.setHistoryForeground(true)
+                }
+                Lifecycle.Event.ON_PAUSE -> model.nostr.setHistoryForeground(false)
                 Lifecycle.Event.ON_STOP -> {
                     model.savePlexScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
                     model.stopStationArtworkPreload()

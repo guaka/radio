@@ -1,0 +1,38 @@
+{
+  "now": 1750000000000,
+  "snapshots": [
+    {
+      "v": 1,
+      "clearBefore": 0,
+      "entries": [
+        ["radio:dronezone", 1749999995000],
+        ["radio:groovesalad", 1749999998000]
+      ]
+    },
+    {
+      "v": 1,
+      "clearBefore": 1749999996000,
+      "entries": [
+        ["youtube:dQw4w9WgXcQ", 1749999998000],
+        ["radio:groovesalad", 1749999999000]
+      ]
+    },
+    {
+      "v": 1,
+      "clearBefore": 0,
+      "entries": [
+        ["radio:fip", 1749999995000],
+        ["radio:beatblender", 1749999998000]
+      ]
+    }
+  ],
+  "merged": {
+    "v": 1,
+    "clearBefore": 1749999996000,
+    "entries": [
+      ["radio:groovesalad", 1749999999000],
+      ["radio:beatblender", 1749999998000],
+      ["youtube:dQw4w9WgXcQ", 1749999998000]
+    ]
+  }
+}

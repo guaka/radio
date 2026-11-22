@@ -174,7 +174,7 @@ test('radio image fallback uses station data and ignores URLs injected into DOM 
 });
 
 test('compiled classic scripts parse', () => {
-  for (const file of ['player/bootstrap.js', 'player/app.js', 'player/nostr-sync.js', 'player/visualizer.js', 'radio/bootstrap.js', 'radio/build-info.js', 'radio/app.js', 'chat/app.js', 'routing/not-found.js', 'channels.js']) {
+  for (const file of ['player/bootstrap.js', 'player/app.js', 'player/nostr-sync.js', 'player/listening-history.js', 'player/visualizer.js', 'radio/bootstrap.js', 'radio/build-info.js', 'radio/app.js', 'chat/app.js', 'routing/not-found.js', 'channels.js']) {
     const source = readFileSync(resolve(root, 'public/js', file), 'utf8');
     new vm.Script(source, { filename: file });
   }
@@ -237,4 +237,72 @@ test('Radiostr applies verified station actions with the Android ordering and ex
   const known = new Set(['fip', 'groovesalad', 'future', 'expired', 'local']);
   assert.deepEqual(Array.from(mergeFavorites(['fip', 'local'], events, known, now)), ['groovesalad', 'local']);
   assert.match(events[0].content, /#radiostr #favorite$/);
+});
+
+test('encrypted history clients converge with offline writes and a newer clear cutoff', () => {
+  const source = readFileSync(resolve(root, 'public/js/player/listening-history.js'), 'utf8');
+  const history = vm.runInNewContext(source + '\nRadioHistory');
+  const fixture = JSON.parse(readFileSync(resolve(root, 'tests/fixtures/listening-history.json'), 'utf8'));
+  const snapshots = fixture.snapshots.map((data) => history.decode(JSON.stringify(data), fixture.now));
+  assert.deepEqual(JSON.parse(JSON.stringify(history.merge(snapshots))), fixture.merged);
+  assert.deepEqual(JSON.parse(JSON.stringify(history.merge(snapshots.reverse()))), fixture.merged);
+  assert.throws(() => history.decode(JSON.stringify({ ...fixture.merged, clearBefore: fixture.now + 300001 }), fixture.now));
+  assert.throws(() => history.decode(JSON.stringify({ ...fixture.merged, entries: [['track:server:123', fixture.now]] }), fixture.now));
+});
+
+test('remote signer identifies the user account separately from the bunker and encrypts for the user', async () => {
+  const nostr = require('nostr-tools');
+  const { webcrypto } = require('node:crypto');
+  const source = readFileSync(resolve(root, 'public/js/player/nostr-sync.js'), 'utf8');
+  const remoteSigner = vm.runInNewContext(source + '\nRadioRemoteSigner', { crypto: webcrypto, setTimeout, clearTimeout, Uint8Array });
+  const bunkerKey = nostr.generateSecretKey();
+  const bunker = nostr.getPublicKey(bunkerKey);
+  const accountKey = nostr.generateSecretKey();
+  const account = nostr.getPublicKey(accountKey);
+  const applicationKey = nostr.generateSecretKey();
+  const application = nostr.getPublicKey(applicationKey);
+  const transportKey = nostr.nip44.v2.utils.getConversationKey(bunkerKey, application);
+  const historyKey = nostr.nip44.v2.utils.getConversationKey(accountKey, account);
+
+  class TestPool {
+    subscribeMany(_relays, _filters, { onevent }) {
+      this.receive = onevent;
+      return { close() {} };
+    }
+    close() {}
+    publish(_relays, event) {
+      assert.equal(event.pubkey, application);
+      assert.equal(nostr.verifyEvent(event), true);
+      const { method, id, params } = JSON.parse(nostr.nip44.v2.decrypt(event.content, transportKey));
+      const result = {
+        connect: () => { assert.equal(params[0], bunker); return 'ack'; },
+        get_public_key: () => account,
+        sign_event: () => JSON.stringify(nostr.finalizeEvent(JSON.parse(params[0]), accountKey)),
+        nip44_encrypt: () => { assert.equal(params[0], account); return nostr.nip44.v2.encrypt(params[1], historyKey); },
+        nip44_decrypt: () => { assert.equal(params[0], account); return nostr.nip44.v2.decrypt(params[1], historyKey); },
+      }[method]();
+      const response = {
+        kind: 24133, created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', application]], content: nostr.nip44.v2.encrypt(JSON.stringify({ id, result }), transportKey),
+      };
+      // An event relayed with forged content cannot complete the request.
+      const forged = nostr.finalizeEvent(response, accountKey);
+      this.receive(forged);
+      this.receive(nostr.finalizeEvent(response, bunkerKey));
+      return [Promise.resolve('ok')];
+    }
+  }
+  const signer = await remoteSigner.connect({
+    ...nostr, SimplePool: TestPool,
+    finalizeEvent: (event, secret) => nostr.finalizeEvent(structuredClone(event), secret)
+  }, {
+    remote: bunker, relays: ['wss://relay.example/'], secret: 'one-time-secret', key: Array.from(applicationKey),
+  }, () => {}, false);
+  assert.equal(signer.pubkey, account);
+  const plain = '{"v":1,"clearBefore":0,"entries":[["radio:groovesalad",1750000000000]]}';
+  const cipher = await signer.encryptHistory(plain);
+  assert.ok(!cipher.includes('groovesalad'));
+  assert.equal(await signer.decryptHistory(cipher), plain);
+  assert.equal((await signer.signEvent({ kind: 30078, created_at: 1750000000, tags: [], content: cipher })).pubkey, account);
+  signer.close();
 });
