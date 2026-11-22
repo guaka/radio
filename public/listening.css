@@ -125,6 +125,14 @@ body .app-shell > .chat-container.visible { display: flex; }
 .playback-status:has(#error:not(:empty)) #bufferingStatus { display: none; }
 body .player-bar { background: #21202b; border-color: #454253; box-shadow: none; }
 body .player-controls .btn.icon-btn { min-height: 2.65rem; min-width: 2.65rem; }
+#settingsModal .modal-head {
+  position: sticky;
+  top: -1rem;
+  z-index: 1;
+  margin-top: -1rem;
+  padding-block: .75rem;
+  background: #17171f;
+}
 .settings-form .sync-choice { display: flex; align-items: center; gap: .5rem; margin-block: .5rem; }
 .settings-form .sync-choice input { width: auto; }
 .source-bar button:focus-visible, .radio-item button:focus-visible { outline: 2px solid #d9bcff; outline-offset: -2px; }

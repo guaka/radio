@@ -3083,15 +3083,14 @@
     if (c.token) autoDetectServersFromToken().catch(() => {});
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
-    setTimeout(function () {
-      var inp = options.focusNostr ? $('inNsec') : $('inToken');
-      if (inp) inp.focus();
-    }, 150);
+    const focusTarget = options.focusNostr ? $('inNsec') : $('btnCloseSettings');
+    focusTarget.focus({ preventScroll: true });
   }
 
   function closeSettingsModal() {
     $('settingsModal').classList.remove('open');
     syncModalBodyScrollLock();
+    $('btnSettings').focus({ preventScroll: true });
   }
 
   function syncModalBodyScrollLock() {
