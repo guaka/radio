@@ -40,6 +40,7 @@ namespace RadioHistory {
     for (const event of events) {
       if (event.kind !== kind || typeof event.content !== 'string' || !event.content.length || event.content.length > maxContent ||
           !Number.isSafeInteger(event.created_at) || event.created_at <= 0 || event.created_at > now + 300) continue;
+      if (!event.tags.some((tag) => tag[0] === 't' && tag[1] === topic)) continue;
       const tags = event.tags.filter((tag) => tag[0] === 'd');
       if (tags.length !== 1 || !devicePattern.test(tags[0][1])) continue;
       const address = tags[0][1];

@@ -159,3 +159,14 @@ test('syncs encrypted history between devices and keeps a local clear pending un
   await expect(page.locator('#viewLibrary [data-radio-play="groovesalad"]')).toHaveCount(0);
   await peer.close();
 });
+
+test('explains why replaying YouTube history on the static site needs a gateway', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('guakaRadioYouTubeHistory', JSON.stringify({
+      v: 1, clearBefore: 0, entries: [['youtube:dQw4w9WgXcQ', Date.now()]],
+    }));
+  });
+  await page.goto('/#recent');
+  await page.getByRole('button', { name: 'YouTube · dQw4w9WgXcQ', exact: true }).click();
+  await expect(page.locator('#historyReplayStatus')).toContainText('Go media gateway');
+});

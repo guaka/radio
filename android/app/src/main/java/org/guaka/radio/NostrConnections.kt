@@ -6,7 +6,10 @@ import androidx.compose.runtime.*
 import com.vitorpamplona.quartz.nip01Core.core.hexToByteArray
 import com.vitorpamplona.quartz.nip19Bech32.toNpub
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
@@ -39,14 +42,15 @@ internal fun NostrConnections(nostr: NostrFavoritesController, bridge: AndroidSi
             Text("Radio and YouTube history is encrypted for your Nostr account. Use the same relay on each device. Relays may keep older encrypted copies.")
             OutlinedTextField(historyRelay, { historyRelay = it }, label = { Text("History relay URL") },
                 singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !nostr.historyEnabled && !nostr.historyBusy)
-            Row {
-                TextButton(enabled = !nostr.historyBusy && (nostr.historyEnabled || historyRelay.isNotBlank()),
-                    onClick = { if (nostr.historyEnabled) nostr.disableHistory() else nostr.configureHistory(historyRelay) }) {
-                    Text(if (nostr.historyEnabled) "Turn off history sync" else "Sync listening history")
-                }
-                if (nostr.historyEnabled) TextButton(enabled = !nostr.historyBusy, onClick = nostr::syncHistory) {
-                    Text("Retry history sync")
-                }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sync listening history", modifier = Modifier.weight(1f))
+                Switch(checked = nostr.historyEnabled,
+                    enabled = !nostr.historyBusy && (nostr.historyEnabled || historyRelay.isNotBlank()),
+                    onCheckedChange = { if (it) nostr.configureHistory(historyRelay) else nostr.disableHistory() },
+                    modifier = Modifier.semantics { contentDescription = "Sync listening history" })
+            }
+            if (nostr.historyEnabled) TextButton(enabled = !nostr.historyBusy, onClick = nostr::syncHistory) {
+                Text("Retry history sync")
             }
             if (nostr.historyStatus.isNotBlank()) Text(nostr.historyStatus, style = MaterialTheme.typography.bodySmall)
         }

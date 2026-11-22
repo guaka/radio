@@ -1320,6 +1320,7 @@ fun AppScreen(model: MainModel = viewModel()) {
             (globalSearch || (model.parent != "radio" && (model.parent != "favorites" ||
                 model.entries.any { it.id.startsWith("track:") } || queue.any { it.mediaId.startsWith("track:") })))
         val showClearHistoryButton = !globalSearch && model.parent == "history" && model.entries.isNotEmpty()
+        val showHistoryClearPending = !globalSearch && model.parent == "history" && model.nostr.historyClearPending
         val showListedActions = !globalSearch && model.parent !in setOf("radio", "books") && playable.isNotEmpty()
         if (model.canGoBack) TextButton(onClick = {
             keyboardController?.hide()
@@ -1367,13 +1368,15 @@ fun AppScreen(model: MainModel = viewModel()) {
                     Icon(painterResource(R.drawable.ic_search), contentDescription = "Search")
                 }
             })
-        if (showQueueButton || showClearHistoryButton || showListedActions) Row(
+        if (showQueueButton || showClearHistoryButton || showHistoryClearPending || showListedActions) Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
         ) {
             if (showQueueButton) TextButton(onClick = { showQueue = true }) { Text("Queue (${queue.size})") }
             Spacer(Modifier.weight(1f))
+            if (showHistoryClearPending)
+                Text("History clear pending", style = MaterialTheme.typography.bodySmall)
             if (showClearHistoryButton) IconButton(
                 onClick = model::clearHistory,
                 modifier = Modifier.semantics { contentDescription = "Clear history" },

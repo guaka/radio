@@ -1430,6 +1430,7 @@
             if (current.local.clearBefore <= state.local.clearBefore) current.clearPending = false;
             current.lastPublished = Math.max(current.lastPublished, createdAt);
             saveHistoryState(config, current);
+            refreshHistory();
           }
           status.textContent = readHistoryState(config).dirty ? 'New history is pending. Retry sync.' : 'Listening history synced.';
         } catch (_) {
@@ -5090,6 +5091,25 @@
     return name + ' - ' + artist;
   }
 
+  function plexListeningRow(item, itemType, set, index) {
+    const album = itemType === 'album';
+    const key = String(item.ratingKey || '');
+    const title = escapeHtml(album ? item.title || '[Album]' : trackDisplayText(item));
+    const artwork = album ? albumDetailArtUrl(item, []) : nowPlayingArtUrl(item, {
+      ratingKey: item.parentRatingKey, thumb: item.parentThumb
+    }, [item]);
+    const starred = (album ? getStarredAlbums() : getStarredTracks()).has(key);
+    const attributes = album ? 'data-open-album="' + escapeHtml(key) + '"' :
+      'data-track-index="' + index + '" data-set="' + set + '"';
+    const playable = album ? Boolean(key) : Boolean(getFirstPlayablePartKey(item));
+    return '<li class="radio-item"><button type="button" class="radio-row-main" ' + attributes +
+      (playable ? '' : ' disabled') + '><img class="radio-thumb" src="' + escapeHtml(artwork) + '" alt="" loading="lazy" />' +
+      '<span class="radio-title">' + title + '</span></button>' +
+      (key ? '<button type="button" class="star-btn' + (starred ? ' starred' : '') + '" data-library-star="' +
+        itemType + '" data-rating-key="' + escapeHtml(key) + '" aria-label="Favorite ' + title +
+        '" aria-pressed="' + starred + '">' + starIconHtml(starred) + '</button>' : '') + '</li>';
+  }
+
   function renderLibraryView() {
     const wrap = $('viewLibrary');
     if (!wrap) return;
@@ -5110,12 +5130,12 @@
 
     const favoriteTrackHtml = starredTracks.length
       ? starredTracks
-          .map((t, idx) => '<li><button type="button" data-track-index="' + idx + '" data-set="fav">' + escapeHtml(trackDisplayText(t)) + '</button></li>')
+          .map((item, index) => plexListeningRow(item, 'track', 'fav', index))
           .join('')
       : '<li class="empty-state">Star a track to pin it here.</li>';
     const favoriteAlbumHtml = starredAlbums.length
       ? starredAlbums
-          .map((a) => '<li><button type="button" data-open-album="' + escapeHtml(String(a.ratingKey || '')) + '">' + escapeHtml(a.title || '[Album]') + '</button></li>')
+          .map((item) => plexListeningRow(item, 'album'))
           .join('')
       : '<li class="empty-state">Star an album to save it here.</li>';
     const favoriteStationHtml = starredStations.length
@@ -5132,13 +5152,16 @@
       '<li class="radio-item"><button type="button" class="radio-row-main" data-history-id="' + escapeHtml(id) + '"' +
       (id.startsWith('radio:') ? ' disabled' : '') + '><img class="radio-thumb" alt="" src="' + fallbackThumbDataUrl() + '" />' +
       '<span class="radio-title">' + escapeHtml(title) + '</span></button></li>').join('');
+    const config = historyConfig();
+    const pendingClear = config && readHistoryState(config).clearPending;
     const listeningHtml = '<section class="library-card"><h3>Radio and YouTube</h3>' +
       '<button type="button" class="btn" id="btnClearHistory">Clear history</button>' +
-      '<p id="historyReplayStatus" role="status"></p><ul class="radio-list">' +
+      '<p id="historyReplayStatus" role="status">' + (pendingClear ? 'History cleared here. Relay update pending.' : '') +
+      '</p><ul class="radio-list">' +
       (listeningRows || '<li class="empty-state">No radio or YouTube plays yet.</li>') + '</ul></section>';
     const recentHtml = recent.length
       ? recent
-          .map((t, idx) => '<li><button type="button" data-track-index="' + idx + '" data-set="recent">' + escapeHtml(trackDisplayText(t)) + '</button></li>')
+          .map((item, index) => plexListeningRow(item, 'track', 'recent', index))
           .join('')
       : '<li class="empty-state">Play songs to build your history.</li>';
 
@@ -5146,10 +5169,10 @@
       '<div class="library-grid">' +
       (showFavorites
         ? '<section class="library-card"><h3>Favorite Stations</h3><ul class="radio-list">' + favoriteStationHtml + '</ul></section>' +
-          '<section class="library-card"><h3>Favorite Tracks</h3><ul class="library-list">' + favoriteTrackHtml + '</ul></section>' +
-          '<section class="library-card"><h3>Favorite Albums</h3><ul class="library-list">' + favoriteAlbumHtml + '</ul></section>'
+          '<section class="library-card"><h3>Favorite Tracks</h3><ul class="radio-list">' + favoriteTrackHtml + '</ul></section>' +
+          '<section class="library-card"><h3>Favorite Albums</h3><ul class="radio-list">' + favoriteAlbumHtml + '</ul></section>'
         : '') +
-      (showRecent ? listeningHtml + '<section class="library-card"><h3>Recently played on Plex</h3><ul class="library-list">' + recentHtml + '</ul></section>' : '') +
+      (showRecent ? listeningHtml + '<section class="library-card"><h3>Recently played on Plex</h3><ul class="radio-list">' + recentHtml + '</ul></section>' : '') +
       '</div>';
 
     wrap.querySelectorAll('button[data-open-album]').forEach((btn) => {
@@ -5168,6 +5191,23 @@
         };
         currentTracks = [source];
         playIndex(0, { crossfade: false });
+      };
+    });
+    wrap.querySelectorAll('[data-library-star]').forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.dataset.ratingKey;
+        if (btn.dataset.libraryStar === 'album') {
+          const album = starredAlbums.find((item) => String(item.ratingKey) === key);
+          if (album) notifyFavoriteAlbum(album, toggleAlbumStar(key, album));
+        } else {
+          const track = (showRecent ? recent : starredTracks).find((item) => String(item.ratingKey) === key);
+          if (track) {
+            const starred = toggleTrackStar(key, track);
+            notifyFavorite(track, null, starred);
+            if (key === nowPlayingTrackKey) updateNowPlayingFavButton(key);
+          }
+        }
+        renderLibraryView();
       };
     });
     wireStationRows(wrap);

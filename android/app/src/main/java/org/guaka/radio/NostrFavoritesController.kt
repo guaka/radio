@@ -42,6 +42,7 @@ internal class NostrFavoritesController(private val repository: MusicRepository,
     var historyStatus by mutableStateOf(""); private set
     var historyBusy by mutableStateOf(false); private set
     var historyEnabled by mutableStateOf(false); private set
+    var historyClearPending by mutableStateOf(false); private set
 
     private fun restoreHistory(account: String) {
         val saved = repository.listening.historySync()
@@ -78,14 +79,16 @@ internal class NostrFavoritesController(private val repository: MusicRepository,
         delayedHistorySync?.cancel()
         repository.listening.disableHistorySync()
         historyEnabled = false
+        historyClearPending = false
         historyRelay = ""
         historyStatus = "History is local."
     }
 
     fun syncHistory() {
         val connected = signer ?: return
-        if (historyJob?.isActive == true) return
         val initial = repository.listening.historySync()?.takeIf { it.account == connected.pubkey } ?: return
+        historyClearPending = initial.clearPending
+        if (historyJob?.isActive == true) return
         historyBusy = true
         historyStatus = if (initial.clearPending) "Syncing pending history clear…" else "Syncing history…"
         historyJob = scope.launch {
@@ -98,8 +101,9 @@ internal class NostrFavoritesController(private val repository: MusicRepository,
                         event.optInt("kind") == NostrHistory.KIND && NostrHistory.encrypted(event.optString("content"))
                     }.mapNotNull { event ->
                         val tags = event.optJSONArray("tags") ?: return@mapNotNull null
-                        val addresses = (0 until tags.length()).mapNotNull(tags::optJSONArray)
-                            .filter { it.optString(0) == "d" }
+                        val rows = (0 until tags.length()).mapNotNull(tags::optJSONArray)
+                        if (rows.none { it.optString(0) == "t" && it.optString(1) == NostrHistory.TOPIC }) return@mapNotNull null
+                        val addresses = rows.filter { it.optString(0) == "d" }
                         val device = addresses.singleOrNull()?.optString(1) ?: return@mapNotNull null
                         if (!NostrHistory.devicePattern.matches(device) ||
                             event.optLong("created_at") !in 1..(System.currentTimeMillis() / 1000 + 300)) return@mapNotNull null
@@ -133,6 +137,7 @@ internal class NostrFavoritesController(private val repository: MusicRepository,
                         repository.listening.acknowledgeHistory(work, publishedAt)
                     }
                     val remaining = repository.listening.historySync()
+                    historyClearPending = remaining?.clearPending == true
                     historyStatus = when {
                         remaining?.clearPending == true -> "History clear is pending. Retry sync."
                         remaining?.dirty == true -> "New history is pending. Retry sync."
@@ -141,7 +146,8 @@ internal class NostrFavoritesController(private val repository: MusicRepository,
                 }
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
-                historyStatus = if (repository.listening.historySync()?.clearPending == true)
+                historyClearPending = repository.listening.historySync()?.clearPending == true
+                historyStatus = if (historyClearPending)
                     "History cleared on this phone. Relay update is pending. Retry sync."
                 else "Could not sync history. You can still listen and retry."
             } finally {
