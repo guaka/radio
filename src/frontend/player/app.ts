@@ -2665,42 +2665,21 @@
   }
 
   async function probeSameOriginBackend() {
-    const healthUrl = '/api/health';
-    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), 2500) : null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
     try {
-      const res = await fetch(healthUrl, {
+      const response = await fetch('/api/health', {
         headers: { Accept: 'application/json' },
-        signal: ctrl ? ctrl.signal : undefined
+        signal: controller.signal
       });
-      if (!res.ok) {
-        sameOriginPlexProxyReady = false;
-        setSettingsStatus('Backend health check unavailable (' + res.status + '). Running standalone mode.', '');
-        return false;
-      }
-      const data = await res.json();
-      if (!data || !data.ok) {
-        sameOriginPlexProxyReady = false;
-        setSettingsStatus('Backend responded but is not ready. Running standalone mode.', '');
-        return false;
-      }
-      sameOriginPlexProxyReady = !!data.plexProxyReady;
-      const status = [];
-      status.push('Same-origin backend detected');
-      if (data.ownerConfigured) status.push('friend policy ready');
-      if (data.wrapsterPlexReady) status.push('Wrapster Plex ready');
-      else if (data.plexConfigured) status.push('plex upstream configured');
-      setSettingsStatus(status.join(' - '), 'ok');
-      return true;
-    } catch (err) {
+      const data = response.ok ? await response.json() : null;
+      sameOriginPlexProxyReady = Boolean(data?.ok && data.plexProxyReady);
+      return Boolean(data?.ok);
+    } catch (_) {
       sameOriginPlexProxyReady = false;
-      if (err && (err.name === 'AbortError' || /Failed to fetch|NetworkError|Load failed/i.test(String(err.message || err)))) {
-        setSettingsStatus('No backend at /api/health. Running standalone mode.', '');
-        return false;
-      }
       return false;
     } finally {
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     }
   }
 
@@ -7616,6 +7595,7 @@
     const audio = $('audio');
     const btn = $('btnPlayPause');
     if (!audio || !btn) return;
+    audio.closest('.player-bar').classList.toggle('has-selection', Boolean(audio.getAttribute('src') || restoredYouTubeId));
     const isPlaying = !audio.paused && !audio.ended;
     btn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
     btn.setAttribute('title', isPlaying ? 'Pause' : 'Play');
@@ -8136,7 +8116,7 @@
           console.error(err);
           return false;
         });
-        if (!started) showError('Nothing to play yet. Open an album or enable and use shuffle.');
+        if (!started) showError('Choose a station or track to play.');
       }
       return;
     }
@@ -8248,6 +8228,7 @@
     if (rawSaved?.type === 'youtube' && extractYouTubeVideoId(rawSaved.videoId) === rawSaved.videoId) {
       restoredYouTubeId = rawSaved.videoId;
       setYouTubeNowPlaying({ videoId: restoredYouTubeId, title: rawSaved.title });
+      updatePlayPauseButton();
       return;
     }
     if (rawSaved && rawSaved.type === 'radio') {
