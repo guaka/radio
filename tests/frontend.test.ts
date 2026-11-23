@@ -174,7 +174,7 @@ test('radio image fallback uses station data and ignores URLs injected into DOM 
 });
 
 test('compiled classic scripts parse', () => {
-  for (const file of ['player/bootstrap.js', 'player/app.js', 'player/visualizer.js', 'radio/bootstrap.js', 'radio/build-info.js', 'radio/app.js', 'chat/app.js', 'routing/not-found.js', 'channels.js']) {
+  for (const file of ['player/bootstrap.js', 'player/app.js', 'player/nostr-sync.js', 'player/visualizer.js', 'radio/bootstrap.js', 'radio/build-info.js', 'radio/app.js', 'chat/app.js', 'routing/not-found.js', 'channels.js']) {
     const source = readFileSync(resolve(root, 'public/js', file), 'utf8');
     new vm.Script(source, { filename: file });
   }
@@ -218,4 +218,23 @@ test('NIP-44 uses a conversation key and falls back to NIP-04 for older data', a
   assert.equal(await context.decryptNostrDmContent(tools, result.content, 'peer', 'nip44'), 'progress');
   const legacy = { nip04: { decrypt: async () => 'legacy progress' } };
   assert.equal(await context.decryptNostrDmContent(legacy, 'old payload', 'peer', 'nip04'), 'legacy progress');
+});
+
+
+test('Radiostr applies verified station actions with the Android ordering and expiry', () => {
+  const source = readFileSync(resolve(root, 'public/js/player/nostr-sync.js'), 'utf8');
+  const { favoriteTemplate, mergeFavorites } = vm.runInNewContext(source + '\nRadioNostrSync');
+  const now = 1700000000;
+  const event = (station, star, time, id) => ({ ...favoriteTemplate(station, station, star, time), id });
+  const events = [
+    event('fip', true, now - 10, 'a'),
+    event('fip', false, now - 10, 'b'),
+    event('groovesalad', true, now - 9, 'c'),
+    event('future', true, now + 301, 'd'),
+    event('expired', true, now - 30 * 86400, 'e'),
+    event('unknown', true, now, 'f')
+  ];
+  const known = new Set(['fip', 'groovesalad', 'future', 'expired', 'local']);
+  assert.deepEqual(Array.from(mergeFavorites(['fip', 'local'], events, known, now)), ['groovesalad', 'local']);
+  assert.match(events[0].content, /#radiostr #favorite$/);
 });

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
-  <title>pleXtr</title>
+  <title>Radio Guaka</title>
   <style>
     :root {
       --bg: #0d0d0f;
@@ -2168,6 +2168,7 @@
       .viz-hint { display: none; }
     }
   </style>
+  <link rel="stylesheet" href="/listening.css" />
 </head>
 <body>
   <header>
@@ -2185,19 +2186,29 @@
             <ellipse cx="16" cy="15.5" rx="3.2" ry="2.2" fill="#0d3d45" stroke="#00a8c4" stroke-width="0.5" opacity="0.9" />
           </svg>
         </span>
-        <span class="plextr-brand-title">pleXtr</span>
+        <span class="plextr-brand-title">Radio Guaka</span>
       </a>
     </h1>
     <div class="header-right">
       <label class="search-wrap" for="inSearch" title="Search metadata, folders and files">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
-        <input id="inSearch" type="search" placeholder="Search all Plex libraries, radio, this grid…" autocomplete="off" />
+        <input id="inSearch" type="search" aria-label="Filter current source" placeholder="Filter" autocomplete="off" />
         <button type="button" class="search-clear-btn" id="btnClearSearch" aria-label="Clear search" title="Clear search">x</button>
       </label>
-      <button type="button" class="btn icon-btn btn-plex-settings" id="btnSettings" aria-label="Plex connection settings" title="Plex connection settings">
+      <button type="button" class="btn" id="btnSearchAll" aria-pressed="false">Search all</button>
+      <button type="button" class="btn icon-btn btn-plex-settings" id="btnSettings" aria-label="Connections" title="Connections">
         <svg class="plex-gear" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.9a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.08V2.9a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.08.4h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"></path></svg>
       </button>
     </div>
+    <nav class="source-bar" aria-label="Listening sources">
+      <button type="button" class="sidebar-nav-btn" data-nav="radio">Radio</button>
+      <button type="button" class="sidebar-nav-btn" data-nav="albums">Plex</button>
+      <button type="button" class="sidebar-nav-btn" data-nav="youtube">YouTube</button>
+      <button type="button" class="sidebar-nav-btn" data-nav="favorites">Favorites</button>
+      <button type="button" class="sidebar-nav-btn" data-nav="recent">History</button>
+      <button type="button" class="sidebar-nav-btn" data-nav="playlists">Playlists</button>
+      <button type="button" class="btn source-chat" id="btnChatToggle" aria-controls="chatContainer" aria-expanded="false">Chat</button>
+    </nav>
   </header>
   <div class="app-shell">
     <aside class="sidebar" aria-label="Library navigation">
@@ -2210,13 +2221,7 @@
           <p class="sidebar-plex-note">— connect first —</p>
         </nav>
       </div>
-      <nav class="sidebar-nav">
-        <button type="button" class="sidebar-nav-btn" data-nav="radio">Radio</button>
-        <button type="button" class="sidebar-nav-btn" data-nav="youtube">YouTube</button>
-        <button type="button" class="sidebar-nav-btn" data-nav="playlists">Playlists</button>
-        <button type="button" class="sidebar-nav-btn" data-nav="favorites">Favorites</button>
-        <button type="button" class="sidebar-nav-btn" data-nav="recent">Recently Played</button>
-      </nav>
+
     </aside>
     <main>
       <div class="main-top-actions">
@@ -2232,14 +2237,13 @@
         API calls may work while <code>/library/parts/…</code> audio is blocked when this app and Plex are on different origins. Fix: serve pleXtr through a <strong>reverse proxy on the same host and port</strong> as you use in Server URL (proxy <code>/</code> or <code>/plex</code> → <code>http://127.0.0.1:32400</code>), or open pleXtr only from a URL that matches Plex’s origin. Optional: proxy can add <code>Access-Control-Allow-Origin</code> and <code>Cross-Origin-Resource-Policy: cross-origin</code> for streams.<br />
         <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">How to get X-Plex-Token</a>
       </div>
-      <div id="error" class="msg error" style="display:none"></div>
       <div class="inline-note" id="settingsStatus" aria-live="polite"></div>
       <div id="unifiedSearchPanel" class="unified-search-panel" hidden></div>
       <div id="nostrStatus" class="inline-note" aria-live="polite"></div>
       <div class="modal" id="settingsModal">
       <div class="modal-card">
       <div class="modal-head">
-        <p class="modal-title">Settings</p>
+        <p class="modal-title">Connections</p>
         <button type="button" class="btn icon-btn modal-close" id="btnCloseSettings" aria-label="Close" title="Close">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
         </button>
@@ -2247,6 +2251,10 @@
       <div class="settings-form">
       <section class="settings-section" aria-label="Nostr settings">
       <p class="settings-section-title">Nostr</p>
+      <label class="sync-choice"><input id="syncStationFavorites" type="checkbox" /> Share and sync radio favorites publicly</label>
+      <button type="button" class="btn" id="btnSyncStations">Sync favorites</button>
+      <p id="stationSyncStatus" role="status"></p>
+      <label class="sync-choice"><input id="shareNowPlaying" type="checkbox" /> Post now playing publicly</label>
       <label for="inNsec">Nostr nsec</label>
       <div class="nsec-input-wrap">
         <input id="inNsec" type="password" placeholder="nsec1..." autocomplete="off" />
@@ -2279,6 +2287,7 @@
       </div>
       </div>
       </div>
+      <div id="plexSetup" hidden><button type="button" class="btn" id="btnPlexSetup">Connect to Plex</button></div>
       <div id="viewAlbums"></div>
       <div id="viewRadio" style="display:none"></div>
       <div id="viewYouTube" style="display:none"></div>
@@ -2295,13 +2304,13 @@
       <div class="viz-switcher" id="vizSwitcher"></div>
     </div>
   </div>
-  <button type="button" class="chat-toggle-btn" id="btnChatToggle" title="Open chat">💬</button>
   <div class="modal artwork-modal" id="artworkModal" aria-hidden="true">
     <figure class="artwork-modal-card">
       <img id="artworkModalImg" src="" alt="Expanded now playing artwork" />
     </figure>
   </div>
   <div class="plextr-bottom-dock">
+  <div class="playback-status" role="status"><span id="bufferingStatus"></span><span id="error"></span></div>
   <div class="player-bar">
     <img id="npArt" class="np-art" src="" alt="Now playing artwork" />
     <div class="player-main">
@@ -2312,7 +2321,7 @@
         <div class="sub" id="npNext">Up next: —</div>
         <div class="seek-row">
           <span id="npTime">0:00</span>
-          <input id="npSeek" type="range" min="0" max="1000" value="0" />
+          <input id="npSeek" aria-label="Playback position" type="range" min="0" max="1000" value="0" />
           <span id="npDur">0:00</span>
         </div>
       </div>
@@ -2379,6 +2388,7 @@
 
   <script src="/js/player/bootstrap.js"></script>
   <script src="/js/channels.js"></script>
+  <script src="/js/player/nostr-sync.js"></script>
   <script src="/js/player/app.js"></script>
 
   <script src="/js/player/visualizer.js"></script>

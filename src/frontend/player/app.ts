@@ -299,16 +299,9 @@
     const chatContainer = $('chatContainer');
     const chatBtn = $('btnChatToggle');
     if (!chatContainer || !chatBtn) return;
-    if (window.innerWidth <= 720) {
-      isChatVisibleMobile = !!visible;
-      chatContainer.classList.toggle('visible', isChatVisibleMobile);
-      chatBtn.textContent = isChatVisibleMobile ? '✕' : '💬';
-      chatBtn.title = isChatVisibleMobile ? 'Close chat' : 'Open chat';
-      chatBtn.style.display = '';
-    } else {
-      chatContainer.classList.add('visible');
-      chatBtn.style.display = 'none';
-    }
+    isChatVisibleMobile = Boolean(visible);
+    chatContainer.classList.toggle('visible', isChatVisibleMobile);
+    chatBtn.setAttribute('aria-expanded', String(isChatVisibleMobile));
   }
 
   function cacheNostrActivity(items) {
@@ -557,6 +550,7 @@
   }
 
   function notifyNowPlaying(track, station) {
+    if (!$('shareNowPlaying').checked) return;
     const text = buildNowPlayingText(track, station);
     if (!text) return;
     const extra = station && station.id != null ? nowPlayingTagStation(station) : nowPlayingTagTrack(track);
@@ -997,7 +991,8 @@
   }
 
   function refreshAllStarButtonsFromStorage() {
-    updateNowPlayingFavButton(nowPlayingTrackKey || '');
+    if (isRadioMode) updateNowPlayingStationFavButton(radioStations[currentRadioIdx]?.id);
+    else if (!youtubeSelection?.videoId || !isYouTubeRouteHash(location.hash)) updateNowPlayingFavButton(nowPlayingTrackKey || '');
     const grid = $('albumGrid');
     if (grid) {
       const albumSet = getStarredAlbums();
@@ -1037,8 +1032,7 @@
         if (!id) return;
         const starred = stSet.has(id);
         btn.classList.toggle('starred', starred);
-        btn.setAttribute('aria-label', starred ? 'Unfavorite station' : 'Favorite station');
-        btn.setAttribute('title', starred ? 'Unfavorite station' : 'Favorite station');
+        btn.setAttribute('aria-pressed', String(starred));
         btn.innerHTML = starIconHtml(starred);
       });
     }
@@ -1096,6 +1090,7 @@
         }
       });
       stationMap.forEach((p, id) => {
+        if (localStorage.getItem(stationSyncAccountKey)) return;
         if (p.starred) stSet.add(id);
         else stSet.delete(id);
       });
@@ -1214,6 +1209,117 @@
     return set.has(key);
   }
 
+  let listeningSigner = null;
+  let stationSyncRunning = null;
+  let stationSyncRequested = false;
+  const stationSyncAccountKey = 'guakaStationSyncAccount';
+
+  function readListeningSetting(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+    catch (_) { return fallback; }
+  }
+
+  async function getListeningSigner() {
+    if (listeningSigner) return listeningSigner;
+    if (window.nostr?.getPublicKey && window.nostr?.signEvent) {
+      const pubkey = await window.nostr.getPublicKey();
+      if (!/^[a-f0-9]{64}$/.test(pubkey)) throw new Error('The browser signer returned an invalid account.');
+      return {
+        pubkey,
+        signEvent: (event) => window.nostr.signEvent(event)
+      };
+    }
+    if (nostrState.ready && nostrState.secretKey) {
+      const { pubkey, secretKey } = nostrState;
+      const tools = await getNostrTools();
+      return { pubkey, signEvent: (event) => tools.finalizeEvent(event, secretKey) };
+    }
+    throw new Error('Connect a browser Nostr signer or save your existing Nostr key in Connections.');
+  }
+
+  function stationPendingKey(account) {
+    return 'guakaStationPending:' + account;
+  }
+
+  function enqueueStationFavorite(id, starred) {
+    const account = localStorage.getItem(stationSyncAccountKey);
+    const station = radioStations.find((candidate) => candidate.id === id);
+    if (!account || !station || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) return;
+    const key = stationPendingKey(account);
+    const pending = readListeningSetting(key, []);
+    const previous = pending.find((event) => RadioNostrSync.stationId(event) === id);
+    const receipts = readListeningSetting('guakaStationReceipts:' + account, []);
+    const receipt = receipts.find((event) => RadioNostrSync.stationId(event) === id);
+    const now = Math.max(Math.floor(Date.now() / 1000), (previous?.created_at || 0) + 1, (receipt?.created_at || 0) + 1);
+    const template = RadioNostrSync.favoriteTemplate(id, station.title, starred, now);
+    localStorage.setItem(key, JSON.stringify([...pending.filter((event) => RadioNostrSync.stationId(event) !== id), template].slice(-500)));
+    void syncStationFavorites();
+  }
+
+  async function syncStationFavorites() {
+    stationSyncRequested = true;
+    if (stationSyncRunning) return stationSyncRunning;
+    stationSyncRunning = (async () => {
+      while (stationSyncRequested) {
+        stationSyncRequested = false;
+        const account = localStorage.getItem(stationSyncAccountKey);
+        if (!account) return;
+        const status = $('stationSyncStatus');
+        const assertAccount = () => {
+          if (localStorage.getItem(stationSyncAccountKey) !== account) throw new Error('The sync account changed.');
+        };
+        try {
+          const signer = await getListeningSigner();
+          assertAccount();
+          if (signer.pubkey !== account) throw new Error('Reconnect the account you enabled for favorite sync.');
+          const tools = await getNostrTools();
+          const exchange = (filter, event) => Promise.any(RadioNostrSync.favoriteRelays.map((relay) =>
+            RadioNostrSync.exchange(relay, signer, tools, filter, event)));
+          const pendingKey = stationPendingKey(account);
+          const receiptKey = 'guakaStationReceipts:' + account;
+          const now = Math.floor(Date.now() / 1000);
+          status.textContent = 'Syncing favorites…';
+          for (const template of readListeningSetting(pendingKey, [])) {
+            // An update can still be pending when a device returns after the event lifetime.
+            const unsigned = template.created_at + RadioNostrSync.favoriteLifetime <= now
+              ? RadioNostrSync.favoriteTemplate(RadioNostrSync.stationId(template), radioStations.find((station) =>
+                  station.id === RadioNostrSync.stationId(template))?.title || '', template.tags.some((tag) =>
+                    tag[0] === 'radiostr_action' && tag[1] === 'star'), now)
+              : template;
+            const signed = await RadioNostrSync.signVerified(signer, unsigned, tools);
+            assertAccount();
+            await exchange(null, signed);
+            assertAccount();
+            const receipts = readListeningSetting(receiptKey, []).filter((event) =>
+              RadioNostrSync.stationId(event) !== RadioNostrSync.stationId(signed));
+            localStorage.setItem(receiptKey, JSON.stringify([...receipts, signed].slice(-500)));
+            localStorage.setItem(pendingKey, JSON.stringify(readListeningSetting(pendingKey, []).filter((event) =>
+              JSON.stringify(event) !== JSON.stringify(template))));
+          }
+          const filter = { kinds: [1], authors: [account], '#t': ['radiostr', 'favorite'], since: now - RadioNostrSync.favoriteLifetime, limit: 500 };
+          const results = await Promise.allSettled(RadioNostrSync.favoriteRelays.map((relay) =>
+            RadioNostrSync.exchange(relay, signer, tools, filter)));
+          assertAccount();
+          const completed = results.filter((result) => result.status === 'fulfilled');
+          if (!completed.length) throw new Error('Could not read Nostr favorites.');
+          const waiting = new Set(readListeningSetting(pendingKey, []).map(RadioNostrSync.stationId));
+          const events = [...completed.flatMap((result) => result.value), ...readListeningSetting(receiptKey, [])]
+            .filter((event) => !waiting.has(RadioNostrSync.stationId(event)) && event.pubkey === account && tools.verifyEvent(event));
+          const merged = RadioNostrSync.mergeFavorites([...getStarredStations()], events, new Set(radioStations.map((station) => station.id)), now);
+          localStorage.setItem(LS.starredStations, JSON.stringify(merged));
+          refreshAllStarButtonsFromStorage();
+          if (navView === 'favorites') renderLibraryView();
+          status.textContent = 'Radio favorites synced. Star changes are public.';
+        } catch (error) {
+          if (localStorage.getItem(stationSyncAccountKey) === account) {
+            status.textContent = (error.message || 'Relay sync failed.') + ' Local favorites are available. Retry sync.';
+          }
+        }
+      }
+    })().finally(() => { stationSyncRunning = null; });
+    return stationSyncRunning;
+  }
+
   function toggleStationStar(stationId) {
     const key = String(stationId || '');
     if (!key) return false;
@@ -1223,6 +1329,8 @@
     try {
       localStorage.setItem(LS.starredStations, JSON.stringify([...set]));
     } catch (_) {}
+    try { enqueueStationFavorite(key, set.has(key)); }
+    catch (_) { $('stationSyncStatus').textContent = 'Could not save the pending favorite update.'; }
     if (navView === 'favorites') renderLibraryView();
     return set.has(key);
   }
@@ -2631,7 +2739,8 @@
   let hubSearchFallbackTimer = 0;
   let trackPrefetchTried = new Set();
   let trackPrefetchTriedForQuery = '';
-  let navView = 'albums';
+  let navView = 'radio';
+  let searchAllSources = false;
   const playlistCsvState = {
     loaded: true,
     loading: false,
@@ -4406,7 +4515,7 @@
     const query = searchQuery;
     const rawSearchInput = searchInput.value.trim();
     syncSearchUi();
-    if (!rawSearchInput) {
+    if (!rawSearchInput || !searchAllSources) {
       if (unifiedSearchTimer) {
         clearTimeout(unifiedSearchTimer);
         unifiedSearchTimer = 0;
@@ -4425,6 +4534,15 @@
     let albumMatches = 0;
     let trackMatches = 0;
     const feedback = $('searchFeedback');
+    if (navView === 'favorites' || navView === 'recent') {
+      renderLibraryView();
+      if (feedback) feedback.textContent = '';
+      return;
+    }
+    if (navView === 'youtube') {
+      if (feedback) feedback.textContent = '';
+      return;
+    }
     if (navView === 'radio') {
       renderRadioView();
       if (feedback) {
@@ -4669,8 +4787,14 @@
 
   function syncSidebarNavActive() {
     document.querySelectorAll('.sidebar-nav-btn[data-nav]').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.nav === navView);
+      const selected = btn.dataset.nav === navView;
+      btn.classList.toggle('active', selected);
+      if (selected) btn.setAttribute('aria-current', 'page');
+      else btn.removeAttribute('aria-current');
     });
+    document.body.dataset.source = navView;
+    $('plexSetup').hidden = navView !== 'albums' || Boolean(cfg().token);
+    $('inSearch').disabled = !searchAllSources && (navView === 'youtube' || navView === 'playlists');
     updatePlexLibraryLinkActive();
   }
 
@@ -4726,7 +4850,7 @@
       $('viewRadio').style.display = 'none';
       $('viewYouTube').style.display = 'none';
       $('albumViewToggle').style.display = 'none';
-      renderLibraryView();
+      updateFilterState();
       return;
     }
     $('viewLibrary').style.display = 'none';
@@ -4754,14 +4878,14 @@
     const starredAlbumItems = getStarredAlbumItems();
     const starredTracks = [...getStarredTracks()]
       .map((key) => trackLookup.get(String(key)) || starredTrackItems[String(key)])
-      .filter(Boolean);
+      .filter((item) => item && searchMatchesBlob(trackDisplayText(item).toLowerCase(), searchQuery));
     const starredAlbums = [...getStarredAlbums()]
       .map((key) => albumLookup.get(String(key)) || starredAlbumItems[String(key)])
-      .filter(Boolean);
+      .filter((item) => item && searchMatchesBlob(String(item.title || '').toLowerCase(), searchQuery));
     const starredStations = [...getStarredStations()]
       .map((id) => radioStations.find((station) => station.id === id))
-      .filter(Boolean);
-    const recent = getRecentTracks();
+      .filter((station) => station && searchMatchesBlob((station.title + ' ' + station.id).toLowerCase(), searchQuery));
+    const recent = getRecentTracks().filter((item) => searchMatchesBlob(trackDisplayText(item).toLowerCase(), searchQuery));
     const showFavorites = navView === 'favorites';
     const showRecent = navView === 'recent';
 
@@ -4777,7 +4901,7 @@
       : '<li class="empty-state">Star an album to save it here.</li>';
     const favoriteStationHtml = starredStations.length
       ? starredStations
-          .map((station) => '<li><button type="button" data-play-station="' + escapeHtml(station.id) + '">' + escapeHtml(station.title) + '</button></li>')
+          .map(stationRowHtml)
           .join('')
       : '<li class="empty-state">Star a station in Radio to pin it here.</li>';
     const recentHtml = recent.length
@@ -4789,9 +4913,9 @@
     wrap.innerHTML =
       '<div class="library-grid">' +
       (showFavorites
-        ? '<section class="library-card"><h3>Favorite Tracks</h3><ul class="library-list">' + favoriteTrackHtml + '</ul></section>' +
-          '<section class="library-card"><h3>Favorite Albums</h3><ul class="library-list">' + favoriteAlbumHtml + '</ul></section>' +
-          '<section class="library-card"><h3>Favorite Stations</h3><ul class="library-list">' + favoriteStationHtml + '</ul></section>'
+        ? '<section class="library-card"><h3>Favorite Stations</h3><ul class="radio-list">' + favoriteStationHtml + '</ul></section>' +
+          '<section class="library-card"><h3>Favorite Tracks</h3><ul class="library-list">' + favoriteTrackHtml + '</ul></section>' +
+          '<section class="library-card"><h3>Favorite Albums</h3><ul class="library-list">' + favoriteAlbumHtml + '</ul></section>'
         : '') +
       (showRecent ? '<section class="library-card"><h3>Recently Played</h3><ul class="library-list">' + recentHtml + '</ul></section>' : '') +
       '</div>';
@@ -4814,13 +4938,7 @@
         playIndex(0, { crossfade: false });
       };
     });
-    wrap.querySelectorAll('button[data-play-station]').forEach((btn) => {
-      btn.onclick = () => {
-        const id = btn.dataset.playStation || '';
-        const idx = radioStations.findIndex((station) => station.id === id);
-        if (idx >= 0) playRadioIndex(idx);
-      };
-    });
+    wireStationRows(wrap);
   }
 
   function playlistIdFromFilename(filename) {
@@ -5796,6 +5914,19 @@
     return j;
   }
 
+  function stationRowHtml(station) {
+    const id = escapeHtml(station.id);
+    const title = escapeHtml(station.title);
+    const starred = getStarredStations().has(station.id);
+    const selected = isRadioMode && radioStations[currentRadioIdx]?.id === station.id;
+    return '<li class="radio-item' + (selected ? ' playing' : '') + '" data-radio-id="' + id + '">' +
+      '<button type="button" class="radio-row-main" data-radio-play="' + id + '" aria-label="Play ' + title + '">' +
+      '<img class="radio-thumb" src="' + escapeHtml(station.img || station.fallbackImg) + '" data-radio-image="' + id + '" alt="" loading="lazy" />' +
+      '<span class="radio-title">' + title + '</span></button>' +
+      '<button type="button" class="star-btn' + (starred ? ' starred' : '') + '" data-radio-star="' + id +
+      '" aria-label="Favorite ' + title + '" aria-pressed="' + starred + '">' + starIconHtml(starred) + '</button></li>';
+  }
+
   function renderRadioView() {
     const wrap = $('viewRadio');
     if (!wrap) return;
@@ -5829,23 +5960,7 @@
             '<div class="radio-section-head"><h3>' + escapeHtml(section.name) + '</h3><span class="count">' + section.items.length + ' station' + (section.items.length === 1 ? '' : 's') + '</span></div>' +
             '<ul class="radio-list">' +
             section.items
-              .map((station) => {
-                const sub = station.tags.length ? station.tags.join(' · ') : 'Live stream';
-                const isPlaying = isRadioMode && currentRadioIdx >= 0 && radioStations[currentRadioIdx] && radioStations[currentRadioIdx].id === station.id;
-                const starred = getStarredStations().has(station.id);
-                return (
-                  '<li class="radio-item' + (isPlaying ? ' playing' : '') + '" data-radio-id="' + escapeHtml(station.id) + '">' +
-                  '<button type="button" class="radio-play-btn" data-radio-play="' + escapeHtml(station.id) + '" aria-label="Play ' + escapeHtml(station.title) + '" title="Play station">&#9654;</button>' +
-                  '<img class="radio-thumb" src="' + escapeHtml(station.img || station.fallbackImg || fallbackThumbDataUrl()) + '" data-radio-image="' + escapeHtml(station.id) + '" alt="" loading="lazy" />' +
-                  '<div class="radio-meta">' +
-                  '<div class="radio-title">' + (station.site ? '<a class="meta-link" href="' + escapeHtml(station.site) + '" target="_blank" rel="noopener">' + escapeHtml(station.title) + '</a>' : escapeHtml(station.title)) + '</div>' +
-                  '<div class="radio-sub">' + escapeHtml(sub) + '</div>' +
-                  '</div>' +
-                  '<button type="button" class="star-btn' + (starred ? ' starred' : '') + '" data-radio-star="' + escapeHtml(station.id) + '" aria-label="' + (starred ? 'Unfavorite station' : 'Favorite station') + '" title="' + (starred ? 'Unfavorite station' : 'Favorite station') + '">' + starIconHtml(starred) + '</button>' +
-                  '<span class="live-pill">Live</span>' +
-                  '</li>'
-                );
-              })
+              .map(stationRowHtml)
               .join('') +
             '</ul>' +
             '</section>'
@@ -5853,6 +5968,10 @@
         })
         .join('') +
       '</div>';
+    wireStationRows(wrap);
+  }
+
+  function wireStationRows(wrap) {
     wrap.querySelectorAll('button[data-radio-play]').forEach((btn) => {
       btn.onclick = () => {
         const id = btn.getAttribute('data-radio-play');
@@ -5865,8 +5984,7 @@
         const id = btn.getAttribute('data-radio-star');
         const nowStarred = toggleStationStar(id);
         btn.classList.toggle('starred', nowStarred);
-        btn.setAttribute('aria-label', nowStarred ? 'Unfavorite station' : 'Favorite station');
-        btn.setAttribute('title', nowStarred ? 'Unfavorite station' : 'Favorite station');
+        btn.setAttribute('aria-pressed', String(nowStarred));
         btn.innerHTML = starIconHtml(nowStarred);
         if (isRadioMode && currentRadioIdx >= 0 && radioStations[currentRadioIdx] && radioStations[currentRadioIdx].id === id) {
           updateNowPlayingStationFavButton(id);
@@ -6475,9 +6593,12 @@
     $('viewTracks').style.display = 'none';
     $('viewAlbums').style.display = 'block';
     $('viewRadio').style.display = 'none';
+    $('viewYouTube').style.display = 'none';
     $('albumViewToggle').style.display = '';
-    currentAlbum = null;
-    currentTracks = [];
+    if (playingIdx < 0) {
+      currentAlbum = null;
+      currentTracks = [];
+    }
     document.title = 'pleXtr';
     updateFilterState();
     if (o.skipLoad) return;
@@ -6597,16 +6718,18 @@
     const artistMatch = hash.match(/^#artist\/([^/]+)$/);
     const directoryMatch = hash.match(/^#directory\/(.+)$/);
     if (!hash || hash === '#') {
-      const connected = !!(cfg().server && cfg().token);
-      const want = connected ? '#albums' : '#radio';
-      if (location.hash !== want) location.hash = want;
+      setNavView('radio', { updateLocation: false });
       return;
     }
     if (viewMatch) {
       const view = viewMatch[1];
       if (view === 'albums') {
-        backToAlbums({ updateLocation: false, fullLibrary: true });
-        ensureAlbumsGridLoaded();
+        if (cfg().token) {
+          backToAlbums({ updateLocation: false, fullLibrary: true });
+          ensureAlbumsGridLoaded();
+        } else {
+          setNavView('albums', { updateLocation: false });
+        }
       } else {
         setNavView(view, { updateLocation: false });
       }
@@ -7738,6 +7861,11 @@
     $('npTime').textContent = formatClock(a.currentTime);
     $('npDur').textContent = max > 0 ? formatClock(rawDur) : '--:--';
   });
+  for (const event of ['waiting', 'playing', 'pause', 'error', 'emptied', 'ended']) {
+    $('audio').addEventListener(event, () => {
+      $('bufferingStatus').textContent = event === 'waiting' ? 'Buffering…' : '';
+    });
+  }
   $('audio').addEventListener('volumechange', () => {
     const a = $('audio');
     a._targetVolume = a.volume;
@@ -8056,6 +8184,42 @@
     if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
     filterDebounceTimer = setTimeout(updateFilterState, 200);
   });
+  bindEvent('syncStationFavorites', 'change', async () => {
+    const checkbox = $('syncStationFavorites');
+    if (!checkbox.checked) {
+      localStorage.removeItem(stationSyncAccountKey);
+      $('stationSyncStatus').textContent = 'Radio favorites are local.';
+      return;
+    }
+    try {
+      const signer = await getListeningSigner();
+      if (!checkbox.checked) return;
+      localStorage.setItem(stationSyncAccountKey, signer.pubkey);
+      void syncStationFavorites();
+    } catch (error) {
+      checkbox.checked = false;
+      $('stationSyncStatus').textContent = error.message;
+    }
+  });
+  bindClick('btnSyncStations', () => {
+    if (!$('syncStationFavorites').checked) {
+      $('stationSyncStatus').textContent = 'Enable public station favorite sync first.';
+      return;
+    }
+    void syncStationFavorites();
+  });
+  window.addEventListener('online', () => { if (localStorage.getItem(stationSyncAccountKey)) void syncStationFavorites(); });
+  bindEvent('shareNowPlaying', 'change', () => localStorage.setItem('guakaShareNowPlaying', String($('shareNowPlaying').checked)));
+  bindClick('btnPlexSetup', () => openSettingsModal());
+  bindClick('btnSearchAll', () => {
+    searchAllSources = !searchAllSources;
+    $('btnSearchAll').setAttribute('aria-pressed', String(searchAllSources));
+    $('inSearch').placeholder = searchAllSources ? 'Search all sources' : 'Filter';
+    $('inSearch').setAttribute('aria-label', searchAllSources ? 'Search all sources' : 'Filter current source');
+    syncSidebarNavActive();
+    updateFilterState();
+    if (!$('inSearch').disabled) $('inSearch').focus();
+  });
   bindClick('btnClearSearch', () => {
     clearSearchInput({ focus: true });
   });
@@ -8079,8 +8243,6 @@
   }, { passive: true });
   window.addEventListener('resize', () => {
     if (albumsViewVisible()) scheduleAlbumAutoLoad(50);
-    if (window.innerWidth > 720) setChatVisibility(true);
-    else setChatVisibility(isChatVisibleMobile);
   });
   window.addEventListener('hashchange', applyHashRoute);
   window.addEventListener('message', (event) => {
@@ -8200,13 +8362,16 @@
   });
 
   (function init() {
+    $('syncStationFavorites').checked = Boolean(localStorage.getItem(stationSyncAccountKey));
+    $('shareNowPlaying').checked = localStorage.getItem('guakaShareNowPlaying') === 'true';
     updateShortcutModifierLabels();
     buildRadioData();
     wireUnifiedSearchPanelOnce();
-    setChatVisibility(window.innerWidth > 720);
+    setChatVisibility(false);
     $('inNsec').value = localStorage.getItem(LS.nostrNsec) || '';
     updateNostrIdentityUi();
-    if ($('inNsec').value) initNostrFromNsec($('inNsec').value).catch(() => {});
+    const legacyConnection = $('inNsec').value ? initNostrFromNsec($('inNsec').value) : Promise.resolve();
+    if ($('syncStationFavorites').checked) legacyConnection.then(syncStationFavorites).catch(() => {});
     playbackMode = getPlaybackMode();
     applyPlaybackModeUI();
     updateNowPlayingFavButton('');
@@ -8216,7 +8381,11 @@
     $('inToken').value = c.token;
     probeSameOriginBackend().catch(() => {});
     const initialHash = (location.hash || '').trim();
-    if (initialHash === '#favorites' || initialHash === '#recent') applyHashRoute();
+    if (!initialHash || /^#(radio|youtube|favorites|recent|playlists)$/.test(initialHash)) applyHashRoute();
+    const initialSaved = loadPlaybackState();
+    if ((!initialHash || /^#(radio|youtube|favorites|recent|playlists)$/.test(initialHash)) && initialSaved?.type === 'radio') {
+      restorePlaybackFromState();
+    }
     if (c.server && c.token) {
       loadSections().then(() => {
         const hash = (location.hash || '').trim();
@@ -8234,6 +8403,8 @@
           } else {
             applyHashRoute();
           }
+        } else if (!hash) {
+          applyHashRoute();
         } else if (!$('inSection').value) {
           if (!isRadioRouteHash(location.hash)) location.hash = '#albums';
           applyHashRoute();
@@ -8243,14 +8414,9 @@
             .catch(() => {});
         }
       }).catch(() => {
-        setSettingsStatus('Could not load libraries. Open Settings to check connection.', 'error');
-        if (location.hash === '#favorites' || location.hash === '#recent') return;
-        if (!isRadioRouteHash(location.hash)) location.hash = '#radio';
-        applyHashRoute();
+        if (navView === 'albums') setSettingsStatus('Could not load libraries. Open Connections to check your Plex connection.', 'error');
       });
     } else {
-      const h = (location.hash || '').trim();
-      if (h === '#albums') location.hash = '#radio';
       const saved = loadPlaybackState();
       if (saved?.type === 'radio' && location.hash === radioHash(saved.stationId)) {
         restorePlaybackFromState();
