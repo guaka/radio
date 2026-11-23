@@ -15,6 +15,7 @@ body > header .plextr-brand .plextr-brand-title {
 }
 
 body > header .header-right { min-width: 0; }
+body > header #btnSearchAll { white-space: nowrap; }
 .source-bar {
   grid-column: 1 / -1;
   display: flex;
@@ -125,6 +126,18 @@ body .app-shell > .chat-container.visible { display: flex; }
 .playback-status:has(#error:not(:empty)) #bufferingStatus { display: none; }
 body .player-bar { background: #21202b; border-color: #454253; box-shadow: none; }
 body .player-controls .btn.icon-btn { min-height: 2.65rem; min-width: 2.65rem; }
+body .player-bar:not(.has-selection) :is(.np-art, .sub, .seek-row, #btnFavNow) { display: none; }
+#viewRadio, #viewLibrary, .playback-status, body .player-bar { font-family: system-ui, sans-serif; }
+#viewRadio .radio-section-head h3, #viewLibrary .library-card h3 { font-family: inherit; }
+#historyReplayStatus:empty { display: none; }
+#settingsModal .modal-head {
+  position: sticky;
+  top: -1rem;
+  z-index: 1;
+  margin-top: -1rem;
+  padding-block: .75rem;
+  background: #17171f;
+}
 .settings-form .sync-choice { display: flex; align-items: center; gap: .5rem; margin-block: .5rem; }
 .settings-form .sync-choice input { width: auto; }
 .source-bar button:focus-visible, .radio-item button:focus-visible { outline: 2px solid #d9bcff; outline-offset: -2px; }
@@ -136,6 +149,9 @@ body .player-controls .btn.icon-btn { min-height: 2.65rem; min-width: 2.65rem; }
   body > header { grid-template-columns: minmax(0, 1fr); }
   body > header .header-right { grid-row: 3; }
   .source-bar { grid-row: 2; }
+  .source-bar button { padding-inline: .6rem; }
+  body .plextr-footer { display: none; }
+  body .player-bar #npNext { display: none; }
   body .sidebar-plex .sidebar-nav { display: none; }
   body .player-controls { flex-wrap: wrap; gap: .15rem; }
 }

@@ -425,7 +425,7 @@
   }
 
   function buildNowPlayingText(track, station) {
-    if (station && station.name) return station.name + ' #plextr #radio';
+    if (station?.title) return station.title + ' #plextr #radio';
     if (!track) return '';
     const artist = String(track.grandparentTitle || (currentAlbum && currentAlbum.parentTitle) || '').trim();
     let title = String(track.title || '').trim();
@@ -583,7 +583,7 @@
       const idxAtStart = currentRadioIdx;
       npNoteSchedule.radioTimerId = setTimeout(() => {
         npNoteSchedule.radioTimerId = 0;
-        if (!isRadioMode || currentRadioIdx !== idxAtStart) return;
+        if (audio.paused || !isRadioMode || currentRadioIdx !== idxAtStart) return;
         const st = radioStations[currentRadioIdx];
         if (!st || String(st.id) !== sid) return;
         notifyNowPlaying(null, st);
@@ -1210,6 +1210,16 @@
   }
 
   let listeningSigner = null;
+  let remoteSignerConnection = null;
+  const remoteSignerKey = 'guakaRemoteSignerSession';
+  const historyConfigKey = 'guakaHistorySyncConfig';
+  const localHistoryKey = 'guakaRadioYouTubeHistory';
+  let historySyncRunning = null;
+  let historySyncRequested = false;
+  let historySyncTimer = 0;
+  let recordRadioSelection = false;
+  let restoredYouTubeId = '';
+  let youtubePlaybackRequest = 0;
   let stationSyncRunning = null;
   let stationSyncRequested = false;
   const stationSyncAccountKey = 'guakaStationSyncAccount';
@@ -1221,20 +1231,239 @@
 
   async function getListeningSigner() {
     if (listeningSigner) return listeningSigner;
+    const remoteConfig = readListeningSetting(remoteSignerKey, null);
+    if (remoteConfig) return connectBrowserRemoteSigner(remoteConfig, true);
     if (window.nostr?.getPublicKey && window.nostr?.signEvent) {
       const pubkey = await window.nostr.getPublicKey();
       if (!/^[a-f0-9]{64}$/.test(pubkey)) throw new Error('The browser signer returned an invalid account.');
       return {
         pubkey,
-        signEvent: (event) => window.nostr.signEvent(event)
+        signEvent: (event) => window.nostr.signEvent(event),
+        encryptHistory: window.nostr.nip44?.encrypt && ((text) => window.nostr.nip44.encrypt(pubkey, text)),
+        decryptHistory: window.nostr.nip44?.decrypt && ((text) => window.nostr.nip44.decrypt(pubkey, text))
       };
     }
     if (nostrState.ready && nostrState.secretKey) {
       const { pubkey, secretKey } = nostrState;
       const tools = await getNostrTools();
-      return { pubkey, signEvent: (event) => tools.finalizeEvent(event, secretKey) };
+      const key = tools.nip44.v2.utils.getConversationKey(secretKey, pubkey);
+      return {
+        pubkey, signEvent: (event) => tools.finalizeEvent(event, secretKey),
+        encryptHistory: (text) => tools.nip44.v2.encrypt(text, key),
+        decryptHistory: (text) => tools.nip44.v2.decrypt(text, key)
+      };
     }
     throw new Error('Connect a browser Nostr signer or save your existing Nostr key in Connections.');
+  }
+
+  function connectBrowserRemoteSigner(config, restore) {
+    if (remoteSignerConnection) return remoteSignerConnection;
+    const status = $('remoteSignerStatus');
+    const auth = $('remoteSignerAuth');
+    status.textContent = 'Connecting to remote signer…';
+    $('btnConnectRemoteSigner').disabled = true;
+    remoteSignerConnection = (async () => {
+      try {
+        const tools = await getNostrTools();
+        const key = restore ? await RadioRemoteSigner.loadTransportKey(config.keyReference) : tools.generateSecretKey();
+        const signer = await RadioRemoteSigner.connect(tools, { ...config, key }, (value) => {
+          try {
+            const url = new URL(value);
+            if (url.protocol !== 'https:' || url.username || url.password) return;
+            auth.href = url.href;
+            auth.hidden = false;
+          } catch (_) {}
+        }, restore);
+        if (!restore) {
+          let keyReference;
+          try {
+            keyReference = await RadioRemoteSigner.saveTransportKey(key);
+            localStorage.setItem(remoteSignerKey, JSON.stringify({
+              remote: config.remote, relays: config.relays, keyReference, pubkey: signer.pubkey
+            }));
+          } catch (error) {
+            signer.close();
+            await RadioRemoteSigner.removeTransportKey(keyReference).catch(() => {});
+            throw error;
+          }
+        }
+        listeningSigner = signer;
+        status.textContent = 'Remote signer connected: ' + tools.nip19.npubEncode(signer.pubkey);
+        $('btnDisconnectRemoteSigner').hidden = false;
+        return signer;
+      } catch (error) {
+        status.textContent = error.message || 'Could not connect to remote signer.';
+        throw error;
+      } finally {
+        auth.hidden = true;
+        auth.removeAttribute('href');
+        $('btnConnectRemoteSigner').disabled = false;
+      }
+    })().finally(() => { remoteSignerConnection = null; });
+    return remoteSignerConnection;
+  }
+
+  function historyConfig() {
+    return readListeningSetting(historyConfigKey, null);
+  }
+
+  function historyStateKey(config) {
+    return 'guakaHistoryState:' + config.account + ':' + config.relay;
+  }
+
+  function readHistoryState(config) {
+    return readListeningSetting(historyStateKey(config), {
+      local: RadioHistory.empty(), remote: RadioHistory.empty(), dirty: false, clearPending: false, lastPublished: 0
+    });
+  }
+
+  function saveHistoryState(config, state) {
+    localStorage.setItem(historyStateKey(config), JSON.stringify(state));
+  }
+
+  function historyDevice() {
+    let id = localStorage.getItem('guakaHistoryDevice');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('guakaHistoryDevice', id);
+    }
+    return RadioHistory.topic + ':' + id;
+  }
+
+  function localListeningHistory() {
+    return readListeningSetting(localHistoryKey, RadioHistory.empty());
+  }
+
+  function displayListeningHistory() {
+    const config = historyConfig();
+    if (!config) return localListeningHistory();
+    const { local, remote } = readHistoryState(config);
+    return RadioHistory.merge([localListeningHistory(), local, remote]);
+  }
+
+  function refreshHistory() {
+    if (navView === 'recent') renderLibraryView();
+  }
+
+  function recordListening(id) {
+    if (!RadioHistory.eligible(id)) return;
+    try {
+      const config = historyConfig();
+      const play = { ...RadioHistory.empty(), entries: [[id, Math.max(Date.now(), displayListeningHistory().clearBefore + 1)]] };
+      localStorage.setItem(localHistoryKey, JSON.stringify(RadioHistory.merge([localListeningHistory(), play])));
+      if (config) {
+        const state = readHistoryState(config);
+        state.local = RadioHistory.merge([state.local, play]);
+        state.dirty = true;
+        saveHistoryState(config, state);
+        clearTimeout(historySyncTimer);
+        historySyncTimer = setTimeout(syncListeningHistory, 1200);
+      }
+      refreshHistory();
+    } catch (_) {
+      $('historySyncStatus').textContent = 'Could not save listening history on this device.';
+    }
+  }
+
+  function clearListeningHistory() {
+    const display = displayListeningHistory();
+    const clearBefore = Math.max(Date.now(), display.clearBefore, ...display.entries.map(([, at]) => at));
+    const cleared = { ...RadioHistory.empty(), clearBefore };
+    localStorage.setItem(localHistoryKey, JSON.stringify(cleared));
+    const config = historyConfig();
+    if (config) {
+      const state = readHistoryState(config);
+      state.local = cleared;
+      state.remote = cleared;
+      state.clearPending = state.dirty = true;
+      saveHistoryState(config, state);
+      $('historySyncStatus').textContent = 'History cleared here. Relay update pending.';
+      void syncListeningHistory();
+    }
+    refreshHistory();
+  }
+
+  async function syncListeningHistory() {
+    historySyncRequested = true;
+    if (historySyncRunning) return historySyncRunning;
+    const run = async () => {
+      while (historySyncRequested) {
+        historySyncRequested = false;
+        const config = historyConfig();
+        if (!config) return;
+        const assertConfig = () => {
+          const current = historyConfig();
+          if (current?.account !== config.account || current.relay !== config.relay || current.session !== config.session) {
+            throw new Error('History sync settings changed.');
+          }
+        };
+        const status = $('historySyncStatus');
+        status.textContent = readHistoryState(config).clearPending ? 'Syncing pending history clear…' : 'Syncing history…';
+        try {
+          const signer = await getListeningSigner();
+          assertConfig();
+          if (config.account !== signer.pubkey) throw new Error('Reconnect the account enabled for history sync.');
+          if (!signer.encryptHistory || !signer.decryptHistory) throw new Error('Your signer needs NIP-44 support for history sync.');
+          const tools = await getNostrTools();
+          const device = historyDevice();
+          const filter = { kinds: [RadioHistory.kind], authors: [config.account], '#t': [RadioHistory.topic], limit: 500 };
+          const events = RadioHistory.newestSnapshots(await RadioNostrSync.exchange(config.relay, signer, tools, filter));
+          assertConfig();
+          const remote = [];
+          for (const [address, event] of events) {
+            if (address === device || !RadioHistory.isEncrypted(event.content)) continue;
+            const plain = await signer.decryptHistory(event.content);
+            assertConfig();
+            try { remote.push(RadioHistory.decode(plain)); } catch (_) {}
+          }
+          const state = readHistoryState(config);
+          state.remote = RadioHistory.merge([{ ...RadioHistory.empty(), clearBefore: state.remote.clearBefore }, ...remote]);
+          saveHistoryState(config, state);
+          const localHistory = localListeningHistory();
+          const remoteCutoff = { ...RadioHistory.empty(), clearBefore: state.remote.clearBefore };
+          localStorage.setItem(localHistoryKey, JSON.stringify(RadioHistory.merge([localHistory, remoteCutoff])));
+          refreshHistory();
+          if (state.dirty) {
+            const content = await signer.encryptHistory(JSON.stringify(RadioHistory.merge([state.local, remoteCutoff])));
+            if (!RadioHistory.isEncrypted(content)) throw new Error('Signer returned invalid encrypted history.');
+            assertConfig();
+            const createdAt = Math.max(Math.floor(Date.now() / 1000), state.lastPublished + 1, (events.get(device)?.created_at || 0) + 1);
+            const event = await RadioNostrSync.signVerified(signer, {
+              kind: RadioHistory.kind, created_at: createdAt, content, tags: [['d', device], ['t', RadioHistory.topic]]
+            }, tools);
+            assertConfig();
+            await RadioNostrSync.exchange(config.relay, signer, tools, null, event);
+            assertConfig();
+            const current = readHistoryState(config);
+            if (JSON.stringify(current.local) === JSON.stringify(state.local)) current.dirty = false;
+            if (current.local.clearBefore <= state.local.clearBefore) current.clearPending = false;
+            current.lastPublished = Math.max(current.lastPublished, createdAt);
+            saveHistoryState(config, current);
+            refreshHistory();
+          }
+          status.textContent = readHistoryState(config).dirty ? 'New history is pending. Retry sync.' : 'Listening history synced.';
+        } catch (_) {
+          if (historyConfig()?.session === config.session) {
+            status.textContent = readHistoryState(config).clearPending
+              ? 'History cleared here. Relay update pending. Retry sync.'
+              : 'Could not sync history. You can still listen and retry.';
+          }
+        }
+      }
+    };
+    historySyncRunning = (navigator.locks ? navigator.locks.request('guaka-listening-history', run) : run()).finally(() => {
+      historySyncRunning = null;
+      if (historySyncRequested) void syncListeningHistory();
+    });
+    return historySyncRunning;
+  }
+
+  function disableListeningSync() {
+    localStorage.removeItem(historyConfigKey);
+    $('syncListeningHistory').checked = false;
+    $('inHistoryRelay').disabled = false;
+    $('historySyncStatus').textContent = 'History is local.';
+    refreshHistory();
   }
 
   function stationPendingKey(account) {
@@ -2445,42 +2674,21 @@
   }
 
   async function probeSameOriginBackend() {
-    const healthUrl = '/api/health';
-    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), 2500) : null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
     try {
-      const res = await fetch(healthUrl, {
+      const response = await fetch('/api/health', {
         headers: { Accept: 'application/json' },
-        signal: ctrl ? ctrl.signal : undefined
+        signal: controller.signal
       });
-      if (!res.ok) {
-        sameOriginPlexProxyReady = false;
-        setSettingsStatus('Backend health check unavailable (' + res.status + '). Running standalone mode.', '');
-        return false;
-      }
-      const data = await res.json();
-      if (!data || !data.ok) {
-        sameOriginPlexProxyReady = false;
-        setSettingsStatus('Backend responded but is not ready. Running standalone mode.', '');
-        return false;
-      }
-      sameOriginPlexProxyReady = !!data.plexProxyReady;
-      const status = [];
-      status.push('Same-origin backend detected');
-      if (data.ownerConfigured) status.push('friend policy ready');
-      if (data.wrapsterPlexReady) status.push('Wrapster Plex ready');
-      else if (data.plexConfigured) status.push('plex upstream configured');
-      setSettingsStatus(status.join(' - '), 'ok');
-      return true;
-    } catch (err) {
+      const data = response.ok ? await response.json() : null;
+      sameOriginPlexProxyReady = Boolean(data?.ok && data.plexProxyReady);
+      return Boolean(data?.ok);
+    } catch (_) {
       sameOriginPlexProxyReady = false;
-      if (err && (err.name === 'AbortError' || /Failed to fetch|NetworkError|Load failed/i.test(String(err.message || err)))) {
-        setSettingsStatus('No backend at /api/health. Running standalone mode.', '');
-        return false;
-      }
       return false;
     } finally {
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     }
   }
 
@@ -2863,15 +3071,14 @@
     if (c.token) autoDetectServersFromToken().catch(() => {});
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
-    setTimeout(function () {
-      var inp = options.focusNostr ? $('inNsec') : $('inToken');
-      if (inp) inp.focus();
-    }, 150);
+    const focusTarget = options.focusNostr ? $('inNsec') : $('btnCloseSettings');
+    focusTarget.focus({ preventScroll: true });
   }
 
   function closeSettingsModal() {
     $('settingsModal').classList.remove('open');
     syncModalBodyScrollLock();
+    $('btnSettings').focus({ preventScroll: true });
   }
 
   function syncModalBodyScrollLock() {
@@ -4871,6 +5078,25 @@
     return name + ' - ' + artist;
   }
 
+  function plexListeningRow(item, itemType, set, index) {
+    const album = itemType === 'album';
+    const key = String(item.ratingKey || '');
+    const title = escapeHtml(album ? item.title || '[Album]' : trackDisplayText(item));
+    const artwork = album ? albumDetailArtUrl(item, []) : nowPlayingArtUrl(item, {
+      ratingKey: item.parentRatingKey, thumb: item.parentThumb
+    }, [item]);
+    const starred = (album ? getStarredAlbums() : getStarredTracks()).has(key);
+    const attributes = album ? 'data-open-album="' + escapeHtml(key) + '"' :
+      'data-track-index="' + index + '" data-set="' + set + '"';
+    const playable = album ? Boolean(key) : Boolean(getFirstPlayablePartKey(item));
+    return '<li class="radio-item"><button type="button" class="radio-row-main" ' + attributes +
+      (playable ? '' : ' disabled') + '><img class="radio-thumb" src="' + escapeHtml(artwork) + '" alt="" loading="lazy" />' +
+      '<span class="radio-title">' + title + '</span></button>' +
+      (key ? '<button type="button" class="star-btn' + (starred ? ' starred' : '') + '" data-library-star="' +
+        itemType + '" data-rating-key="' + escapeHtml(key) + '" aria-label="Favorite ' + title +
+        '" aria-pressed="' + starred + '">' + starIconHtml(starred) + '</button>' : '') + '</li>';
+  }
+
   function renderLibraryView() {
     const wrap = $('viewLibrary');
     if (!wrap) return;
@@ -4891,12 +5117,12 @@
 
     const favoriteTrackHtml = starredTracks.length
       ? starredTracks
-          .map((t, idx) => '<li><button type="button" data-track-index="' + idx + '" data-set="fav">' + escapeHtml(trackDisplayText(t)) + '</button></li>')
+          .map((item, index) => plexListeningRow(item, 'track', 'fav', index))
           .join('')
       : '<li class="empty-state">Star a track to pin it here.</li>';
     const favoriteAlbumHtml = starredAlbums.length
       ? starredAlbums
-          .map((a) => '<li><button type="button" data-open-album="' + escapeHtml(String(a.ratingKey || '')) + '">' + escapeHtml(a.title || '[Album]') + '</button></li>')
+          .map((item) => plexListeningRow(item, 'album'))
           .join('')
       : '<li class="empty-state">Star an album to save it here.</li>';
     const favoriteStationHtml = starredStations.length
@@ -4904,9 +5130,25 @@
           .map(stationRowHtml)
           .join('')
       : '<li class="empty-state">Star a station in Radio to pin it here.</li>';
+    const listening = displayListeningHistory().entries.map(([id]) => {
+      const station = id.startsWith('radio:') ? radioStations.find((item) => item.id === id.slice(6)) : null;
+      const title = station?.title || (id.startsWith('youtube:') ? 'YouTube · ' + id.slice(8) : id.slice(6));
+      return { id, station, title };
+    }).filter((item) => searchMatchesBlob(item.title.toLowerCase(), searchQuery));
+    const listeningRows = listening.map(({ id, station, title }) => station ? stationRowHtml(station) :
+      '<li class="radio-item"><button type="button" class="radio-row-main" data-history-id="' + escapeHtml(id) + '"' +
+      (id.startsWith('radio:') ? ' disabled' : '') + '><img class="radio-thumb" alt="" src="' + fallbackThumbDataUrl() + '" />' +
+      '<span class="radio-title">' + escapeHtml(title) + '</span></button></li>').join('');
+    const config = historyConfig();
+    const pendingClear = config && readHistoryState(config).clearPending;
+    const listeningHtml = '<section class="library-card"><h3>Radio and YouTube</h3>' +
+      '<button type="button" class="btn" id="btnClearHistory">Clear history</button>' +
+      '<p id="historyReplayStatus" role="status">' + (pendingClear ? 'History cleared here. Relay update pending.' : '') +
+      '</p><ul class="radio-list">' +
+      (listeningRows || '<li class="empty-state">No radio or YouTube plays yet.</li>') + '</ul></section>';
     const recentHtml = recent.length
       ? recent
-          .map((t, idx) => '<li><button type="button" data-track-index="' + idx + '" data-set="recent">' + escapeHtml(trackDisplayText(t)) + '</button></li>')
+          .map((item, index) => plexListeningRow(item, 'track', 'recent', index))
           .join('')
       : '<li class="empty-state">Play songs to build your history.</li>';
 
@@ -4914,10 +5156,10 @@
       '<div class="library-grid">' +
       (showFavorites
         ? '<section class="library-card"><h3>Favorite Stations</h3><ul class="radio-list">' + favoriteStationHtml + '</ul></section>' +
-          '<section class="library-card"><h3>Favorite Tracks</h3><ul class="library-list">' + favoriteTrackHtml + '</ul></section>' +
-          '<section class="library-card"><h3>Favorite Albums</h3><ul class="library-list">' + favoriteAlbumHtml + '</ul></section>'
+          '<section class="library-card"><h3>Favorite Tracks</h3><ul class="radio-list">' + favoriteTrackHtml + '</ul></section>' +
+          '<section class="library-card"><h3>Favorite Albums</h3><ul class="radio-list">' + favoriteAlbumHtml + '</ul></section>'
         : '') +
-      (showRecent ? '<section class="library-card"><h3>Recently Played</h3><ul class="library-list">' + recentHtml + '</ul></section>' : '') +
+      (showRecent ? listeningHtml + '<section class="library-card"><h3>Recently played on Plex</h3><ul class="radio-list">' + recentHtml + '</ul></section>' : '') +
       '</div>';
 
     wrap.querySelectorAll('button[data-open-album]').forEach((btn) => {
@@ -4938,7 +5180,38 @@
         playIndex(0, { crossfade: false });
       };
     });
+    wrap.querySelectorAll('[data-library-star]').forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.dataset.ratingKey;
+        if (btn.dataset.libraryStar === 'album') {
+          const album = starredAlbums.find((item) => String(item.ratingKey) === key);
+          if (album) notifyFavoriteAlbum(album, toggleAlbumStar(key, album));
+        } else {
+          const track = (showRecent ? recent : starredTracks).find((item) => String(item.ratingKey) === key);
+          if (track) {
+            const starred = toggleTrackStar(key, track);
+            notifyFavorite(track, null, starred);
+            if (key === nowPlayingTrackKey) updateNowPlayingFavButton(key);
+          }
+        }
+        renderLibraryView();
+      };
+    });
     wireStationRows(wrap);
+    if (showRecent) {
+      $('btnClearHistory').onclick = clearListeningHistory;
+      wrap.querySelectorAll('[data-history-id]:not(:disabled)').forEach((btn) => {
+        btn.onclick = async () => {
+          const ready = await probeSameOriginBackend();
+          if (!ready) {
+            const status = $('historyReplayStatus');
+            if (status) status.textContent = 'To replay YouTube history, open Radio Guaka on a Go media gateway.';
+            return;
+          }
+          void playYouTubeFromUrl(btn.dataset.historyId.slice(8));
+        };
+      });
+    }
   }
 
   function playlistIdFromFilename(filename) {
@@ -5672,6 +5945,7 @@
       showError('Invalid YouTube link. Use a single video URL or video ID.');
       return;
     }
+    const request = ++youtubePlaybackRequest;
     const nextHash = youtubeHash(videoId);
     ytDebug('play-video-id', { videoId, nextHash });
     if (location.hash !== nextHash) location.hash = nextHash;
@@ -5681,6 +5955,7 @@
     let stage = 'resolve';
     try {
       const resolved = await resolveYouTubeViaPiped(videoId);
+      if (request !== youtubePlaybackRequest) return;
       const playbackUrl = resolved.proxyUrl || resolved.streamUrl;
       ytDebug('playback-url-selected', {
         videoId,
@@ -5688,10 +5963,12 @@
         playbackUrl,
         snapshotBeforeSet: audioDebugSnapshot(audio)
       });
+      recordRadioSelection = false;
       setAudioElementSource(audio, playbackUrl);
       ytDebug('audio-src-set', { videoId, snapshotAfterSet: audioDebugSnapshot(audio) });
       stage = 'audio-play';
       await audio.play();
+      if (request !== youtubePlaybackRequest) return;
       ytDebug('audio-play-resolved', { videoId, snapshotAfterPlay: audioDebugSnapshot(audio) });
       isRadioMode = false;
       currentRadioIdx = -1;
@@ -5707,6 +5984,9 @@
         attemptsText: resolved.attemptsText || ''
       };
       setYouTubeNowPlaying(youtubeSelection);
+      restoredYouTubeId = '';
+      savePlaybackState({ type: 'youtube', videoId, title: resolved.title });
+      recordListening('youtube:' + videoId);
       const playMsg = resolved.attemptsText
         ? ('Playing: ' + resolved.title + ' | attempts: ' + resolved.attemptsText)
         : ('Playing: ' + resolved.title);
@@ -5715,6 +5995,7 @@
       updatePlayPauseButton();
       updateNextAlbumButtonVisibility();
     } catch (err) {
+      if (request !== youtubePlaybackRequest) return;
       const detail = err && err.message ? err.message : String(err || 'Unknown error');
       ytDebug('play-failed', {
         videoId,
@@ -6056,7 +6337,10 @@
     const opts = options || {};
     const station = radioStations[i];
     if (!station || !station.url) return;
+    ++youtubePlaybackRequest;
+    restoredYouTubeId = '';
     clearNowPlayingNoteSchedule();
+    recordRadioSelection = true;
     currentRadioIdx = i;
     isRadioMode = true;
     const audio = $('audio');
@@ -6080,7 +6364,7 @@
     updateNextAlbumButtonVisibility();
     applyPlaybackModeUI();
     sendChatContext();
-    scheduleNotifyNowPlaying(null, station);
+
     const rh = radioHash(station.id);
     if (location.hash !== rh) location.hash = rh;
   }
@@ -6417,6 +6701,8 @@
     syncSidebarNavActive();
     $('viewLibrary').style.display = 'none';
     $('viewPlaylists').style.display = 'none';
+    $('viewYouTube').style.display = 'none';
+    $('viewRadio').style.display = 'none';
     currentAlbum = album;
     location.hash = albumHash(album.ratingKey);
     $('viewAlbums').style.display = 'none';
@@ -7318,6 +7604,7 @@
     const audio = $('audio');
     const btn = $('btnPlayPause');
     if (!audio || !btn) return;
+    audio.closest('.player-bar').classList.toggle('has-selection', Boolean(audio.getAttribute('src') || restoredYouTubeId));
     const isPlaying = !audio.paused && !audio.ended;
     btn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
     btn.setAttribute('title', isPlaying ? 'Pause' : 'Play');
@@ -7492,6 +7779,9 @@
   }
 
   function playIndex(i, options) {
+    ++youtubePlaybackRequest;
+    restoredYouTubeId = '';
+    recordRadioSelection = false;
     const opts = options || {};
     const t = currentTracks[i];
     const partKey = getFirstPlayablePartKey(t);
@@ -7795,10 +8085,9 @@
   bindClick('btnFavNow', () => {
     if (isRadioMode && currentRadioIdx >= 0 && radioStations[currentRadioIdx]) {
       const id = radioStations[currentRadioIdx].id;
-      const nowStarred = toggleStationStar(id);
+      toggleStationStar(id);
       updateNowPlayingStationFavButton(id);
       renderRadioView();
-      notifyFavorite(null, radioStations[currentRadioIdx], nowStarred);
       return;
     }
     if (!nowPlayingTrackKey) return;
@@ -7821,6 +8110,11 @@
   });
   bindClick('btnPlayPause', async () => {
     const audio = $('audio');
+    if (restoredYouTubeId && !audio.currentSrc) {
+      if (await probeSameOriginBackend()) await playYouTubeFromUrl(restoredYouTubeId);
+      else showError('YouTube playback requires the Go media gateway.');
+      return;
+    }
     if (!audio.currentSrc) {
       if (playingIdx >= 0 && currentTracks[playingIdx]) {
         playIndex(playingIdx);
@@ -7831,7 +8125,7 @@
           console.error(err);
           return false;
         });
-        if (!started) showError('Nothing to play yet. Open an album or enable and use shuffle.');
+        if (!started) showError('Choose a station or track to play.');
       }
       return;
     }
@@ -7839,6 +8133,13 @@
     else audio.pause();
   });
 
+  $('audio').addEventListener('playing', () => {
+    const station = radioStations[currentRadioIdx];
+    if (!recordRadioSelection || !isRadioMode || !station) return;
+    recordRadioSelection = false;
+    recordListening('radio:' + station.id);
+    scheduleNotifyNowPlaying(null, station);
+  });
   $('audio').addEventListener('timeupdate', maybePersistPlaybackState);
   $('audio').addEventListener('timeupdate', () => {
     const a = $('audio');
@@ -7931,8 +8232,14 @@
     if (document.visibilityState === 'hidden') persistCurrentPlaybackState({ forceNostrSync: true });
   });
 
-  async function restorePlaybackFromState() {
+  async function restorePlaybackFromState(options = {}) {
     const rawSaved = loadPlaybackState();
+    if (rawSaved?.type === 'youtube' && extractYouTubeVideoId(rawSaved.videoId) === rawSaved.videoId) {
+      restoredYouTubeId = rawSaved.videoId;
+      setYouTubeNowPlaying({ videoId: restoredYouTubeId, title: rawSaved.title });
+      updatePlayPauseButton();
+      return;
+    }
     if (rawSaved && rawSaved.type === 'radio') {
       const idx = radioStations.findIndex((station) => station.id === rawSaved.stationId);
       if (idx >= 0) playRadioIndex(idx, { autoplay: false });
@@ -7964,7 +8271,15 @@
       title: saved.albumTitle || '[Album]',
       parentTitle: saved.albumParentTitle || ''
     };
-    await openAlbum(album);
+    if (options.background) {
+      const data = await plexFetch('/library/metadata/' + encodeURIComponent(String(album.ratingKey)) + '/children');
+      const tracks = plexMetadataArray(data.MediaContainer).filter(isPlexAudioLeafForPlayback);
+      if ($('audio').currentSrc || loadPlaybackState()?.updatedAt !== rawSaved?.updatedAt) return;
+      currentAlbum = album;
+      currentTracks = tracks;
+    } else {
+      await openAlbum(album);
+    }
     let index = saved.trackRatingKey
       ? currentTracks.findIndex((t) => String(t.ratingKey || '') === String(saved.trackRatingKey))
       : Number(saved.trackIndex);
@@ -8184,6 +8499,63 @@
     if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
     filterDebounceTimer = setTimeout(updateFilterState, 200);
   });
+  bindClick('btnConnectRemoteSigner', async () => {
+    try {
+      if (listeningSigner || readListeningSetting(remoteSignerKey, null)) {
+        throw new Error('Disconnect the saved remote signer before connecting another one.');
+      }
+      const config = RadioRemoteSigner.parseBunker($('inRemoteSigner').value);
+      $('inRemoteSigner').value = '';
+      const signer = await connectBrowserRemoteSigner(config, false);
+      if (historyConfig()?.account === signer.pubkey) void syncListeningHistory();
+      if (localStorage.getItem(stationSyncAccountKey) === signer.pubkey) void syncStationFavorites();
+    } catch (error) {
+      $('remoteSignerStatus').textContent = error.message || 'Could not connect to remote signer.';
+    }
+  });
+  bindClick('btnDisconnectRemoteSigner', async () => {
+    if (remoteSignerConnection) return;
+    const saved = readListeningSetting(remoteSignerKey, null);
+    listeningSigner?.close();
+    listeningSigner = null;
+    localStorage.removeItem(remoteSignerKey);
+    $('btnDisconnectRemoteSigner').hidden = true;
+    $('remoteSignerStatus').textContent = 'Remote signer disconnected.';
+    if (historyConfig()?.account === saved?.pubkey) disableListeningSync();
+    if (localStorage.getItem(stationSyncAccountKey) === saved?.pubkey) {
+      localStorage.removeItem(stationSyncAccountKey);
+      $('syncStationFavorites').checked = false;
+    }
+    try {
+      await RadioRemoteSigner.removeTransportKey(saved?.keyReference);
+    } catch (_) {
+      $('remoteSignerStatus').textContent = 'Remote signer disconnected. Clear this site’s data to remove the encrypted connection key.';
+    }
+  });
+  bindEvent('syncListeningHistory', 'change', async () => {
+    const checkbox = $('syncListeningHistory');
+    if (!checkbox.checked) { disableListeningSync(); return; }
+    try {
+      const relay = RadioHistory.secureRelay($('inHistoryRelay').value);
+      const signer = await getListeningSigner();
+      if (!checkbox.checked) return;
+      if (!signer.encryptHistory || !signer.decryptHistory) throw new Error('Your signer needs NIP-44 support for history sync.');
+      localStorage.setItem(historyConfigKey, JSON.stringify({ account: signer.pubkey, relay, session: crypto.randomUUID() }));
+      $('inHistoryRelay').disabled = true;
+      void syncListeningHistory();
+    } catch (error) {
+      checkbox.checked = false;
+      $('historySyncStatus').textContent = error.message;
+    }
+  });
+  bindClick('btnSyncHistory', () => {
+    if (historyConfig()) void syncListeningHistory();
+    else $('historySyncStatus').textContent = 'Enable listening history sync first.';
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && historyConfig()) void syncListeningHistory();
+  });
+  window.addEventListener('online', () => { if (historyConfig()) void syncListeningHistory(); });
   bindEvent('syncStationFavorites', 'change', async () => {
     const checkbox = $('syncStationFavorites');
     if (!checkbox.checked) {
@@ -8362,6 +8734,16 @@
   });
 
   (function init() {
+    const history = historyConfig();
+    $('syncListeningHistory').checked = Boolean(history);
+    $('inHistoryRelay').disabled = Boolean(history);
+    $('inHistoryRelay').value = history?.relay || '';
+    const savedSigner = readListeningSetting(remoteSignerKey, null);
+    if (savedSigner && !savedSigner.keyReference) {
+      localStorage.removeItem(remoteSignerKey);
+      $('remoteSignerStatus').textContent = 'Reconnect your remote signer to use encrypted session storage.';
+    }
+    $('btnDisconnectRemoteSigner').hidden = !savedSigner?.keyReference;
     $('syncStationFavorites').checked = Boolean(localStorage.getItem(stationSyncAccountKey));
     $('shareNowPlaying').checked = localStorage.getItem('guakaShareNowPlaying') === 'true';
     updateShortcutModifierLabels();
@@ -8372,6 +8754,7 @@
     updateNostrIdentityUi();
     const legacyConnection = $('inNsec').value ? initNostrFromNsec($('inNsec').value) : Promise.resolve();
     if ($('syncStationFavorites').checked) legacyConnection.then(syncStationFavorites).catch(() => {});
+    if (history) legacyConnection.then(syncListeningHistory).catch(() => {});
     playbackMode = getPlaybackMode();
     applyPlaybackModeUI();
     updateNowPlayingFavButton('');
@@ -8383,7 +8766,7 @@
     const initialHash = (location.hash || '').trim();
     if (!initialHash || /^#(radio|youtube|favorites|recent|playlists)$/.test(initialHash)) applyHashRoute();
     const initialSaved = loadPlaybackState();
-    if ((!initialHash || /^#(radio|youtube|favorites|recent|playlists)$/.test(initialHash)) && initialSaved?.type === 'radio') {
+    if ((!initialHash || /^#(radio|youtube|favorites|recent|playlists)$/.test(initialHash)) && ['radio', 'youtube'].includes(initialSaved?.type)) {
       restorePlaybackFromState();
     }
     if (c.server && c.token) {
@@ -8394,7 +8777,12 @@
         const isAlbumRoute = /^#album\/[^/]+$/.test(hash);
         const isArtistRoute = /^#artist\/[^/]+$/.test(hash);
         const isDirectoryRoute = isDirectoryRouteHash(hash);
-        if (isViewRoute || isAlbumRoute || isArtistRoute || isDirectoryRoute) {
+        const restoreInBackground = (!hash || /^#(albums|youtube|playlists|favorites|recent|radio)$/.test(hash)) &&
+          initialSaved?.albumRatingKey;
+        if (restoreInBackground) {
+          applyHashRoute();
+          void restorePlaybackFromState({ background: true }).catch(() => {});
+        } else if (isViewRoute || isAlbumRoute || isArtistRoute || isDirectoryRoute) {
           const saved = loadPlaybackState();
           if (isRadioRouteHash(hash) && saved?.type === 'radio' && hash === radioHash(saved.stationId)) {
             restorePlaybackFromState();

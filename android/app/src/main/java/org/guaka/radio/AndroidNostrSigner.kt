@@ -83,6 +83,7 @@ internal class AndroidSignerBridge(
         payload: String,
         signerPackage: String?,
         currentUser: String? = null,
+        peerPubkey: String? = null,
     ): SignerResponse =
         requestMutex.withLock {
             val id = UUID.randomUUID().toString()
@@ -95,6 +96,7 @@ internal class AndroidSignerBridge(
                     putExtra(EXTRA_TYPE, type)
                     putExtra(EXTRA_ID, id)
                     currentUser?.let { putExtra(EXTRA_CURRENT_USER, it) }
+                    peerPubkey?.let { putExtra("pubkey", it) }
                 }
                 withContext(Dispatchers.Main.immediate) { launchIntent(intent) }
                 try {
@@ -108,6 +110,14 @@ internal class AndroidSignerBridge(
         }
 
     private inner class BoundSigner(override val pubkey: String, private val packageName: String) : NostrSigner {
+        override suspend fun encryptHistory(plaintext: String): String = historyRequest("nip44_encrypt", plaintext)
+
+        override suspend fun decryptHistory(ciphertext: String): String = historyRequest("nip44_decrypt", ciphertext)
+
+        private suspend fun historyRequest(type: String, payload: String): String =
+            request(type, payload, packageName, currentUser = pubkey, peerPubkey = pubkey).result
+                ?: throw IOException("External signer returned no NIP-44 result.")
+
         override suspend fun sign(template: JSONObject): JSONObject {
             val signableTemplate = JSONObject(template.toString()).put("pubkey", pubkey).apply {
                 remove("id")

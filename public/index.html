@@ -2251,6 +2251,14 @@
       <div class="settings-form">
       <section class="settings-section" aria-label="Nostr settings">
       <p class="settings-section-title">Nostr</p>
+      <label for="inRemoteSigner">Remote signer bunker URL</label>
+      <input id="inRemoteSigner" type="password" autocomplete="off" placeholder="bunker://…" />
+      <div class="inline-actions">
+        <button type="button" class="btn" id="btnConnectRemoteSigner">Connect remote signer</button>
+        <button type="button" class="btn" id="btnDisconnectRemoteSigner" hidden>Disconnect remote signer</button>
+        <a id="remoteSignerAuth" target="_blank" rel="noopener noreferrer" hidden>Authorize remote signer</a>
+      </div>
+      <p id="remoteSignerStatus" role="status"></p>
       <label class="sync-choice"><input id="syncStationFavorites" type="checkbox" /> Share and sync radio favorites publicly</label>
       <button type="button" class="btn" id="btnSyncStations">Sync favorites</button>
       <p id="stationSyncStatus" role="status"></p>
@@ -2266,6 +2274,15 @@
         <button type="button" class="btn danger" id="btnClearNostr">Remove nsec</button>
       </div>
       <div class="inline-note" id="nostrIdentity"></div>
+      </section>
+      <section class="settings-section" aria-label="Listening history sync">
+      <p class="settings-section-title">Listening history</p>
+      <p>Radio and YouTube history is encrypted for your Nostr account. Use the same relay on each device. Relays may keep older encrypted copies.</p>
+      <label for="inHistoryRelay">History relay URL</label>
+      <input id="inHistoryRelay" type="url" placeholder="wss://…" autocomplete="off" />
+      <label class="sync-choice"><input id="syncListeningHistory" type="checkbox" /> Sync listening history</label>
+      <button type="button" class="btn" id="btnSyncHistory">Retry history sync</button>
+      <p id="historySyncStatus" role="status"></p>
       </section>
       <section class="settings-section" aria-label="Plex settings">
       <p class="settings-section-title">Plex</p>
@@ -2315,7 +2332,7 @@
     <img id="npArt" class="np-art" src="" alt="Now playing artwork" />
     <div class="player-main">
       <div class="info">
-        <div class="title np-meta-line"><a id="npTitle" href="#" target="_blank" rel="noopener">—</a><a id="npTitleWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Song on Wikipedia" aria-label="Song on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
+        <div class="title np-meta-line"><a id="npTitle" href="#" target="_blank" rel="noopener">Choose something to play</a><a id="npTitleWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Song on Wikipedia" aria-label="Song on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
         <div class="sub np-meta-line"><a id="npAlbum" href="#" target="_blank" rel="noopener"></a><a id="npAlbumWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Album on Wikipedia" aria-label="Album on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
         <div class="sub np-meta-line"><a id="npSub" href="#" target="_blank" rel="noopener"></a><a id="npSubWiki" class="wiki-link" href="#" target="_blank" rel="noopener" title="Artist on Wikipedia" aria-label="Artist on Wikipedia"><img src="wp-favicon.ico" alt="Wikipedia" /></a></div>
         <div class="sub" id="npNext">Up next: —</div>
@@ -2388,6 +2405,7 @@
 
   <script src="/js/player/bootstrap.js"></script>
   <script src="/js/channels.js"></script>
+  <script src="/js/player/listening-history.js"></script>
   <script src="/js/player/nostr-sync.js"></script>
   <script src="/js/player/app.js"></script>
 

@@ -42,6 +42,7 @@ android {
     }
     buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isReturnDefaultValues = true }
+    sourceSets.getByName("test").resources.srcDir("../../tests/fixtures")
     signingConfigs {
         create("beta") {
             storeFile = betaKeystore.orNull?.let(::file)

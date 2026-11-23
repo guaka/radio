@@ -7,6 +7,8 @@ import java.security.MessageDigest
 internal interface NostrSigner {
     val pubkey: String
     suspend fun sign(template: JSONObject): JSONObject
+    suspend fun encryptHistory(plaintext: String): String = error("This signer does not support NIP-44.")
+    suspend fun decryptHistory(ciphertext: String): String = error("This signer does not support NIP-44.")
 }
 
 internal fun nostrEventId(event: JSONObject): String {

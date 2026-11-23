@@ -14,6 +14,8 @@ import com.vitorpamplona.quartz.nip01Core.signers.NostrSignerInternal
 import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerRequest
 import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerRequestConnect
 import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerRequestGetPublicKey
+import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerRequestNip44Decrypt
+import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerRequestNip44Encrypt
 import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerRequestSign
 import com.vitorpamplona.quartz.nip46RemoteSigner.BunkerResponse
 import com.vitorpamplona.quartz.nip46RemoteSigner.NostrConnectEvent
@@ -58,6 +60,12 @@ internal class NostrRemoteSigner private constructor(
             .getOrElse { throw IOException("Remote signer returned an invalid event.", it) }
         return validateSignedEvent(template, signedEvent, pubkey)
     }
+
+    override suspend fun encryptHistory(plaintext: String): String =
+        requireNotNull(session.request(BunkerRequestNip44Encrypt(pubKey = pubkey, message = plaintext)).result)
+
+    override suspend fun decryptHistory(ciphertext: String): String =
+        requireNotNull(session.request(BunkerRequestNip44Decrypt(pubKey = pubkey, ciphertext = ciphertext)).result)
 
     override fun close() = session.close()
 

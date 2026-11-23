@@ -5,7 +5,7 @@ namespace RadioNostrSync {
 
   export function favoriteTemplate(id, title, starred, createdAt) {
     if (!stationIdPattern.test(id)) throw new Error('Invalid station ID.');
-    const name = title.trim().slice(0, 120);
+    const name = title.trim().slice(0, 160);
     const tags = [
       ['t', 'radiostr'], ['t', 'favorite'], ['client', 'radio-guaka'],
       ['radiostr_station', id], ['radiostr_action', starred ? 'star' : 'unstar'],
@@ -105,5 +105,140 @@ namespace RadioNostrSync {
         }
       };
     });
+  }
+}
+
+namespace RadioRemoteSigner {
+  const kind = 24133;
+  const permissions = 'sign_event:1,sign_event:22242,sign_event:30078,nip44_encrypt,nip44_decrypt';
+
+  async function withKeyStore(mode, access) {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('guakaRemoteSigner', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('connections');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = database.transaction('connections', mode);
+        const request = access(transaction.objectStore('connections'));
+        transaction.oncomplete = () => resolve(request.result);
+        transaction.onabort = transaction.onerror = () => reject(transaction.error || request.error);
+      });
+    } finally {
+      database.close();
+    }
+  }
+
+  export async function saveTransportKey(transportKey) {
+    const reference = crypto.randomUUID();
+    const wrappingKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, transportKey);
+    await withKeyStore('readwrite', (store) => store.add({ wrappingKey, iv, ciphertext }, reference));
+    return reference;
+  }
+
+  export async function loadTransportKey(reference) {
+    if (typeof reference !== 'string') throw new Error('Reconnect your remote signer.');
+    const record = await withKeyStore('readonly', (store) => store.get(reference));
+    if (!record) throw new Error('Saved remote signer key is unavailable. Disconnect and reconnect.');
+    const { wrappingKey, iv, ciphertext } = record;
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wrappingKey, ciphertext));
+  }
+
+  export async function removeTransportKey(reference) {
+    if (typeof reference === 'string') await withKeyStore('readwrite', (store) => store.delete(reference));
+  }
+
+  export function parseBunker(input) {
+    const url = new URL(input.trim());
+    const remote = url.hostname.toLowerCase();
+    const relays = [...new Set(url.searchParams.getAll('relay').map(RadioHistory.secureRelay))];
+    if (url.protocol !== 'bunker:' || !/^[a-f0-9]{64}$/.test(remote) || !relays.length || relays.length > 8 ||
+        url.username || url.password || url.port || (url.pathname && url.pathname !== '/') || url.hash) {
+      throw new Error('Enter a valid bunker:// URL with a secure relay.');
+    }
+    return { remote, relays, secret: url.searchParams.get('secret') || '' };
+  }
+
+  export async function connect(tools, config, onAuth, isRestore) {
+    const clientKey = Uint8Array.from(config.key);
+    const client = tools.getPublicKey(clientKey);
+    const pool = new tools.SimplePool();
+    const conversationKey = tools.nip44.v2.utils.getConversationKey(clientKey, config.remote);
+    let closed = false;
+    const pending = new Map();
+    const seenAuth = new Set();
+    const subscription = pool.subscribeMany(config.relays, [{ kinds: [kind], authors: [config.remote], '#p': [client] }], {
+      onevent(event) {
+        if (closed || event.kind !== kind || event.pubkey !== config.remote || event.content.length > 90 * 1024 ||
+            !event.tags.some((tag) => tag[0] === 'p' && tag[1] === client) || !tools.verifyEvent(event)) return;
+        let response;
+        try { response = JSON.parse(tools.nip44.v2.decrypt(event.content, conversationKey)); }
+        catch (_) { return; }
+        const request = pending.get(response?.id);
+        if (!request) return;
+        if (response.result === 'auth_url') {
+          if (!seenAuth.has(event.id) && typeof response.error === 'string' && response.error.length <= 8192) {
+            seenAuth.add(event.id);
+            onAuth(response.error);
+          }
+        } else if (response.error || typeof response.result !== 'string') {
+          request.reject(new Error('Remote signer denied the request.'));
+        } else {
+          request.resolve(response.result);
+        }
+      }
+    });
+    function close() {
+      if (closed) return;
+      closed = true;
+      subscription.close();
+      pool.close(config.relays);
+      for (const request of pending.values()) request.reject(new Error('Remote signer disconnected.'));
+    }
+    async function request(method, params) {
+      if (closed) throw new Error('Remote signer disconnected.');
+      const id = crypto.randomUUID();
+      let timer;
+      const response = new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        timer = setTimeout(() => reject(new Error('Remote signer did not respond.')), 80_000);
+      });
+      try {
+        const content = tools.nip44.v2.encrypt(JSON.stringify({ id, method, params }), conversationKey);
+        const requestEvent = tools.finalizeEvent({
+          kind, created_at: Math.floor(Date.now() / 1000), tags: [['p', config.remote]], content
+        }, clientKey);
+          const sending = Promise.any(pool.publish(config.relays, requestEvent));
+        // An authenticated response is sufficient even if a relay failed to return an OK.
+        void sending.catch(() => {});
+        return await response;
+      } finally {
+        clearTimeout(timer);
+        pending.delete(id);
+      }
+    }
+    try {
+      if (!isRestore) {
+        const ack = await request('connect', [config.remote, config.secret || '', permissions]);
+        if (ack !== 'ack' && (!config.secret || ack !== config.secret)) throw new Error('Remote signer did not confirm the connection.');
+      }
+      const pubkey = await request('get_public_key', []);
+      if (!/^[a-f0-9]{64}$/.test(pubkey) || (isRestore && pubkey !== config.pubkey)) {
+        throw new Error('Remote signer account does not match.');
+      }
+      return {
+        pubkey, close,
+        signEvent: async (event) => JSON.parse(await request('sign_event', [JSON.stringify(event)])),
+        encryptHistory: (plaintext) => request('nip44_encrypt', [pubkey, plaintext]),
+        decryptHistory: (ciphertext) => request('nip44_decrypt', [pubkey, ciphertext])
+      };
+    } catch (error) {
+      close();
+      throw error;
+    }
   }
 }

@@ -3,6 +3,7 @@ package org.guaka.radio
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 /** Persistent listening choices and display text, never credentials or stream URLs. */
 class ListeningStore(context: Context) {
@@ -32,30 +33,158 @@ class ListeningStore(context: Context) {
         check(preferences.edit().putString(KEY_FAVORITES, encodeFavoriteIds(ids)).commit()) { "Could not save favorites." }
     }
 
+    internal data class HistorySync(
+        val account: String,
+        val relay: String,
+        val device: String,
+        val local: NostrHistory.Snapshot,
+        val remote: NostrHistory.Snapshot,
+        val dirty: Boolean,
+        val clearPending: Boolean,
+        val lastPublished: Long,
+    )
+
     @Synchronized
-    fun historyIds(): List<String> = decodeIds(preferences.getString(KEY_HISTORY, null))
+    internal fun historySync(): HistorySync? {
+        val account = preferences.getString(KEY_HISTORY_ACCOUNT, null) ?: return null
+        val relay = preferences.getString(KEY_HISTORY_RELAY, null) ?: return null
+        val device = preferences.getString(KEY_HISTORY_DEVICE, null) ?: return null
+        val data = readSyncState(account, relay)
+        return HistorySync(account, relay, device, decodeSnapshot(data.optString("local")), decodeSnapshot(data.optString("remote")),
+            data.optBoolean("dirty"), data.optBoolean("clearPending"), data.optLong("lastPublished"))
+    }
+
+    @Synchronized
+    internal fun configureHistorySync(account: String, relay: String) {
+        val device = preferences.getString(KEY_HISTORY_DEVICE, null) ?: UUID.randomUUID().toString()
+        check(preferences.edit().putString(KEY_HISTORY_ACCOUNT, account).putString(KEY_HISTORY_RELAY, relay)
+            .putString(KEY_HISTORY_DEVICE, device).commit()) { "Could not enable history sync." }
+    }
+
+    @Synchronized
+    internal fun disableHistorySync() {
+        check(preferences.edit().remove(KEY_HISTORY_ACCOUNT).remove(KEY_HISTORY_RELAY).commit()) { "Could not disable history sync." }
+    }
+
+    @Synchronized
+    fun historyIds(): List<String> {
+        val ids = localHistoryIds()
+        val sync = historySync() ?: return ids
+        val remoteIds = NostrHistory.merge(listOf(sync.local, sync.remote)).entries.map { it.id }
+        val cutoff = maxOf(sync.local.clearBefore, sync.remote.clearBefore)
+        val eligibleLocal = if (cutoff == 0L) ids else {
+            val timestamps = readLocalHistoryTimes()
+            ids.filter { !NostrHistory.eligible(it) || timestamps.optLong(it) > cutoff }
+        }
+        return (remoteIds + eligibleLocal).distinct().take(MAX_HISTORY)
+    }
 
     @Synchronized
     fun recordPlayed(id: String) {
         if (!isStableMediaId(id)) return
-        val ids = updateHistory(historyIds(), id)
-        check(preferences.edit().putString(KEY_HISTORY, encodeIds(ids)).commit()) { "Could not save history." }
+        val ids = updateHistory(localHistoryIds(), id)
+        val editor = preferences.edit().putString(KEY_HISTORY, encodeIds(ids))
+        if (NostrHistory.eligible(id)) {
+            val active = historySync()
+            val at = maxOf(System.currentTimeMillis(), (active?.local?.clearBefore ?: 0) + 1,
+                (active?.remote?.clearBefore ?: 0) + 1)
+            val times = readLocalHistoryTimes().put(id, at)
+            val bounded = JSONObject()
+            ids.filter(NostrHistory::eligible).forEach { mediaId ->
+                if (times.has(mediaId)) bounded.put(mediaId, times.optLong(mediaId))
+            }
+            editor.putString(KEY_HISTORY_TIMES, bounded.toString())
+            active?.let { sync ->
+                val local = NostrHistory.merge(listOf(sync.local, NostrHistory.Snapshot(entries = listOf(NostrHistory.Play(id, at)))))
+                saveSync(editor, sync.copy(local = local, dirty = true))
+                editor.putLong(KEY_HISTORY_WRITE, preferences.getLong(KEY_HISTORY_WRITE, 0L) + 1)
+            }
+        }
+        check(editor.commit()) { "Could not save history." }
     }
 
     @Synchronized
     fun clearHistory() {
-        check(preferences.edit().remove(KEY_HISTORY).commit()) { "Could not clear history." }
+        val editor = preferences.edit().remove(KEY_HISTORY).remove(KEY_HISTORY_TIMES)
+        historySync()?.let { sync ->
+            val cutoff = maxOf(System.currentTimeMillis(), sync.local.clearBefore, sync.remote.clearBefore,
+                sync.local.entries.maxOfOrNull { it.at } ?: 0L, sync.remote.entries.maxOfOrNull { it.at } ?: 0L)
+            saveSync(editor, sync.copy(local = NostrHistory.Snapshot(cutoff), remote = NostrHistory.Snapshot(cutoff),
+                dirty = true, clearPending = true))
+        }
+        check(editor.commit()) { "Could not clear history." }
+    }
+
+    @Synchronized
+    internal fun acceptRemoteHistory(work: HistorySync, remote: List<NostrHistory.Snapshot>): HistorySync? {
+        val current = currentWork(work) ?: return null
+        val merged = NostrHistory.merge(listOf(NostrHistory.Snapshot(current.remote.clearBefore)) + remote)
+        val editor = preferences.edit()
+        val cutoff = maxOf(current.local.clearBefore, merged.clearBefore)
+        val times = readLocalHistoryTimes()
+        if (cutoff > 0) {
+            editor.putString(KEY_HISTORY, encodeIds(localHistoryIds().filter { !NostrHistory.eligible(it) || times.optLong(it) > cutoff }))
+        }
+        val updated = current.copy(remote = merged)
+        saveSync(editor, updated)
+        check(editor.commit()) { "Could not store synced history." }
+        return updated
+    }
+
+    @Synchronized
+    internal fun acknowledgeHistory(work: HistorySync, publishedAt: Long) {
+        val current = currentWork(work) ?: return
+        val covered = current.local == work.local
+        val editor = preferences.edit()
+        saveSync(editor, current.copy(dirty = current.dirty && !covered,
+            clearPending = current.clearPending && current.local.clearBefore > work.local.clearBefore,
+            lastPublished = maxOf(current.lastPublished, publishedAt)))
+        check(editor.commit()) { "Could not store the relay acknowledgement." }
+    }
+
+    private fun currentWork(work: HistorySync) = historySync()?.takeIf {
+        it.account == work.account && it.relay == work.relay && it.device == work.device
+    }
+
+    private fun localHistoryIds() = decodeIds(preferences.getString(KEY_HISTORY, null))
+
+    private fun readLocalHistoryTimes() = runCatching {
+        JSONObject(preferences.getString(KEY_HISTORY_TIMES, null) ?: "{}")
+    }.getOrDefault(JSONObject())
+
+    private fun readSyncState(account: String, relay: String) = runCatching {
+        JSONObject(preferences.getString("historySync:$account:$relay", null) ?: "{}")
+    }.getOrDefault(JSONObject())
+
+    private fun decodeSnapshot(value: String) = runCatching { NostrHistory.decode(value) }
+        .getOrDefault(NostrHistory.Snapshot())
+
+    private fun saveSync(editor: android.content.SharedPreferences.Editor, state: HistorySync) {
+        editor.putString("historySync:${state.account}:${state.relay}", JSONObject()
+            .put("local", NostrHistory.encode(state.local)).put("remote", NostrHistory.encode(state.remote))
+            .put("dirty", state.dirty).put("clearPending", state.clearPending)
+            .put("lastPublished", state.lastPublished).toString())
+        editor.putLong(KEY_HISTORY_CHANGE, preferences.getLong(KEY_HISTORY_CHANGE, 0L) + 1)
     }
 
     fun observeChanges(onChange: () -> Unit): () -> Unit {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == KEY_FAVORITES || key == KEY_PLAYBACK || key == KEY_HISTORY || key == KEY_PREVIEW) onChange()
+            if (key == KEY_FAVORITES || key == KEY_PLAYBACK || key == KEY_HISTORY || key == KEY_PREVIEW ||
+                key == KEY_HISTORY_CHANGE || key == KEY_HISTORY_ACCOUNT) onChange()
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
         return { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     fun plexGeneration(): Long = preferences.getLong("plexGeneration", 0L)
+
+    internal fun observeLocalHistoryWrites(onWrite: () -> Unit): () -> Unit {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_HISTORY_WRITE) onWrite()
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        return { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     fun observePlexChanges(onChange: () -> Unit): () -> Unit {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -79,7 +208,7 @@ class ListeningStore(context: Context) {
             }
         }
         val editor = preferences.edit().putString(KEY_FAVORITES, encodeFavoriteIds(remaining))
-            .putString(KEY_HISTORY, encodeIds(historyIds().filterNot { it.startsWith("track:") }))
+            .putString(KEY_HISTORY, encodeIds(localHistoryIds().filterNot { it.startsWith("track:") }))
             .putLong("plexGeneration", plexGeneration() + 1L)
         if (filtered == null) editor.remove(KEY_PLAYBACK) else editor.putString(KEY_PLAYBACK, encodePlayback(filtered))
         if (playbackPreview()?.id?.startsWith("track:") == true) editor.remove(KEY_PREVIEW)
@@ -108,6 +237,12 @@ class ListeningStore(context: Context) {
         private const val KEY_PLAYBACK = "playback"
         private const val KEY_PREVIEW = "playbackPreview"
         private const val KEY_HISTORY = "historyIds"
+        private const val KEY_HISTORY_TIMES = "historyTimes"
+        private const val KEY_HISTORY_ACCOUNT = "historySyncAccount"
+        private const val KEY_HISTORY_RELAY = "historySyncRelay"
+        private const val KEY_HISTORY_DEVICE = "historySyncDevice"
+        private const val KEY_HISTORY_CHANGE = "historySyncChange"
+        private const val KEY_HISTORY_WRITE = "historySyncWrite"
         private const val MAX_HISTORY = 500
         private const val MAX_FAVORITES = 500
         const val MAX_QUEUE = 500
