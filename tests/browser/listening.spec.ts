@@ -33,13 +33,11 @@ test('filters Radio, preserves audio in Favorites and History, and restores paus
   await page.goto('/');
   const sources = page.getByRole('navigation', { name: 'Listening sources' });
   await expect(sources.getByRole('button', { name: 'Radio', exact: true })).toHaveAttribute('aria-current', 'page');
-  const filter = page.getByRole('searchbox', { name: 'Filter current source' });
-  await filter.fill('groove salad');
-  const groove = page.locator('#viewRadio [data-radio-play="groovesalad"]').first();
-  // Catalogue labels and stable IDs are both searchable.
+  const filter = page.getByRole('searchbox', { name: 'Search Radio, YouTube and Plex' });
+  const groove = page.locator('#unifiedSearchPanel [data-unified-radio="groovesalad"]').first();
   await filter.fill('groovesalad');
   await expect(groove).toBeVisible();
-  await expect(page.locator('#viewRadio [data-radio-play="dronezone"]')).toHaveCount(0);
+  await expect(page.locator('#unifiedSearchPanel [data-unified-radio="dronezone"]')).toHaveCount(0);
   await groove.click();
   const audio = page.locator('#audio');
   await expect.poll(() => audio.evaluate((node: HTMLAudioElement) => !node.paused && node.currentTime > 0)).toBe(true);
@@ -102,7 +100,7 @@ test('syncs encrypted history between devices and keeps a local clear pending un
     await device.route('https://cdn.jsdelivr.net/npm/nostr-tools@2.7.2/+esm', (route) => route.fulfill({
       contentType: 'text/javascript',
       headers: { 'access-control-allow-origin': '*' },
-      body: 'export const verifyEvent = window.NostrTools.verifyEvent;',
+      body: 'export const { verifyEvent, nip19 } = window.NostrTools; export class SimplePool { async querySync() { return []; } }',
     }));
     await device.routeWebSocket(relay, (socket) => {
       socket.onMessage((data) => {
@@ -199,4 +197,55 @@ test('wraps the remote signer key at rest and deletes it on disconnect', async (
   expect(stored.ciphertext.slice(0, testKey.length)).not.toEqual(testKey);
   await page.evaluate((id) => RadioRemoteSigner.removeTransportKey(id), reference);
   await expect(page.evaluate((id) => RadioRemoteSigner.loadTransportKey(id), reference)).rejects.toThrow('Saved remote signer key is unavailable');
+});
+
+test('uses APK artwork and searches Radio, YouTube and connected Plex from the same input', async ({ page }) => {
+  await page.route('https://pipedapi.ducks.party/search?**', (route) => route.fulfill({
+    headers: { 'access-control-allow-origin': '*' },
+    json: { items: [
+      { type: 'stream', title: 'Groove Salad on YouTube', uploaderName: 'SomaFM', url: '/watch?v=dQw4w9WgXcQ' },
+      { type: 'stream', title: 'Invalid upstream result', url: 'https://other.example/?v=dQw4w9WgXcQ' },
+    ] },
+  }));
+  await page.route('**/hubs/search?**', (route) => route.fulfill({
+    json: { MediaContainer: { Hub: [{ Metadata: [
+      { type: 'album', title: 'Groove Salad Plex Album', ratingKey: '1', librarySectionID: '2' },
+      { type: 'track', title: 'Groove Salad Plex Track', ratingKey: '3', parentRatingKey: '1', librarySectionID: '2' },
+    ] }] } },
+  }));
+  await page.route('**/library/sections?**', (route) => route.fulfill({
+    json: { MediaContainer: { Directory: [] } },
+  }));
+  await page.addInitScript(() => {
+    localStorage.setItem('plexServer', location.origin);
+    localStorage.setItem('plexToken', 'test-token');
+  });
+  await page.goto('/#favorites');
+  await expect(page.locator('header img.brand-app-logo')).toHaveAttribute('src', '/app-logo.svg');
+  await expect(page.getByRole('button', { name: 'Radio', exact: true }).locator('use')).toHaveAttribute('href', '/app-icons.svg#radio');
+  await page.getByRole('searchbox', { name: 'Search Radio, YouTube and Plex' }).fill('groove salad');
+  await expect(page.locator('[data-unified-radio="groovesalad"]')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Groove Salad on YouTube/ })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  await expect(page.getByRole('button', { name: /Groove Salad Plex Track/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Invalid upstream result/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await expect(page.locator('#unifiedSearchPanel')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Favorites', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
+test('removes legacy private keys on startup and offers external signers', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('legacyKeySeeded')) return;
+    sessionStorage.setItem('legacyKeySeeded', 'yes');
+    localStorage.setItem('guakaNostrNsec', 'legacy-test-key');
+    localStorage.setItem('radio_guaka_chat_private_key', 'legacy-chat-test-key');
+  });
+  await page.goto('/?connections=1');
+  await expect(page.getByRole('button', { name: 'Connect browser signer (NIP-07)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Connect remote signer (NIP-46)' })).toBeVisible();
+  await expect(page.locator('#inNsec')).toHaveCount(0);
+  expect(await page.evaluate(() => [
+    localStorage.getItem('guakaNostrNsec'),
+    localStorage.getItem('radio_guaka_chat_private_key'),
+  ])).toEqual([null, null]);
 });

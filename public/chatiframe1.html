@@ -487,7 +487,7 @@
                    :title="relay"></div>
             </template>
           </div>
-          <button class="auth-trigger" @click="showAuthModal = true" title="Show key options">🔑</button>
+          <button class="auth-trigger" @click="showAuthModal = true" title="Nostr signer">🔑</button>
         </div>
       </div>
     </template>
@@ -523,67 +523,14 @@
     </div>
     
     <template x-if="showAuthModal && !minimalEmbed">
-      <div class="auth-modal" 
-           @click.self="showAuthModal = false" 
-           @keydown.escape="showAuthModal = false" 
-           x-ref="authModal"
-          x-effect="if (showAuthModal) { $nextTick(() => { $refs.authModal?.focus(); if (!currentUserPrivateKey && $refs.nsecInput) { $refs.nsecInput.focus(); } }); }"
-           tabindex="-1">
+      <div class="auth-modal" @click.self="showAuthModal = false" @keydown.escape="showAuthModal = false" role="dialog" aria-label="Nostr signer">
         <div class="auth-modal-content">
           <button class="auth-modal-close" @click="showAuthModal = false" aria-label="Close">×</button>
-          <h3>Nostr keys</h3>
-
-          <!-- Unified key display -->
-          <div class="auth-current">
-            <div style="margin-bottom: 12px;">
-              <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">nsec:</div>
-              <div class="auth-input-row">
-                <template x-if="currentUserPrivateKey">
-                  <input :type="showPrivateKey ? 'text' : 'password'" readonly :value="currentUserNsec || currentUserPrivateKey">
-                </template>
-                <template x-if="!currentUserPrivateKey">
-                  <input 
-                    type="text" 
-                    x-model="manualKey" 
-                    placeholder="nsec1..." 
-                    @keydown.enter="authenticateWithKey()"
-                    x-ref="nsecInput">
-                </template>
-                <template x-if="currentUserPrivateKey">
-                  <button @click="showPrivateKey = !showPrivateKey" x-text="showPrivateKey ? 'hide' : 'show'"></button>
-                </template>
-              </div>
-            </div>
-            
-            <div>
-              <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">npub:</div>
-              <div class="auth-input-row">
-                <input type="text" readonly :value="currentUserNpub || ''" placeholder="npub not available" style="width: 100%;">
-              </div>
-            </div>
-            
-            <template x-if="currentUserNip05">
-              <div style="margin-top: 12px;">
-                <div style="margin-bottom: 6px; font-size: 12px; color: rgba(0, 255, 255, 0.8);">NIP-05:</div>
-                <div class="auth-input-row">
-                  <input type="text" readonly :value="currentUserNip05" style="width: 100%; color: #00ff88;">
-                </div>
-              </div>
-            </template>
-            
-            <template x-if="!currentUserPrivateKey && !currentUserPubkey">
-              <div style="margin-top: 12px;">
-                <button @click="generateNewKey()" class="auth-button" style="width: 100%;">generate keys</button>
-              </div>
-            </template>
-            
-            
-            <template x-if="currentUserPrivateKey || currentUserPubkey">
-              <div style="margin-top: 12px;">
-                <button @click="deleteKeys()" class="auth-button" style="width: 100%; background: rgba(255, 0, 100, 0.15); border-color: rgba(255, 0, 100, 0.5); color: #ff0064;">delete keys</button>
-              </div>
-            </template>
-          </div>
+          <h3>Nostr signer</h3>
+          <p x-show="currentUserNpub" x-text="currentUserNpub"></p>
+          <button x-show="!isAuthenticated" @click="connectChatSigner()" class="auth-button">Connect browser signer</button>
+          <button x-show="isAuthenticated" @click="disconnectChatSigner()" class="auth-button">Disconnect</button>
+          <p><a href="/?connections=1" target="_top">Open Radio Guaka Connections for remote and Android signers</a></p>
         </div>
       </div>
     </template>

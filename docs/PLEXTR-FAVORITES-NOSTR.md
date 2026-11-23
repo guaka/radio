@@ -1,6 +1,6 @@
 # pleXtr favorites on Nostr (draft spec)
 
-This document describes how **pleXtr** (the Plex front-end in this repo) encodes **favorited tracks, albums, and radio stations** in Nostr events so they can be **restored on another device** when the same identity (`nsec`) is configured.
+This document describes how **pleXtr** (the Plex front-end in this repo) encodes **favorited tracks, albums, and radio stations** in Nostr events so they can be **restored on another device** when the same Nostr account is connected through a signer.
 
 It is written as a **draft NIP-style specification** for feedback and possible later submission as a formal NIP. Until then, treat this as the **pleXtr reference implementation**.
 

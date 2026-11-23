@@ -155,3 +155,71 @@ body .player-bar:not(.has-selection) :is(.np-art, .sub, .seek-row, #btnFavNow) {
   body .sidebar-plex .sidebar-nav { display: none; }
   body .player-controls { flex-wrap: wrap; gap: .15rem; }
 }
+
+.brand-app-logo {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: .65rem;
+}
+.source-bar .sidebar-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+}
+.app-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+body > header .app-icon { stroke: none; }
+.source-bar .app-icon { width: 1.35rem; height: 1.35rem; }
+.searching-sources :is(#viewAlbums, #viewTracks, #viewLibrary, #viewRadio, #viewYouTube, #viewPlaylists, #plexSetup, #albumViewToggle, #searchFeedback) {
+  display: none !important;
+}
+.unified-hit-btn .unified-hit-art {
+  width: 2.4rem;
+  height: 2.4rem;
+  object-fit: cover;
+  border-radius: .3rem;
+}
+.unified-hit-btn:has(.unified-hit-art) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: .55rem;
+}
+.unified-hit-art { grid-row: span 2; }
+
+@media (max-width: 44rem) {
+  .source-bar .sidebar-nav-btn:has(.app-icon) { min-width: 2.75rem; }
+  .source-bar .sidebar-nav-btn:has(.app-icon) > span {
+    position: absolute;
+    clip-path: inset(50%);
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+.unified-hit-btn { color: inherit; text-decoration: none; }
+#unifiedSearchPanel { font-family: system-ui, sans-serif; }
+.unified-youtube-link { display: inline-block; margin-top: .4rem; color: #c9ecf4; }
+.search-wrap input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.android-signer-prompt {
+  position: fixed;
+  z-index: 40;
+  inset: auto 1rem 1rem;
+  max-width: 30rem;
+  margin-inline: auto;
+  padding: 1rem;
+  border: 1px solid #77718d;
+  border-radius: .85rem;
+  background: #21202b;
+  color: #f1edf7;
+}
+.android-signer-prompt p { margin-top: 0; }
+.android-signer-prompt form { margin-top: .75rem; }
+#androidSignerCopyLink { color: #c9ecf4; }
+body .player-controls .app-icon, .star-btn .app-icon, .album-card-play .app-icon { stroke: none; }
+#btnClearHistory .app-icon { vertical-align: middle; margin-right: .35rem; }
