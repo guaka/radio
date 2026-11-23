@@ -4372,6 +4372,13 @@
     const panel = $('unifiedSearchPanel');
     if (!panel || panel.dataset.wiredUnified === '1') return;
     panel.dataset.wiredUnified = '1';
+    panel.addEventListener('error', (event) => {
+      const image = event.target;
+      if (image instanceof HTMLImageElement && image.classList.contains('unified-hit-art') && !image.dataset.fallback) {
+        image.dataset.fallback = '1';
+        image.src = '/app-logo.svg';
+      }
+    }, true);
     panel.addEventListener('click', (e) => {
       const rb = e.target.closest('[data-unified-radio]');
       if (rb) {
