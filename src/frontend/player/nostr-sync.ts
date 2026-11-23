@@ -112,6 +112,46 @@ namespace RadioRemoteSigner {
   const kind = 24133;
   const permissions = 'sign_event:1,sign_event:22242,sign_event:30078,nip44_encrypt,nip44_decrypt';
 
+  async function withKeyStore(mode, access) {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('guakaRemoteSigner', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('connections');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = database.transaction('connections', mode);
+        const request = access(transaction.objectStore('connections'));
+        transaction.oncomplete = () => resolve(request.result);
+        transaction.onabort = transaction.onerror = () => reject(transaction.error || request.error);
+      });
+    } finally {
+      database.close();
+    }
+  }
+
+  export async function saveTransportKey(transportKey) {
+    const reference = crypto.randomUUID();
+    const wrappingKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, transportKey);
+    await withKeyStore('readwrite', (store) => store.add({ wrappingKey, iv, ciphertext }, reference));
+    return reference;
+  }
+
+  export async function loadTransportKey(reference) {
+    if (typeof reference !== 'string') throw new Error('Reconnect your remote signer.');
+    const record = await withKeyStore('readonly', (store) => store.get(reference));
+    if (!record) throw new Error('Saved remote signer key is unavailable. Disconnect and reconnect.');
+    const { wrappingKey, iv, ciphertext } = record;
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wrappingKey, ciphertext));
+  }
+
+  export async function removeTransportKey(reference) {
+    if (typeof reference === 'string') await withKeyStore('readwrite', (store) => store.delete(reference));
+  }
+
   export function parseBunker(input) {
     const url = new URL(input.trim());
     const remote = url.hostname.toLowerCase();

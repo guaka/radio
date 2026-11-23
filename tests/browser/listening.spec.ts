@@ -170,3 +170,33 @@ test('explains why replaying YouTube history on the static site needs a gateway'
   await page.getByRole('button', { name: 'YouTube · dQw4w9WgXcQ', exact: true }).click();
   await expect(page.locator('#historyReplayStatus')).toContainText('Go media gateway');
 });
+
+test('wraps the remote signer key at rest and deletes it on disconnect', async ({ page }) => {
+  await page.goto('/');
+  const testKey = Array.from({ length: 32 }, (_, i) => i + 1);
+  const reference = await page.evaluate((key) => RadioRemoteSigner.saveTransportKey(Uint8Array.from(key)), testKey);
+  await page.reload();
+  const stored = await page.evaluate(async (id) => {
+    const key = await RadioRemoteSigner.loadTransportKey(id);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('guakaRemoteSigner', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const record = await new Promise<{ wrappingKey: CryptoKey; iv: Uint8Array; ciphertext: ArrayBuffer }>((resolve, reject) => {
+      const request = database.transaction('connections').objectStore('connections').get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    return { key: Array.from(key), storedFields: Object.keys(record), extractable: record.wrappingKey.extractable,
+      ciphertext: Array.from(new Uint8Array(record.ciphertext)) };
+  }, reference);
+  expect(stored.key).toEqual(testKey);
+  expect(stored.storedFields).toEqual(['wrappingKey', 'iv', 'ciphertext']);
+  expect(stored.extractable).toBe(false);
+  expect(stored.ciphertext).toHaveLength(48);
+  expect(stored.ciphertext.slice(0, testKey.length)).not.toEqual(testKey);
+  await page.evaluate((id) => RadioRemoteSigner.removeTransportKey(id), reference);
+  await expect(page.evaluate((id) => RadioRemoteSigner.loadTransportKey(id), reference)).rejects.toThrow('Saved remote signer key is unavailable');
+});

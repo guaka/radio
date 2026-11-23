@@ -1265,7 +1265,8 @@
     remoteSignerConnection = (async () => {
       try {
         const tools = await getNostrTools();
-        const signer = await RadioRemoteSigner.connect(tools, config, (value) => {
+        const key = restore ? await RadioRemoteSigner.loadTransportKey(config.keyReference) : tools.generateSecretKey();
+        const signer = await RadioRemoteSigner.connect(tools, { ...config, key }, (value) => {
           try {
             const url = new URL(value);
             if (url.protocol !== 'https:' || url.username || url.password) return;
@@ -1274,9 +1275,17 @@
           } catch (_) {}
         }, restore);
         if (!restore) {
-          localStorage.setItem(remoteSignerKey, JSON.stringify({
-            remote: config.remote, relays: config.relays, key: config.key, pubkey: signer.pubkey
-          }));
+          let keyReference;
+          try {
+            keyReference = await RadioRemoteSigner.saveTransportKey(key);
+            localStorage.setItem(remoteSignerKey, JSON.stringify({
+              remote: config.remote, relays: config.relays, keyReference, pubkey: signer.pubkey
+            }));
+          } catch (error) {
+            signer.close();
+            await RadioRemoteSigner.removeTransportKey(keyReference).catch(() => {});
+            throw error;
+          }
         }
         listeningSigner = signer;
         status.textContent = 'Remote signer connected: ' + tools.nip19.npubEncode(signer.pubkey);
@@ -8497,7 +8506,6 @@
       }
       const config = RadioRemoteSigner.parseBunker($('inRemoteSigner').value);
       $('inRemoteSigner').value = '';
-      config.key = Array.from((await getNostrTools()).generateSecretKey());
       const signer = await connectBrowserRemoteSigner(config, false);
       if (historyConfig()?.account === signer.pubkey) void syncListeningHistory();
       if (localStorage.getItem(stationSyncAccountKey) === signer.pubkey) void syncStationFavorites();
@@ -8505,7 +8513,7 @@
       $('remoteSignerStatus').textContent = error.message || 'Could not connect to remote signer.';
     }
   });
-  bindClick('btnDisconnectRemoteSigner', () => {
+  bindClick('btnDisconnectRemoteSigner', async () => {
     if (remoteSignerConnection) return;
     const saved = readListeningSetting(remoteSignerKey, null);
     listeningSigner?.close();
@@ -8517,6 +8525,11 @@
     if (localStorage.getItem(stationSyncAccountKey) === saved?.pubkey) {
       localStorage.removeItem(stationSyncAccountKey);
       $('syncStationFavorites').checked = false;
+    }
+    try {
+      await RadioRemoteSigner.removeTransportKey(saved?.keyReference);
+    } catch (_) {
+      $('remoteSignerStatus').textContent = 'Remote signer disconnected. Clear this site’s data to remove the encrypted connection key.';
     }
   });
   bindEvent('syncListeningHistory', 'change', async () => {
@@ -8725,7 +8738,12 @@
     $('syncListeningHistory').checked = Boolean(history);
     $('inHistoryRelay').disabled = Boolean(history);
     $('inHistoryRelay').value = history?.relay || '';
-    $('btnDisconnectRemoteSigner').hidden = !readListeningSetting(remoteSignerKey, null);
+    const savedSigner = readListeningSetting(remoteSignerKey, null);
+    if (savedSigner && !savedSigner.keyReference) {
+      localStorage.removeItem(remoteSignerKey);
+      $('remoteSignerStatus').textContent = 'Reconnect your remote signer to use encrypted session storage.';
+    }
+    $('btnDisconnectRemoteSigner').hidden = !savedSigner?.keyReference;
     $('syncStationFavorites').checked = Boolean(localStorage.getItem(stationSyncAccountKey));
     $('shareNowPlaying').checked = localStorage.getItem('guakaShareNowPlaying') === 'true';
     updateShortcutModifierLabels();
