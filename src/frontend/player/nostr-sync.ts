@@ -44,6 +44,22 @@ namespace RadioNostrSync {
     return [...new Set([...remote, ...local.filter((id) => known.has(id) && !latest.has(id))])].slice(0, 500);
   }
 
+  export async function connectExtension(provider) {
+    if (!provider?.getPublicKey || !provider?.signEvent) throw new Error('No NIP-07 browser signer found.');
+    const pubkey = await provider.getPublicKey();
+    if (!/^[a-f0-9]{64}$/.test(pubkey)) throw new Error('The browser signer returned an invalid account.');
+    const nip44Encrypt = provider.nip44?.encrypt?.bind(provider.nip44);
+    const nip44Decrypt = provider.nip44?.decrypt?.bind(provider.nip44);
+    return {
+      pubkey, signEvent: provider.signEvent.bind(provider),
+      nip44Encrypt, nip44Decrypt,
+      nip04Encrypt: provider.nip04?.encrypt?.bind(provider.nip04),
+      nip04Decrypt: provider.nip04?.decrypt?.bind(provider.nip04),
+      encryptHistory: nip44Encrypt && ((text) => nip44Encrypt(pubkey, text)),
+      decryptHistory: nip44Decrypt && ((text) => nip44Decrypt(pubkey, text))
+    };
+  }
+
   export async function signVerified(signer, template, tools) {
     const expected = JSON.stringify([template.kind, template.created_at, template.tags, template.content]);
     const event = await signer.signEvent(structuredClone(template));
@@ -233,6 +249,10 @@ namespace RadioRemoteSigner {
       return {
         pubkey, close,
         signEvent: async (event) => JSON.parse(await request('sign_event', [JSON.stringify(event)])),
+        nip44Encrypt: (peer, plaintext) => request('nip44_encrypt', [peer, plaintext]),
+        nip44Decrypt: (peer, ciphertext) => request('nip44_decrypt', [peer, ciphertext]),
+        nip04Encrypt: (peer, plaintext) => request('nip04_encrypt', [peer, plaintext]),
+        nip04Decrypt: (peer, ciphertext) => request('nip04_decrypt', [peer, ciphertext]),
         encryptHistory: (plaintext) => request('nip44_encrypt', [pubkey, plaintext]),
         decryptHistory: (ciphertext) => request('nip44_decrypt', [pubkey, ciphertext])
       };

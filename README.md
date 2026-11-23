@@ -39,12 +39,8 @@ Active channels are in the main `channels` object. Broken/non-working channels a
   - Arrow keys ↑ ↓ : Change volume
   - Space : Stop/pause
   - Letter key : Jump to channel starting with that letter (no modifier needed)
-- YouTube tab in pleXtr (MVP):
-  - Paste a single YouTube video URL/ID to play audio through direct extraction, with Piped and Invidious fallbacks.
-  - Resolution is done through the Go backend endpoint (`/api/youtube/resolve`) to avoid browser CORS issues.
-  - Playback uses a same-origin stream proxy endpoint (`/api/youtube/stream`) to reduce browser network/CORS/TLS failures with public instances.
-  - The YouTube tab lists **external check links** (YouTube, Piped API JSON, approximate Piped web UI, Invidious) from `GET /api/youtube/external-links?videoId=…` so you can verify mirrors in the browser.
-  - v1 scope is playback-only (no favorites/sharing/chat coupling for YouTube items).
+- The search bar searches radio stations, YouTube videos, and connected Plex music libraries from any listening source. YouTube titles come from Piped, with a link to YouTube search if the service is unavailable.
+- YouTube results open YouTube on the static site. The Go-served player can resolve and play the audio in-app through `/api/youtube/resolve` and `/api/youtube/stream`.
 
 ## Go Backend (same-origin pleXtr)
 
@@ -146,17 +142,13 @@ This comes from an internal relay transport path and does **not** break chat/pla
 - When upgrading Nostr libraries, test chat startup and posting with DevTools open to verify those errors stay downgraded to warnings.
 - Keep the relay list fixed to the two production relays above unless there is an explicit migration plan.
 
-**Authentication options:**
-- **NIP-07 browser extension** (nos2x, Alby, etc.) - Recommended, most secure. The website never accesses your private key - the extension handles signing securely.
-- Manual key entry (nsec) - Fallback option. Stores key in localStorage (less secure).
-- Generate anonymous keypair - Creates new keypair, stores in localStorage.
+**Authentication:** Connect a NIP-07 browser extension, NIP-46 remote signer, or NIP-55 Android signer in the player’s Connections. Embedded chat shares the player’s signer. Standalone chat can connect a browser extension.
 
 **Implementation:**
 - `chatiframe1.html` - Standalone chat component (can be embedded as iframe)
 - Uses Alpine.js for reactivity
 - Messages cached in localStorage for instant loading
 - Current channel passed via postMessage from parent window
-- Keys stored in localStorage (`radio_guaka_chat_private_key`, `radio_guaka_chat_pubkey`)
 
 ## Background
 

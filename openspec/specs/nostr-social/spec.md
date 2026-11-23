@@ -15,16 +15,20 @@ The chat experience SHALL publish and read short text notes that identify the sh
 - **WHEN** the chat UI loads messages
 - **THEN** it subscribes to the configured community relays and filters for the room tags.
 
-### Requirement: Nostr key options
-The chat UI SHALL support NIP-07 signing, manual private-key entry, and generated anonymous keys.
+### Requirement: External Nostr signers
+The web player SHALL support browser, remote, and Android signers. Its embedded chat SHALL use the same connected signer.
 
 #### Scenario: Browser extension available
-- **WHEN** a NIP-07 extension is available and selected
-- **THEN** signing happens through the extension without exposing the private key to the page.
+- **WHEN** a NIP-07 extension is selected
+- **THEN** the extension signs events for the connected account.
 
-#### Scenario: Manual or generated key
-- **WHEN** a user enters or generates a key in the fallback flow
-- **THEN** the frontend stores the key material locally for later chat use.
+#### Scenario: Remote or Android signer selected
+- **WHEN** a user connects a NIP-46 or NIP-55 signer in Connections
+- **THEN** the player sends signing requests to that signer and verifies its returned events.
+
+#### Scenario: Prior installation saved a private key
+- **WHEN** the current player or chat starts with a legacy private key in browser storage
+- **THEN** it removes that key and uses a connected external signer for future events.
 
 ### Requirement: Social event lifecycle
 The Nostr social layer SHALL support reactions and deletions using standard Nostr event kinds and SHALL limit ordinary chat message lifetime.

@@ -1,24 +1,4 @@
-    /**
-     * Radio Guaka Chat - Nostr-based chat component
-     * 
-     * AUTHENTICATION FLOW:
-     * 1. Chat loads immediately in read-only mode (anyone can view messages)
-     * 2. When user tries to post (focuses input or presses Enter):
-     *    - If no local key is authenticated yet, show modal to generate/import key
-     *    - Import key (paste nsec) or generate anonymous keypair
-     * 3. Keys are saved to localStorage for future sessions
-     * 
-     * This flow prioritizes:
-     * - Immediate access to read chat
-     * - Simple local-key auth for posting
-     */
-    function redactNsecForLog(value) {
-      if (value == null || value === '') return '(none)';
-      const s = String(value).trim();
-      if (!s.startsWith('nsec')) return '(non-nsec, ' + s.length + ' chars)';
-      return '(nsec, ' + s.length + ' chars)';
-    }
-
+    // Public chat is readable without a Nostr signer.
     function chatApp() {
       return {
         // State
@@ -28,8 +8,8 @@
         isAuthenticated: false,
         currentUserPubkey: null,
         currentUserNpub: null,
-        currentUserPrivateKey: null,
-        currentUserNsec: null,
+        chatSigner: null,
+        signerEpoch: 0,
         currentUserNip05: null, // NIP-05 identifier (e.g. user@domain.com)
         currentChannel: '',
         relays: [],
@@ -39,14 +19,9 @@
         isLoading: true,
         isSending: false,
         showAuthModal: false,
-        showManualAuth: false,
-        showPrivateKey: false,
-        manualKey: '',
         errorMessage: '',
         isInIframe: window.parent !== window,
-        /** pleXtr embed: no chat header / no in-chat Nostr UI; parent supplies nsec */
         minimalEmbed: false,
-        _pendingPlextrNsec: null,
         /** Subscribe / display notes with any of these #t values (Radio Guaka legacy + pleXtr) */
         chatRoomTags: Object.freeze(['plextr', 'radioguaka']),
         
@@ -228,6 +203,7 @@
             if (this.isInIframe) {
               window.addEventListener('message', (event) => {
                 try {
+                  if (event.origin !== location.origin || event.source !== window.parent || !event.data) return;
                   if (event.data.type === 'channelChange') {
                     this.currentChannel = event.data.channel || '';
                   } else if (event.data.type === 'addSongToMessage' && event.data.song) {
@@ -254,14 +230,9 @@
                       // Immediately send the message (will handle auth if needed)
                       this.sendMessage();
                     }
-                  } else if (event.data.type === 'setChatNsec' && typeof event.data.nsec === 'string') {
-                    const ns = event.data.nsec.trim();
-                    if (ns.startsWith('nsec')) {
-                      this.manualKey = ns;
-                      this.authenticateWithKey().catch(() => {});
-                    }
-                  } else if (event.data.type === 'clearChatNsec') {
-                    this.deleteKeys();
+                  } else if (event.data.type === 'chatSignerChanged') {
+                    this.disconnectChatSigner();
+                    if (event.data.pubkey) void this.connectChatSigner(true);
                   }
                 } catch (e) {
                   console.error('Error handling postMessage:', e);
@@ -269,21 +240,13 @@
               });
               
               // Notify parent that chat is ready
-              window.parent.postMessage({ type: 'chatReady' }, '*');
+              window.parent.postMessage({ type: 'chatReady' }, location.origin);
             }
             
-            /*
-             * AUTH FLOW:
-             * 1. Chat is shown immediately in read-only mode
-             * 2. When user tries to post (focus input or send):
-             *    - If no local nsec key is authenticated, show modal to generate/import key
-             * 3. Keys are saved to localStorage for future sessions
-             */
-            
-            // Only load saved keys from storage (don't prompt or auto-auth)
-            // User will be prompted when they try to post
-            this.loadKeysFromStorage();
-            
+            localStorage.removeItem('radio_guaka_chat_private_key');
+            localStorage.removeItem('radio_guaka_chat_pubkey');
+            localStorage.removeItem('guakaNostrNsec');
+
             // Wait for NDK to load
             if (window.NDKModule) {
               await this.initializeNDK();
@@ -469,14 +432,8 @@
             // Also try a direct fetch as fallback after a delay
             setTimeout(() => this.fetchPastMessages(), 3000);
             
-            if (this.minimalEmbed && this._pendingPlextrNsec) {
-              this.manualKey = this._pendingPlextrNsec;
-              this._pendingPlextrNsec = null;
-              await this.authenticateWithKey();
-            } else if (this.currentUserPrivateKey) {
-              await this.setupSigner();
-            }
-            
+            if (this.minimalEmbed) void this.connectChatSigner(true);
+
             // Recompute npub if we have a pubkey but npub wasn't set (NDK might not have been ready before)
             if (this.currentUserPubkey && !this.currentUserNpub) {
               this.setUserPubkey(this.currentUserPubkey);
@@ -853,7 +810,7 @@
             window.parent.postMessage({
               type: 'tuneToChannel',
               channel: channelId
-            }, '*');
+            }, location.origin);
           } catch (e) {
             // Ignore tune request errors
           }
@@ -933,33 +890,16 @@
 
         postToParent(payload, label = 'postMessage') {
           try {
-            window.parent.postMessage(payload, '*');
+            window.parent.postMessage(payload, location.origin);
           } catch (e) {
             console.warn('postMessage ' + label + ' failed:', e);
           }
         },
 
-        getStoredPlextrNsec() {
-          const raw = localStorage.getItem('guakaNostrNsec');
-          if (!raw || typeof raw !== 'string') return null;
-          const ns = raw.trim();
-          return ns.startsWith('nsec') ? ns : null;
-        },
-        
-        // Check auth when user focuses input
-        // Flow: in minimal embed, try key from parent storage; otherwise wait for send/open modal
         async checkAuthOnFocus() {
-          if (this.isAuthenticated) return;
-          if (this.minimalEmbed) {
-            const px = this.getStoredPlextrNsec();
-            if (px) {
-              this.manualKey = px;
-              await this.authenticateWithKey();
-            }
-            return;
-          }
+          if (!this.isAuthenticated && this.minimalEmbed) await this.connectChatSigner(true);
         },
-        
+
         // Handle keyboard input
         handleKeyDown(event) {
           // Shift+Enter = new line (allow default behavior)
@@ -1157,19 +1097,14 @@
           return { success: true, publishedTo: successes.length };
         },
         
-        // Send message
-        // Flow: require local key auth; show modal if missing
         async sendMessage() {
+          if (!this.messageInput.trim()) return;
           if (!this.isAuthenticated) {
             if (this.minimalEmbed) {
-              const px = this.getStoredPlextrNsec();
-              if (px) {
-                this.manualKey = px;
-                await this.authenticateWithKey();
-              }
+              await this.connectChatSigner(true);
               if (!this.isAuthenticated) {
                 this.postToParent({ type: 'openSettingsModal', tab: 'nostr' }, 'openSettingsModal');
-                this.setTransientError('Add your nsec in Nostr (header).', 5000);
+                this.setTransientError('Connect a Nostr signer in Connections.', 5000);
                 return;
               }
             } else {
@@ -1177,15 +1112,11 @@
               return;
             }
           }
-          
-          if (!this.messageInput.trim() || !this.ndk || !this.ndk.signer) {
-            if (!this.ndk || !this.ndk.signer) {
-              this.setTransientError('Not connected. Please wait or refresh.', 3000);
-              return;
-            }
+          if (!this.ndk) {
+            this.setTransientError('Chat is connecting. Try again in a moment.', 3000);
             return;
           }
-          
+
           try {
             this.isSending = true;
             
@@ -1210,8 +1141,7 @@
               event.tags.push(['channel', this.currentChannel]);
             }
             
-            // Sign event with local key signer
-            await event.sign();
+            await this.signChatEvent(event);
             
             // Get event ID after signing (required for optimistic update)
             const eventId = event.id;
@@ -1285,7 +1215,7 @@
         
         // React to message
         async reactToMessage(eventId, emoji) {
-          if (!this.isAuthenticated || !this.ndk || !this.ndk.signer) return;
+          if (!this.isAuthenticated || !this.ndk || !this.chatSigner) return;
           
           try {
             const NDKEvent = window.NDKModule?.NDKEvent;
@@ -1296,7 +1226,7 @@
             event.content = emoji;
             event.tags = [['e', eventId]];
             
-            await event.sign();
+            await this.signChatEvent(event);
             await this.publishToOurRelays(event);
           } catch (error) {
             console.error('Reaction error:', error);
@@ -1305,7 +1235,7 @@
         
         // Delete message
         async deleteMessage(eventId) {
-          if (!this.isAuthenticated || !this.ndk || !this.ndk.signer) return;
+          if (!this.isAuthenticated || !this.ndk || !this.chatSigner) return;
           
           try {
             const NDKEvent = window.NDKModule?.NDKEvent;
@@ -1315,7 +1245,7 @@
             event.kind = 5;
             event.tags = [['e', eventId]];
             
-            await event.sign();
+            await this.signChatEvent(event);
             await this.publishToOurRelays(event);
             
             // Remove from local messages
@@ -1356,241 +1286,60 @@
           }
         },
         
-        // Set private key and compute nsec
-        setUserPrivateKey(privateKey) {
-          // Idempotent guard: repeated auth paths can call this many times
-          if (privateKey && this.currentUserPrivateKey === privateKey && this.currentUserNsec) {
-            return;
-          }
-          this.currentUserPrivateKey = privateKey;
-          // If already nsec format, use it directly
-          if (privateKey && privateKey.startsWith('nsec')) {
-            this.currentUserNsec = privateKey;
-            console.log('Using nsec directly', redactNsecForLog(this.currentUserNsec));
-          } else if (privateKey && !privateKey.includes('...')) {
-            // Convert hex to nsec using NDKPrivateKeySigner
-            try {
-              const NDKPrivateKeySigner = window.NDKModule?.NDKPrivateKeySigner;
-              if (NDKPrivateKeySigner) {
-                // Create signer to get user, then get nsec
-                const signer = new NDKPrivateKeySigner(privateKey);
-                signer.user().then(user => {
-                  if (user && user.nsec) {
-                    this.currentUserNsec = user.nsec;
-                    console.log('Computed nsec', redactNsecForLog(this.currentUserNsec));
-                  }
-                }).catch(e => {
-                  console.log('Could not get nsec from signer:', e);
-                });
-              } else {
-                console.log('NDKPrivateKeySigner not available yet, will retry when NDK loads');
-              }
-            } catch (e) {
-              console.log('Could not convert to nsec:', e);
+        async connectChatSigner(parentOnly = false) {
+          const epoch = ++this.signerEpoch;
+          try {
+            let signer = null;
+            if (this.isInIframe && typeof window.parent.radioGuakaChatSigner === 'function') {
+              signer = await window.parent.radioGuakaChatSigner();
             }
+            if (!signer && !parentOnly) {
+              const provider = window.nostr;
+              if (!provider?.getPublicKey || !provider?.signEvent) throw new Error('Connect a Nostr browser signer.');
+              const pubkey = await provider.getPublicKey();
+              const tools = await import('https://cdn.jsdelivr.net/npm/nostr-tools@2.7.2/+esm');
+              signer = {
+                pubkey,
+                async signEvent(template) {
+                  const expected = JSON.stringify([template.kind, template.created_at, template.tags, template.content]);
+                  const event = await provider.signEvent(structuredClone(template));
+                  if (event?.pubkey !== pubkey ||
+                      JSON.stringify([event.kind, event.created_at, event.tags, event.content]) !== expected ||
+                      !tools.verifyEvent(event)) throw new Error('The signer returned an invalid event.');
+                  return event;
+                }
+              };
+            }
+            if (!signer || epoch !== this.signerEpoch || !/^[a-f0-9]{64}$/.test(signer.pubkey)) return;
+            this.chatSigner = signer;
+            this.setUserPubkey(signer.pubkey);
+            this.isAuthenticated = true;
+            this.showAuthModal = false;
+            void this.fetchCurrentUserProfile();
+          } catch (error) {
+            if (epoch === this.signerEpoch && !parentOnly) this.setTransientError(error.message, 5000);
           }
         },
 
-        // Keep key assignment in one place for auth flows
-        setUserCredentials(privateKey, pubkey) {
-          this.setUserPrivateKey(privateKey);
-          if (pubkey) {
-            this.setUserPubkey(pubkey);
-          }
-        },
-        
-        // Authenticate with key (nsec only)
-        async authenticateWithKey() {
-          try {
-            if (!this.manualKey.trim()) {
-              this.setTransientError('Please enter an nsec key', 3000);
-              return;
-            }
-            
-            const key = this.manualKey.trim();
-            this.errorMessage = ''; // Clear previous errors
-            
-            // Only accept nsec
-            if (!key.startsWith('nsec')) {
-              this.setTransientError('Only nsec private keys are accepted. Please enter an nsec1... key.', 6000);
-              return;
-            }
-            
-            // Private key — NDK 3+ uses NDKPrivateKeySigner for nsec (NDKUser.fromNsec was removed)
-            try {
-              const NDKPrivateKeySigner = window.NDKModule?.NDKPrivateKeySigner;
-              if (NDKPrivateKeySigner) {
-                const signer = new NDKPrivateKeySigner(key);
-                this.setUserCredentials(key, signer.pubkey);
-              } else {
-                this.setUserPrivateKey(key);
-                this.currentUserPubkey = 'loading...';
-              }
-              
-              this.isAuthenticated = true;
-              this.showAuthModal = false;
-              this.showManualAuth = false;
-              localStorage.setItem('radio_guaka_chat_private_key', key);
-              if (this.currentUserPubkey && this.currentUserPubkey !== 'loading...') {
-                localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
-              }
-              
-              await this.setupSigner();
-              
-              // Update pubkey after signer is set up if needed
-              if (this.currentUserPubkey === 'loading...' && this.ndk && this.ndk.signer) {
-                try {
-                  const user = await this.ndk.signer.user();
-                  if (user && user.pubkey) {
-                    this.setUserPubkey(user.pubkey);
-                    localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
-                  }
-                } catch (e) {
-                  console.error('Error getting pubkey from signer:', e);
-                }
-              }
-              
-              // Fetch user's profile to get NIP-05
-              this.fetchCurrentUserProfile();
-            } catch (e) {
-              // Minimal embed: nsec comes from pleXtr header — no in-chat error toast
-              if (this.minimalEmbed) {
-                console.warn('Chat could not apply nsec (minimal embed):', e);
-              } else {
-                this.setTransientError('Invalid nsec format. Please check your key and try again.', 6000);
-              }
-            }
-            
-          } catch (error) {
-            console.error('Key auth error:', error);
-            this.setTransientError('Authentication failed: ' + error.message, 6000);
-          } finally {
-            // Clear the manual key input after processing
-            if (this.isAuthenticated) {
-              this.manualKey = '';
-              this.showManualAuth = false;
-            }
-          }
-        },
-        
-        // Generate new key
-        async generateNewKey() {
-          try {
-            this.errorMessage = ''; // Clear any previous errors
-            
-            // Use NDK to generate a keypair
-            if (window.NDKModule && window.NDKModule.generatePrivateKey) {
-              const privateKey = window.NDKModule.generatePrivateKey();
-              const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
-              
-              if (NDKPrivateKeySigner) {
-                try {
-                  // Use signer to get user and pubkey
-                  const signer = new NDKPrivateKeySigner(privateKey);
-                  const user = await signer.user();
-                  if (user && user.pubkey) {
-                    this.setUserCredentials(privateKey, user.pubkey);
-                    // Try to get nsec if available
-                    if (user.nsec) {
-                      this.currentUserNsec = user.nsec;
-                    }
-                  } else {
-                    this.setUserPrivateKey(privateKey);
-                    this.currentUserPubkey = 'generating...';
-                  }
-                } catch (e) {
-                  // If signer fails, just store the key
-                  this.setUserPrivateKey(privateKey);
-                  this.currentUserPubkey = 'generating...';
-                }
-              } else {
-                // Fallback: generate hex key and convert
-                this.setUserPrivateKey(privateKey);
-                this.currentUserPubkey = 'generating...';
-              }
-            } else {
-              // Fallback: generate random hex using Web Crypto API
-              const bytes = new Uint8Array(32);
-              crypto.getRandomValues(bytes);
-              const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-              this.setUserPrivateKey(hex);
-              this.currentUserPubkey = 'generating...';
-            }
-            
-            this.isAuthenticated = true;
-            this.showAuthModal = false;
-            
-            // Save to localStorage
-            localStorage.setItem('radio_guaka_chat_private_key', this.currentUserPrivateKey);
-            if (this.currentUserPubkey && this.currentUserPubkey !== 'generating...') {
-              localStorage.setItem('radio_guaka_chat_pubkey', this.currentUserPubkey);
-            }
-            
-            await this.setupSigner();
-            
-            // Update pubkey after signer is set up
-            if (this.currentUserPubkey === 'generating...' && this.ndk && this.ndk.signer) {
-              try {
-                const user = await this.ndk.signer.user();
-                if (user && user.pubkey) {
-                  this.currentUserPubkey = user.pubkey;
-                  localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
-                }
-              } catch (e) {
-                console.error('Error getting pubkey from signer:', e);
-                this.setTransientError('Key generated but failed to get public key. You may need to reconnect.', 5000);
-              }
-            }
-            
-          } catch (error) {
-            console.error('Key generation error:', error.message);
-            this.setTransientError('Failed to generate key: ' + error.message, 6000);
-          }
-        },
-        
-        // Delete all keys
-        deleteKeys() {
-          this.currentUserPrivateKey = null;
-          this.currentUserNsec = null;
+        disconnectChatSigner() {
+          this.signerEpoch++;
+          this.chatSigner = null;
           this.currentUserPubkey = null;
           this.currentUserNpub = null;
           this.currentUserNip05 = null;
           this.isAuthenticated = false;
-          this.manualKey = '';
-          this.showPrivateKey = false;
-
-          // Clear from localStorage
-          localStorage.removeItem('radio_guaka_chat_private_key');
-          localStorage.removeItem('radio_guaka_chat_pubkey');
-
-          // Clear signer
-          if (this.ndk) {
-            this.ndk.signer = null;
-          }
         },
-        
-        // Setup signer
-        async setupSigner() {
-          try {
-            if (!this.ndk) return;
-            if (this.currentUserPrivateKey) {
-              // Use private key signer
-              try {
-                const NDKPrivateKeySigner = window.NDKModule.NDKPrivateKeySigner;
-                if (NDKPrivateKeySigner) {
-                  this.ndk.signer = new NDKPrivateKeySigner(this.currentUserPrivateKey);
-                } else {
-                  console.warn('NDKPrivateKeySigner missing; cannot attach nsec signer to NDK');
-                }
-              } catch (e) {
-                console.error('Error setting up private key signer:', e);
-              }
-            }
-          } catch (error) {
-            console.error('Signer setup error:', error);
-          }
+
+        async signChatEvent(event) {
+          const signer = this.chatSigner;
+          const signed = await signer.signEvent({
+            kind: event.kind, content: event.content, tags: event.tags,
+            created_at: Math.floor(Date.now() / 1000)
+          });
+          if (signer !== this.chatSigner) throw new Error('The chat signer changed.');
+          Object.assign(event, { id: signed.id, pubkey: signed.pubkey, sig: signed.sig, created_at: signed.created_at });
         },
-        
+
         // Fetch current user's profile to get NIP-05 and other info
         async fetchCurrentUserProfile() {
           try {
@@ -1735,51 +1484,6 @@
             
           } catch (e) {
             // Ignore relay status errors
-          }
-        },
-        
-        // Load keys from storage
-        async loadKeysFromStorage() {
-          try {
-            if (this.minimalEmbed) {
-              const px = this.getStoredPlextrNsec();
-              if (px) {
-                this._pendingPlextrNsec = px;
-                return;
-              }
-              return;
-            }
-            const privateKey = localStorage.getItem('radio_guaka_chat_private_key');
-            const pubkey = localStorage.getItem('radio_guaka_chat_pubkey');
-            
-            if (privateKey) {
-              this.setUserCredentials(privateKey, pubkey);
-              this.isAuthenticated = true;
-              
-              // Set up signer if NDK is ready
-              if (this.ndk) {
-                await this.setupSigner();
-                // Update pubkey from signer if available
-                if (this.ndk && this.ndk.signer) {
-                  try {
-                    const user = await this.ndk.signer.user();
-                    if (user && user.pubkey) {
-                      this.setUserPubkey(user.pubkey);
-                      localStorage.setItem('radio_guaka_chat_pubkey', user.pubkey);
-                    }
-                  } catch (e) {
-                    // Could not get pubkey from signer
-                  }
-                }
-                // Fetch user's profile to get NIP-05
-                this.fetchCurrentUserProfile();
-              }
-            } else if (pubkey) {
-              this.setUserPubkey(pubkey);
-              this.isAuthenticated = false; // Read-only
-            }
-          } catch (e) {
-            console.error('Error loading keys:', e);
           }
         },
         

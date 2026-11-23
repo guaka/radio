@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0a0a0a" />
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/app-logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
@@ -728,13 +728,6 @@
       text-decoration: underline;
       text-underline-offset: 2px;
     }
-    .album .song-matches {
-      font-size: 0.72rem;
-      color: var(--accent);
-      margin-top: 0.35rem;
-      line-height: 1.3;
-      display: none;
-    }
     .albums.list-view {
       display: block;
       grid-template-columns: none;
@@ -771,9 +764,6 @@
       flex: 1;
       min-width: 0;
       padding: 0;
-    }
-    .albums.list-view .album .song-matches {
-      margin-top: 0.2rem;
     }
     .view-toggle {
       display: flex;
@@ -1575,42 +1565,6 @@
       color: #8bc9d9;
       margin-top: 0.6rem;
     }
-    .nsec-input-wrap {
-      position: relative;
-    }
-    #inNsec {
-      border-color: rgba(0, 216, 255, 0.28);
-      background: rgba(3, 18, 24, 0.6);
-      padding-right: 2.55rem;
-    }
-    #inNsec:focus {
-      border-color: rgba(0, 216, 255, 0.6);
-      box-shadow: 0 0 0 2px rgba(0, 216, 255, 0.14);
-      outline: none;
-    }
-    .nsec-visibility-btn {
-      position: absolute;
-      right: 0.38rem;
-      top: 50%;
-      transform: translateY(-50%);
-      border: 1px solid var(--border);
-      background: rgba(12, 12, 16, 0.9);
-      color: var(--muted);
-      border-radius: 6px;
-      width: 1.9rem;
-      height: 1.9rem;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 0.95rem;
-      line-height: 1;
-    }
-    .nsec-visibility-btn:hover {
-      border-color: rgba(0, 216, 255, 0.48);
-      color: #bff7ff;
-    }
     #nostrIdentity {
       color: #9ad4e1;
       margin-top: 0.6rem;
@@ -2174,38 +2128,26 @@
   <header>
     <h1 class="plextr-brand">
       <a href="./" id="logoHome" class="plextr-brand-link" aria-label="Go to home screen">
-        <span class="plextr-brand-icon-wrap" aria-hidden="true">
-          <svg class="plextr-brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="5" y="10" width="22" height="14" rx="2" fill="#6b5344" stroke="#3d3228" stroke-width="1" />
-            <rect x="7" y="12" width="12" height="8" rx="0.8" fill="#1a1a22" stroke="#2a2a35" stroke-width="0.6" />
-            <rect x="21" y="12" width="4" height="8" rx="0.5" fill="#2a2520" stroke="#1a1815" stroke-width="0.5" />
-            <circle cx="23" cy="14.5" r="0.9" fill="#c9a227" />
-            <path d="M9 24v3M13 24v3M17 24v3" stroke="#8a7560" stroke-width="1.2" stroke-linecap="round" />
-            <path d="M16 6v4" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" />
-            <circle cx="16" cy="4.5" r="1.8" fill="#b8b8b8" stroke="#7a7a7a" stroke-width="0.6" />
-            <ellipse cx="16" cy="15.5" rx="3.2" ry="2.2" fill="#0d3d45" stroke="#00a8c4" stroke-width="0.5" opacity="0.9" />
-          </svg>
-        </span>
+        <img class="brand-app-logo" src="/app-logo.svg" alt="" />
         <span class="plextr-brand-title">Radio Guaka</span>
       </a>
     </h1>
     <div class="header-right">
-      <label class="search-wrap" for="inSearch" title="Search metadata, folders and files">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.7-3.7"></path></svg>
-        <input id="inSearch" type="search" aria-label="Filter current source" placeholder="Filter" autocomplete="off" />
+      <label class="search-wrap" for="inSearch" title="Search radio stations, YouTube and connected Plex libraries">
+        <svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#search"></use></svg>
+        <input id="inSearch" type="search" aria-label="Search Radio, YouTube and Plex" placeholder="Search" maxlength="160" autocomplete="off" />
         <button type="button" class="search-clear-btn" id="btnClearSearch" aria-label="Clear search" title="Clear search">x</button>
       </label>
-      <button type="button" class="btn" id="btnSearchAll" aria-pressed="false">Search all</button>
       <button type="button" class="btn icon-btn btn-plex-settings" id="btnSettings" aria-label="Connections" title="Connections">
-        <svg class="plex-gear" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.9a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.08V2.9a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.08.4h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"></path></svg>
+        <svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#connections"></use></svg>
       </button>
     </div>
     <nav class="source-bar" aria-label="Listening sources">
-      <button type="button" class="sidebar-nav-btn" data-nav="radio">Radio</button>
-      <button type="button" class="sidebar-nav-btn" data-nav="albums">Plex</button>
-      <button type="button" class="sidebar-nav-btn" data-nav="youtube">YouTube</button>
-      <button type="button" class="sidebar-nav-btn" data-nav="favorites">Favorites</button>
-      <button type="button" class="sidebar-nav-btn" data-nav="recent">History</button>
+      <button type="button" class="sidebar-nav-btn" data-nav="radio" aria-label="Radio" title="Radio"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#radio"></use></svg><span>Radio</span></button>
+      <button type="button" class="sidebar-nav-btn" data-nav="albums" aria-label="Plex" title="Plex"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#plex"></use></svg><span>Plex</span></button>
+      <button type="button" class="sidebar-nav-btn" data-nav="youtube" aria-label="YouTube" title="YouTube"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#youtube"></use></svg><span>YouTube</span></button>
+      <button type="button" class="sidebar-nav-btn" data-nav="favorites" aria-label="Favorites" title="Favorites"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#favorites"></use></svg><span>Favorites</span></button>
+      <button type="button" class="sidebar-nav-btn" data-nav="recent" aria-label="History" title="History"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#history"></use></svg><span>History</span></button>
       <button type="button" class="sidebar-nav-btn" data-nav="playlists">Playlists</button>
       <button type="button" class="btn source-chat" id="btnChatToggle" aria-controls="chatContainer" aria-expanded="false">Chat</button>
     </nav>
@@ -2251,11 +2193,15 @@
       <div class="settings-form">
       <section class="settings-section" aria-label="Nostr settings">
       <p class="settings-section-title">Nostr</p>
+      <div class="inline-actions">
+        <button type="button" class="btn" id="btnConnectBrowserSigner">Connect browser signer (NIP-07)</button>
+        <button type="button" class="btn" id="btnConnectAndroidSigner">Connect Android signer (NIP-55)</button>
+      </div>
       <label for="inRemoteSigner">Remote signer bunker URL</label>
       <input id="inRemoteSigner" type="password" autocomplete="off" placeholder="bunker://…" />
       <div class="inline-actions">
-        <button type="button" class="btn" id="btnConnectRemoteSigner">Connect remote signer</button>
-        <button type="button" class="btn" id="btnDisconnectRemoteSigner" hidden>Disconnect remote signer</button>
+        <button type="button" class="btn" id="btnConnectRemoteSigner">Connect remote signer (NIP-46)</button>
+        <button type="button" class="btn" id="btnDisconnectSigner" hidden>Disconnect signer</button>
         <a id="remoteSignerAuth" target="_blank" rel="noopener noreferrer" hidden>Authorize remote signer</a>
       </div>
       <p id="remoteSignerStatus" role="status"></p>
@@ -2263,16 +2209,6 @@
       <button type="button" class="btn" id="btnSyncStations">Sync favorites</button>
       <p id="stationSyncStatus" role="status"></p>
       <label class="sync-choice"><input id="shareNowPlaying" type="checkbox" /> Post now playing publicly</label>
-      <label for="inNsec">Nostr nsec</label>
-      <div class="nsec-input-wrap">
-        <input id="inNsec" type="password" placeholder="nsec1..." autocomplete="off" />
-        <button type="button" class="nsec-visibility-btn" id="btnToggleNsecMask" aria-label="Show nsec" title="Show nsec">Aa</button>
-      </div>
-      <div class="inline-actions">
-        <button type="button" class="btn primary" id="btnSaveNostr">Save nsec</button>
-        <button type="button" class="btn" id="btnGenerateNostr">Generate new nsec</button>
-        <button type="button" class="btn danger" id="btnClearNostr">Remove nsec</button>
-      </div>
       <div class="inline-note" id="nostrIdentity"></div>
       </section>
       <section class="settings-section" aria-label="Listening history sync">
@@ -2407,6 +2343,17 @@
   <script src="/js/channels.js"></script>
   <script src="/js/player/listening-history.js"></script>
   <script src="/js/player/nostr-sync.js"></script>
+  <div id="androidSignerPrompt" class="android-signer-prompt" hidden role="dialog" aria-label="Android signer request">
+    <p id="androidSignerMessage">Confirm this request in your Android signer.</p>
+    <a id="androidSignerLink" class="btn" target="_blank" rel="noopener">Open Android signer</a>
+    <button id="androidSignerCancel" type="button" class="btn">Cancel</button>
+    <form id="androidSignerPaste" hidden>
+      <label for="androidSignerResult">Or paste the signer’s response</label>
+      <input id="androidSignerResult" autocomplete="off" />
+      <button type="submit" class="btn">Use response</button>
+    </form>
+  </div>
+  <script src="/js/player/android-signer.js"></script>
   <script src="/js/player/app.js"></script>
 
   <script src="/js/player/visualizer.js"></script>

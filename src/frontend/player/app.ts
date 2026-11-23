@@ -14,8 +14,6 @@
     recentTracks: 'plexRecentTracks',
     searchIndexMeta: 'plexSearchIndexMeta',
     starredStations: 'guakaStarredStations',
-    nostrNsec: 'guakaNostrNsec',
-    nostrNpub: 'guakaNostrNpub',
     nostrActivity: 'guakaNostrActivityCache'
   };
   const $ = (id) => document.getElementById(id);
@@ -81,10 +79,9 @@
   let nostrToolsPromise = null;
   let nostrState = {
     ready: false,
-    nsec: '',
     npub: '',
     pubkey: '',
-    secretKey: null,
+    signer: null,
     pool: null,
     lastPostKey: '',
     lastPostAt: 0
@@ -230,58 +227,21 @@
     return nostrToolsPromise;
   }
 
-  function normalizeSecretKey(data, tools) {
-    if (data instanceof Uint8Array) return data;
-    if (typeof data === 'string' && tools.hexToBytes) return tools.hexToBytes(data);
-    throw new Error('Invalid nsec payload');
-  }
-
-  function buildNostrIdentityText() {
-    if (!nostrState.pubkey) return 'Not connected.';
-    return 'Connected as ' + (nostrState.npub || nostrState.pubkey.slice(0, 16) + '...');
-  }
-
-  function updateNostrSaveButtonVisibility() {
-    const btn = $('btnSaveNostr');
-    const genBtn = $('btnGenerateNostr');
-    const clearBtn = $('btnClearNostr');
-    const input = $('inNsec');
-    if (!btn || !input) return;
-    const typed = String(input.value || '').trim();
-    const saved = String(localStorage.getItem(LS.nostrNsec) || '').trim();
-    const alreadySavedAndConnected =
-      !!typed &&
-      typed === saved &&
-      !!nostrState.ready &&
-      !!nostrState.pubkey &&
-      !!nostrState.npub;
-    const hasAnyNsecSet = !!typed || !!saved;
-    const hasSavedNsec = !!saved;
-    btn.style.display = alreadySavedAndConnected ? 'none' : '';
-    if (genBtn) genBtn.style.display = hasAnyNsecSet ? 'none' : '';
-    if (clearBtn) clearBtn.style.display = hasSavedNsec ? '' : 'none';
-  }
-
   function updateNostrIdentityUi() {
-    const identityEl = $('nostrIdentity');
-    if (identityEl) identityEl.textContent = buildNostrIdentityText();
-    updateNostrSaveButtonVisibility();
+    $('nostrIdentity').textContent = nostrState.pubkey ? 'Connected as ' + nostrState.npub : 'Choose a signer to connect.';
+    $('btnDisconnectSigner').hidden = !(listeningSigner || readListeningSetting(remoteSignerKey, null) ||
+      localStorage.getItem(signerModeKey));
   }
 
   function postToChat(message) {
     try {
       const iframe = $('chatIframe');
-      if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(message, '*');
+      if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(message, location.origin);
     } catch (_) {}
   }
 
-  function syncNostrNsecToChatIframe() {
-    const n = localStorage.getItem(LS.nostrNsec);
-    if (n && String(n).trim().startsWith('nsec')) {
-      postToChat({ type: 'setChatNsec', nsec: String(n).trim() });
-    } else {
-      postToChat({ type: 'clearChatNsec' });
-    }
+  function syncSignerToChat() {
+    postToChat({ type: 'chatSignerChanged', pubkey: nostrState.pubkey });
   }
 
   function sendChatContext() {
@@ -341,58 +301,29 @@
     }
   }
 
-  async function initNostrFromNsec(nsec) {
-    const key = String(nsec || '').trim();
-    if (!key) {
-      nostrState = Object.assign({}, nostrState, {
-        ready: false,
-        nsec: '',
-        npub: '',
-        pubkey: '',
-        secretKey: null,
-        pool: null
-      });
-      updateNostrIdentityUi();
-      setNostrStatus('Nostr disabled.', '');
-      syncNostrNsecToChatIframe();
-      return false;
-    }
-    try {
-      const tools = await getNostrTools();
-      const decoded = tools.nip19.decode(key);
-      if (!decoded || decoded.type !== 'nsec' || !decoded.data) throw new Error('Invalid nsec');
-      const secretKey = normalizeSecretKey(decoded.data, tools);
-      const pubkey = tools.getPublicKey(secretKey);
-      const npub = tools.nip19.npubEncode(pubkey);
-      const pool = nostrState.pool || new tools.SimplePool();
-      nostrState = {
-        ready: true,
-        nsec: key,
-        npub: npub,
-        pubkey: pubkey,
-        secretKey: secretKey,
-        pool: pool,
-        lastPostKey: '',
-        lastPostAt: 0
-      };
-      localStorage.setItem(LS.nostrNsec, key);
-      localStorage.setItem(LS.nostrNpub, npub);
-      updateNostrIdentityUi();
-      setNostrStatus('Nostr connected: ' + npub.slice(0, 18) + '…', 'ok');
+  function registerListeningSigner(signer, tools, mode) {
+    const previous = listeningSigner;
+    const npub = tools.nip19.npubEncode(signer.pubkey);
+    if (previous && previous !== signer) previous.close?.();
+    listeningSigner = signer;
+    nostrState = {
+      ready: true, npub, pubkey: signer.pubkey, signer,
+      pool: nostrState.pool || new tools.SimplePool(), lastPostKey: '', lastPostAt: 0
+    };
+    localStorage.setItem(signerModeKey, mode);
+    updateNostrIdentityUi();
+    syncSignerToChat();
+    const session = nostrState;
+    void (async () => {
       await loadNostrHistory();
-      await applyNostrFavoritesToLocalStorage();
-      await applyNostrRecentToLocalStorage();
-      syncNostrNsecToChatIframe();
-      return true;
-    } catch (err) {
-      nostrState.ready = false;
-      setNostrStatus('Could not initialize Nostr: ' + (err && err.message ? err.message : String(err)), 'error');
-      return false;
-    }
+      if (nostrState === session) await applyNostrFavoritesToLocalStorage();
+      if (nostrState === session) await applyNostrRecentToLocalStorage();
+    })();
+    return signer;
   }
 
   async function publishNostrNote(text, tag, extraTags) {
-    if (!nostrState.ready || !nostrState.secretKey || !nostrState.pool) return;
+    if (!nostrState.ready || !nostrState.signer || !nostrState.pool) return;
     const content = String(text || '').trim();
     if (!content) return;
     const extra = Array.isArray(extraTags) ? extraTags : [];
@@ -415,7 +346,9 @@
         content: content,
         tags: tags
       };
-      const signed = tools.finalizeEvent(eventTemplate, nostrState.secretKey);
+      const session = nostrState;
+      const signed = await RadioNostrSync.signVerified(session.signer, eventTemplate, tools);
+      if (nostrState !== session) return;
       safeNostrPoolPublish(nostrState.pool, NOSTR_RELAYS, signed);
       setNostrStatus('Posted note to Nostr.', 'ok');
       await loadNostrHistory();
@@ -844,63 +777,20 @@
     return normalized;
   }
 
-  async function encryptNostrDmContent(tools, plaintext, peerPubkey) {
-    const secretKey = nostrState.secretKey;
-    const plain = String(plaintext || '');
-    if (!plain) throw new Error('Empty message');
-    if (!secretKey || !peerPubkey) throw new Error('Missing Nostr key material');
-
-    const nip44 = tools && tools.nip44 && (tools.nip44.v2 || tools.nip44);
-    if (nip44 && nip44.utils && typeof nip44.utils.getConversationKey === 'function') {
-      const conversationKey = nip44.utils.getConversationKey(secretKey, peerPubkey);
-      return { algorithm: 'nip44', content: nip44.encrypt(plain, conversationKey) };
-    }
-
-    if (tools && tools.nip04 && typeof tools.nip04.encrypt === 'function') {
-      const nip04Candidates = [secretKey];
-      if (tools.bytesToHex) {
-        try {
-          nip04Candidates.push(tools.bytesToHex(secretKey));
-        } catch (_) {}
-      }
-      for (let i = 0; i < nip04Candidates.length; i++) {
-        try {
-          const encrypted = await tools.nip04.encrypt(nip04Candidates[i], peerPubkey, plain);
-          if (typeof encrypted === 'string' && encrypted) return { algorithm: 'nip04', content: encrypted };
-        } catch (_) {}
-      }
-    }
-    throw new Error('No supported Nostr encryption API (need NIP-44 or NIP-04).');
+  async function encryptNostrDmContent(signer, plaintext, peerPubkey) {
+    if (!plaintext || !peerPubkey) throw new Error('Missing message or recipient.');
+    if (signer?.nip44Encrypt) return { algorithm: 'nip44', content: await signer.nip44Encrypt(peerPubkey, plaintext) };
+    if (signer?.nip04Encrypt) return { algorithm: 'nip04', content: await signer.nip04Encrypt(peerPubkey, plaintext) };
+    throw new Error('The connected signer does not support encryption.');
   }
 
-  async function decryptNostrDmContent(tools, ciphertext, peerPubkey, preferredAlgo) {
-    const secretKey = nostrState.secretKey;
-    const payload = String(ciphertext || '');
-    if (!payload || !secretKey || !peerPubkey) return '';
-    const attempts = preferredAlgo === 'nip04' ? ['nip04', 'nip44'] : ['nip44', 'nip04'];
-    for (let i = 0; i < attempts.length; i++) {
-      const algo = attempts[i];
-      if (algo === 'nip44' && tools && tools.nip44) {
-        const nip44 = tools.nip44.v2 || tools.nip44;
-        try {
-          const conversationKey = nip44.utils.getConversationKey(secretKey, peerPubkey);
-          return nip44.decrypt(payload, conversationKey);
-        } catch (_) {}
-      }
-      if (algo === 'nip04' && tools && tools.nip04 && typeof tools.nip04.decrypt === 'function') {
-        const keys = [secretKey];
-        if (tools.bytesToHex) {
-          try {
-            keys.push(tools.bytesToHex(secretKey));
-          } catch (_) {}
-        }
-        for (let k = 0; k < keys.length; k++) {
-          try {
-            const plain = await tools.nip04.decrypt(keys[k], peerPubkey, payload);
-            if (typeof plain === 'string') return plain;
-          } catch (_) {}
-        }
-      }
+  async function decryptNostrDmContent(signer, ciphertext, peerPubkey, preferredAlgo) {
+    if (!ciphertext || !peerPubkey || !signer) return '';
+    const methods = preferredAlgo === 'nip04' ? ['nip04Decrypt', 'nip44Decrypt'] : ['nip44Decrypt', 'nip04Decrypt'];
+    for (const method of methods) {
+      try {
+        if (signer[method]) return await signer[method](peerPubkey, ciphertext);
+      } catch (_) {}
     }
     return '';
   }
@@ -917,7 +807,7 @@
   }
 
   async function publishNostrDeleteEvents(eventIds, reason) {
-    if (!nostrState.ready || !nostrState.secretKey || !nostrState.pool) return;
+    if (!nostrState.ready || !nostrState.signer || !nostrState.pool) return;
     const tags = toNostrDeleteTags(eventIds);
     if (!tags.length) return;
     try {
@@ -928,7 +818,9 @@
         tags: tags.concat([['t', NOSTR_TAG], ['t', 'audiobook_progress']]),
         content: String(reason || 'Superseded progress')
       };
-      const signed = tools.finalizeEvent(eventTemplate, nostrState.secretKey);
+      const session = nostrState;
+      const signed = await RadioNostrSync.signVerified(session.signer, eventTemplate, tools);
+      if (nostrState !== session) return;
       safeNostrPoolPublish(nostrState.pool, NOSTR_RELAYS, signed);
     } catch (_) {}
   }
@@ -974,8 +866,7 @@
     if (!targetPubkey || !nostrState.pubkey || targetPubkey !== nostrState.pubkey) return null;
     const algoTag = String(nostrGetFirstTag(ev, 'encryption') || '').toLowerCase();
     const preferredAlgo = algoTag === 'nip04' ? 'nip04' : 'nip44';
-    const tools = await getNostrTools();
-    const plain = await decryptNostrDmContent(tools, ev.content, targetPubkey, preferredAlgo);
+    const plain = await decryptNostrDmContent(nostrState.signer, ev.content, targetPubkey, preferredAlgo);
     if (!plain) return null;
     const payload = parseNostrMaybeJson(plain);
     if (!payload || payload.kind !== 'audiobook_progress') return null;
@@ -1212,6 +1103,9 @@
   let listeningSigner = null;
   let remoteSignerConnection = null;
   const remoteSignerKey = 'guakaRemoteSignerSession';
+  const signerModeKey = 'guakaSignerMode';
+  const androidSignerPubkeyKey = 'guakaAndroidSignerPubkey';
+  let signerConnectAttempt = null;
   const historyConfigKey = 'guakaHistorySyncConfig';
   const localHistoryKey = 'guakaRadioYouTubeHistory';
   let historySyncRunning = null;
@@ -1229,31 +1123,56 @@
     catch (_) { return fallback; }
   }
 
+  async function connectLocalListeningSigner(mode, restore = false) {
+    if (signerConnectAttempt) return signerConnectAttempt;
+    const status = $('remoteSignerStatus');
+    signerConnectAttempt = (async () => {
+      const tools = await getNostrTools();
+      const signer = mode === 'android'
+        ? await RadioAndroidSigner.connect(tools, presentAndroidSignerRequest,
+          restore ? localStorage.getItem(androidSignerPubkeyKey) || undefined : undefined)
+        : await RadioNostrSync.connectExtension(window.nostr);
+      if (mode === 'android') localStorage.setItem(androidSignerPubkeyKey, signer.pubkey);
+      status.textContent = '';
+      return registerListeningSigner(signer, tools, mode);
+    })().finally(() => { signerConnectAttempt = null; });
+    return signerConnectAttempt;
+  }
+
   async function getListeningSigner() {
     if (listeningSigner) return listeningSigner;
     const remoteConfig = readListeningSetting(remoteSignerKey, null);
     if (remoteConfig) return connectBrowserRemoteSigner(remoteConfig, true);
-    if (window.nostr?.getPublicKey && window.nostr?.signEvent) {
-      const pubkey = await window.nostr.getPublicKey();
-      if (!/^[a-f0-9]{64}$/.test(pubkey)) throw new Error('The browser signer returned an invalid account.');
-      return {
-        pubkey,
-        signEvent: (event) => window.nostr.signEvent(event),
-        encryptHistory: window.nostr.nip44?.encrypt && ((text) => window.nostr.nip44.encrypt(pubkey, text)),
-        decryptHistory: window.nostr.nip44?.decrypt && ((text) => window.nostr.nip44.decrypt(pubkey, text))
-      };
-    }
-    if (nostrState.ready && nostrState.secretKey) {
-      const { pubkey, secretKey } = nostrState;
-      const tools = await getNostrTools();
-      const key = tools.nip44.v2.utils.getConversationKey(secretKey, pubkey);
-      return {
-        pubkey, signEvent: (event) => tools.finalizeEvent(event, secretKey),
-        encryptHistory: (text) => tools.nip44.v2.encrypt(text, key),
-        decryptHistory: (text) => tools.nip44.v2.decrypt(text, key)
-      };
-    }
-    throw new Error('Connect a browser Nostr signer or save your existing Nostr key in Connections.');
+    if (localStorage.getItem(signerModeKey) === 'android') return connectLocalListeningSigner('android', true);
+    if (window.nostr?.getPublicKey && window.nostr?.signEvent) return connectLocalListeningSigner('extension');
+    throw new Error('Connect a Nostr signer in Connections.');
+  }
+
+  function presentAndroidSignerRequest({ url, method, cancel, acceptResult }) {
+    const prompt = $('androidSignerPrompt');
+    const link = $('androidSignerLink');
+    const form = $('androidSignerPaste');
+    const input = $('androidSignerResult');
+    const previous = document.activeElement;
+    $('androidSignerMessage').textContent = method === 'get_public_key'
+      ? 'Connect your Android Nostr signer.' : 'Confirm this request in your Android signer.';
+    link.href = url;
+    $('androidSignerCancel').onclick = cancel;
+    form.hidden = typeof acceptResult !== 'function';
+    if (acceptResult) form.onsubmit = (event) => {
+      event.preventDefault();
+      if (input.value.trim()) acceptResult(input.value);
+    };
+    prompt.hidden = false;
+    link.focus();
+    return () => {
+      prompt.hidden = true;
+      link.removeAttribute('href');
+      $('androidSignerCancel').onclick = null;
+      form.onsubmit = null;
+      input.value = '';
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
   }
 
   function connectBrowserRemoteSigner(config, restore) {
@@ -1287,10 +1206,8 @@
             throw error;
           }
         }
-        listeningSigner = signer;
-        status.textContent = 'Remote signer connected: ' + tools.nip19.npubEncode(signer.pubkey);
-        $('btnDisconnectRemoteSigner').hidden = false;
-        return signer;
+        status.textContent = '';
+        return registerListeningSigner(signer, tools, 'remote');
       } catch (error) {
         status.textContent = error.message || 'Could not connect to remote signer.';
         throw error;
@@ -1650,16 +1567,6 @@
     return String($('inSection').value || cfg().sectionKey || '');
   }
 
-  async function readSectionSearchRecords(sectionKey) {
-    const db = await openSearchDb();
-    if (!db || !sectionKey) return [];
-    const tx = db.transaction(SEARCH_STORE, 'readonly');
-    const store = tx.objectStore(SEARCH_STORE);
-    const index = store.index('sectionKey');
-    const range = IDBKeyRange.only(String(sectionKey));
-    return idbWrapRequest(index.getAll(range));
-  }
-
   async function readAllSearchRecords() {
     const db = await openSearchDb();
     if (!db) return [];
@@ -1716,16 +1623,6 @@
       allSearchRecordsCache = Array.from(byId.values());
       allSearchRecordsCacheLoadedAt = Date.now();
     }
-  }
-
-  async function getSearchRecord(sectionKey, albumKey) {
-    const db = await openSearchDb();
-    if (!db || !sectionKey || !albumKey) return null;
-    const tx = db.transaction(SEARCH_STORE, 'readonly');
-    const store = tx.objectStore(SEARCH_STORE);
-    const id = searchRecordId(sectionKey, albumKey);
-    const record = await idbWrapRequest(store.get(id)).catch(() => null);
-    return record || null;
   }
 
   function plexAlbumCacheNs() {
@@ -2599,16 +2496,16 @@
     setNowPlayingWikiLink('npSubWiki', urls[2]);
   }
 
+  function apkIconHtml(name) {
+    return '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/app-icons.svg#' + name + '"></use></svg>';
+  }
+
   function starIconHtml(starred) {
-    const star =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="' +
-      (starred ? 'currentColor' : 'none') +
-      '" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
-    return star;
+    return apkIconHtml(starred ? 'favorites' : 'star-outline');
   }
 
   function albumCardPlayIconHtml() {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg>';
+    return apkIconHtml('play');
   }
 
   function fallbackThumbDataUrl() {
@@ -2866,7 +2763,6 @@
   let currentArtistKey = null;
   let currentTracks = [];
   let sameOriginPlexProxyReady = false;
-  let searchQuery = '';
   let isLoadingAlbums = false;
   let hasMoreAlbums = false;
   let albumTotalCount = 0;
@@ -2943,12 +2839,8 @@
   }
   let autoLoadAlbumsTimer = 0;
   let filterVersion = 0;
-  let filterDebounceTimer = 0;
-  let hubSearchFallbackTimer = 0;
-  let trackPrefetchTried = new Set();
-  let trackPrefetchTriedForQuery = '';
   let navView = 'radio';
-  let searchAllSources = false;
+  let youtubeAudioAvailable = false;
   const playlistCsvState = {
     loaded: true,
     loading: false,
@@ -2963,8 +2855,6 @@
   let currentRadioIdx = -1;
   let isRadioMode = false;
   let youtubeSelection = null;
-  const albumTrackSearchCache = new Map();
-  const albumTrackFetchCache = new Map();
   const albumSearchIndexCache = new Map();
   const albumFolderNameCache = new Map();
   const albumFolderNameFetchCache = new Map();
@@ -2977,13 +2867,12 @@
   let settingsStatusClearTimer = 0;
   let errorClearTimer = 0;
   let plexConnectionWorking = false;
-  let activeSearchIndexSection = '';
   /** Plex sections from last loadSections — used for multi-library hub search. */
   let plexSectionListCache = [];
   let plexSectionNameByKey = {};
   let plexSectionMetaByKey = {};
   let unifiedSearchTimer = 0;
-  let unifiedSearchSeq = 0;
+  let youtubeSearchRequest = null;
   let playbackMode = PLAYBACK_MODE_OFF;
 
   function ytDebug(event, data) {
@@ -3071,7 +2960,7 @@
     if (c.token) autoDetectServersFromToken().catch(() => {});
     var card = $('settingsModal').querySelector('.modal-card');
     if (card) card.scrollTop = 0;
-    const focusTarget = options.focusNostr ? $('inNsec') : $('btnCloseSettings');
+    const focusTarget = options.focusNostr ? $('btnConnectBrowserSigner') : $('btnCloseSettings');
     focusTarget.focus({ preventScroll: true });
   }
 
@@ -3651,9 +3540,7 @@
   async function applyPlexSectionUserChange() {
     const section = $('inSection').value;
     localStorage.setItem(LS.section, section || '');
-    activeSearchIndexSection = '';
     albumSearchIndexCache.clear();
-    albumTrackSearchCache.clear();
     invalidateAllSearchRecordsCache();
     libraryTrackTotalCache = { sectionKey: '', total: 0 };
     songShuffleRecentKeys = [];
@@ -3887,67 +3774,6 @@
     return s.trim();
   }
 
-  function collectTracksFromPlexJson(node, out) {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (let i = 0; i < node.length; i++) collectTracksFromPlexJson(node[i], out);
-      return;
-    }
-    const typ = node.type;
-    const typStr = String(typ || '').toLowerCase();
-    if (
-      node.ratingKey &&
-      (typ === 'track' ||
-        typ === 10 ||
-        typ === '10' ||
-        typStr === 'episode' ||
-        typStr === 'chapter' ||
-        typStr === 'audiobook' ||
-        isPlexAudioLeafForPlayback(node))
-    ) {
-      out.push(node);
-    }
-    const meta = node.Metadata || node.metadata;
-    if (meta) {
-      const arr = Array.isArray(meta) ? meta : [meta];
-      for (let i = 0; i < arr.length; i++) collectTracksFromPlexJson(arr[i], out);
-    }
-    const hub = node.Hub || node.hub;
-    if (hub) {
-      const arr = Array.isArray(hub) ? hub : [hub];
-      for (let i = 0; i < arr.length; i++) collectTracksFromPlexJson(arr[i], out);
-    }
-    if (node.MediaContainer) collectTracksFromPlexJson(node.MediaContainer, out);
-  }
-
-  async function plexSearchHubTracks(searchText) {
-    const q = normalizeSearchText(normalizeChatSearchQuery(searchText));
-    if (q.length < 2) return [];
-    const section = activeSectionKey();
-    const encoded = encodeURIComponent(String(searchText || '').trim());
-    const paths = [];
-    if (section) {
-      paths.push(
-        '/hubs/search?query=' + encoded + '&limit=50&sectionId=' + encodeURIComponent(section)
-      );
-    }
-    paths.push('/hubs/search?query=' + encoded + '&limit=50');
-    const byKey = new Map();
-    for (let p = 0; p < paths.length; p++) {
-      try {
-        const data = await plexFetch(paths[p]);
-        const buf = [];
-        collectTracksFromPlexJson(data, buf);
-        for (let i = 0; i < buf.length; i++) {
-          const t = buf[i];
-          byKey.set(String(t.ratingKey), t);
-        }
-        if (byKey.size) break;
-      } catch (_) {}
-    }
-    return Array.from(byKey.values());
-  }
-
   function collectHubSearchMetadata(node, out) {
     if (!node || typeof node !== 'object') return;
     if (Array.isArray(node)) {
@@ -4020,16 +3846,6 @@
       albums: Array.from(albumsByKey.values()),
       tracks: Array.from(tracksByKey.values())
     };
-  }
-
-  function countVisibleAlbumCards(grid) {
-    if (!grid) return 0;
-    let n = 0;
-    grid.querySelectorAll('.album').forEach((el) => {
-      if (el.style.display === 'none') return;
-      n++;
-    });
-    return n;
   }
 
   function isUnknownAlbumTitle(title) {
@@ -4402,44 +4218,6 @@
     }
   }
 
-  function getCachedTrackSearchPayload(albumKey) {
-    if (!albumKey) return null;
-    const key = String(albumKey);
-    if (albumTrackSearchCache.has(key)) return albumTrackSearchCache.get(key);
-    const indexed = albumSearchIndexCache.get(key);
-    if (!indexed || !indexed.trackSearch) return null;
-    const payload = {
-      search: String(indexed.trackSearch || ''),
-      titles: Array.isArray(indexed.titles) ? indexed.titles : []
-    };
-    albumTrackSearchCache.set(key, payload);
-    return payload;
-  }
-
-  async function ensureActiveSearchIndexLoaded() {
-    const section = activeSectionKey();
-    if (!section) return;
-    if (activeSearchIndexSection === section && albumSearchIndexCache.size) return;
-    activeSearchIndexSection = section;
-    albumSearchIndexCache.clear();
-    const records = await readSectionSearchRecords(section);
-    records.forEach((record) => {
-      const key = String(record.albumKey || '');
-      if (!key) return;
-      albumSearchIndexCache.set(key, {
-        albumSearch: String(record.albumSearch || ''),
-        trackSearch: String(record.trackSearch || ''),
-        titles: Array.isArray(record.titles) ? record.titles : []
-      });
-      if (record.trackSearch) {
-        albumTrackSearchCache.set(key, {
-          search: String(record.trackSearch || ''),
-          titles: Array.isArray(record.titles) ? record.titles : []
-        });
-      }
-    });
-  }
-
   function formatIdbAlbumTitleForSearch(record) {
     const ak = String(record.albumKey || '');
     const fromLookup = albumLookup.get(ak);
@@ -4473,10 +4251,10 @@
     return hits;
   }
 
-  function buildUnifiedSearchHtml(radioHits, albums, tracks, rawQuery) {
+  function buildUnifiedSearchHtml(radioHits, albums, tracks, rawQuery, videos, youtubePending) {
     const parts = [];
     if (radioHits.length) {
-      parts.push('<section class="unified-search-block"><h4>Radio (channels.js)</h4><ul class="unified-hit-list">');
+      parts.push('<section class="unified-search-block"><h4>Radio</h4><ul class="unified-hit-list">');
       for (let i = 0; i < radioHits.length; i++) {
         const st = radioHits[i];
         const sub = st.tags.length ? st.tags.slice(0, 5).join(' · ') : 'Live stream';
@@ -4484,6 +4262,7 @@
           '<li><button type="button" class="unified-hit-btn" data-unified-radio="' +
             escapeHtml(st.id) +
             '">' +
+            '<img class="unified-hit-art" src="' + escapeHtml(st.img || st.fallbackImg) + '" alt="" loading="lazy" />' +
             '<span class="unified-hit-title">' +
             escapeHtml(st.title) +
             '</span>' +
@@ -4494,6 +4273,22 @@
       }
       parts.push('</ul></section>');
     }
+    const searchURL = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(rawQuery);
+    parts.push('<section class="unified-search-block"><h4>YouTube</h4>');
+    if (youtubePending) parts.push('<p class="unified-search-loading">Searching YouTube…</p>');
+    if (videos.length) {
+      parts.push('<ul class="unified-hit-list">');
+      for (const video of videos) {
+        const watch = 'https://www.youtube.com/watch?v=' + video.id;
+        parts.push('<li><a class="unified-hit-btn" data-unified-youtube="' + video.id +
+          '" href="' + watch + '" target="_blank" rel="noopener noreferrer">' +
+          '<img class="unified-hit-art" src="https://i.ytimg.com/vi/' + video.id + '/default.jpg" alt="" loading="lazy" />' +
+          '<span class="unified-hit-title">' + escapeHtml(video.title) + '</span>' +
+          '<span class="unified-hit-sub">' + escapeHtml(video.author) + '</span></a></li>');
+      }
+      parts.push('</ul>');
+    }
+    parts.push('<a class="unified-youtube-link" href="' + escapeHtml(searchURL) + '" target="_blank" rel="noopener noreferrer">Search on YouTube</a></section>');
     if (albums.length || tracks.length) {
       parts.push('<section class="unified-search-block"><h4>Plex (all libraries)</h4><ul class="unified-hit-list">');
       for (let i = 0; i < albums.length; i++) {
@@ -4523,23 +4318,15 @@
           '<li><button type="button" class="unified-hit-btn" data-unified-plex-track data-section-key="' +
             escapeHtml(String(t.librarySectionID || '')) +
             '" data-album-key="' +
-            escapeHtml(ak) +
-            '">' +
+            escapeHtml(ak) + '" data-track-key="' +
+            escapeHtml(String(t.ratingKey || '')) + '">' +
             '<span class="unified-hit-title">' +
             escapeHtml(titleLine || 'Track') +
             '</span>' +
-            '<span class="unified-hit-sub">Track · open album</span></button></li>'
+            '<span class="unified-hit-sub">Track</span></button></li>'
         );
       }
       parts.push('</ul></section>');
-    }
-    if (!parts.length) {
-      const norm = normalizeSearchText(rawQuery);
-      const hint =
-        norm.length < 2
-          ? 'Type at least 2 characters to search Plex across every library. Radio matches can appear with 1+ characters.'
-          : 'No matches in channels.js or Plex hub search for this phrase.';
-      return '<p class="unified-search-empty">' + escapeHtml(hint) + '</p>';
     }
     return parts.join('');
   }
@@ -4589,19 +4376,35 @@
       const rb = e.target.closest('[data-unified-radio]');
       if (rb) {
         e.preventDefault();
+        clearSearchInput();
         playUnifiedRadioStation(rb.getAttribute('data-unified-radio'));
+        return;
+      }
+      const yt = e.target.closest('[data-unified-youtube]');
+      if (yt && youtubeAudioAvailable && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        clearSearchInput();
+        void playYouTubeFromUrl(yt.dataset.unifiedYoutube);
         return;
       }
       const pa = e.target.closest('[data-unified-plex-album]');
       if (pa) {
         e.preventDefault();
+        clearSearchInput();
         unifiedOpenPlexAlbum(pa.getAttribute('data-section-key'), pa.getAttribute('data-rating-key'));
         return;
       }
       const pt = e.target.closest('[data-unified-plex-track]');
       if (pt) {
         e.preventDefault();
-        unifiedOpenPlexAlbum(pt.getAttribute('data-section-key'), pt.getAttribute('data-album-key'));
+        clearSearchInput();
+        const album = pt.dataset.albumKey;
+        const track = pt.dataset.trackKey;
+        void unifiedOpenPlexAlbum(pt.dataset.sectionKey, album).then(() => {
+          if (String(currentAlbum?.ratingKey) !== album || !track) return;
+          const index = currentTracks.findIndex((entry) => String(entry.ratingKey) === track);
+          if (index >= 0) playIndex(index);
+        });
         return;
       }
     });
@@ -4626,274 +4429,122 @@
     }, 300);
   }
 
-  async function runUnifiedSearchPanel(rawQuery, filterV) {
-    const panel = $('unifiedSearchPanel');
-    if (!panel) return;
-    const inp = $('inSearch');
-    const normInput = normalizeSearchText(inp && inp.value.trim());
-    if (normInput !== normalizeSearchText(rawQuery)) return;
-    const seq = ++unifiedSearchSeq;
-    panel.hidden = false;
-    panel.innerHTML = '<p class="unified-search-loading"><span class="spinner"></span> Searching…</p>';
-
-    if (!radioStations.length) buildRadioData();
-    const qLower = rawQuery.trim().toLowerCase();
-    const radioHits = [];
-    for (let ri = 0; ri < radioStations.length; ri++) {
-      const station = radioStations[ri];
-      if (
-        station.title.toLowerCase().includes(qLower) ||
-        station.id.toLowerCase().includes(qLower) ||
-        station.tags.join(' ').toLowerCase().includes(qLower)
-      ) {
-        radioHits.push(station);
-      }
-    }
-
-    let idbHits = [];
+  async function searchYouTubeTitles(query, signal) {
+    const explicitVideo = /^https?:\/\//i.test(query) ? extractYouTubeVideoId(query) : '';
+    if (explicitVideo) return [{ id: explicitVideo, title: 'Open video', author: 'YouTube' }];
+    if (query.length < 2) return [];
+    const endpoint = new URL('https://pipedapi.ducks.party/search');
+    endpoint.searchParams.set('q', query);
+    endpoint.searchParams.set('filter', 'videos');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    const cancel = () => controller.abort();
+    signal.addEventListener('abort', cancel, { once: true });
     try {
-      const allRec = await readAllSearchRecordsCached();
-      if (filterV !== filterVersion) return;
-      idbHits = idbRecordsMatchingQuery(allRec, rawQuery);
-    } catch (_) {}
-
-    if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
-    panel.innerHTML = buildUnifiedSearchHtml(radioHits, idbHits, [], rawQuery);
-
-    let hubAlbums = [];
-    let hubTracks = [];
-    const canPlex = !!(cfg().server && cfg().token);
-    const normQ = normalizeSearchText(rawQuery);
-    if (canPlex && normQ.length >= 2) {
-      try {
-        const h = await plexHubSearchEverySection(rawQuery);
-        if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
-        hubAlbums = h.albums;
-        hubTracks = h.tracks;
-      } catch (_) {}
-    }
-
-    if (filterV !== filterVersion || seq !== unifiedSearchSeq) return;
-
-    if (!hubAlbums.length && !hubTracks.length) return;
-
-    const byKey = new Map();
-    for (let hi = 0; hi < idbHits.length; hi++) {
-      const h = idbHits[hi];
-      byKey.set(String(h.ratingKey), h);
-    }
-    for (let ai = 0; ai < hubAlbums.length; ai++) {
-      const a = hubAlbums[ai];
-      const k = String(a.ratingKey);
-      const sec = String(a.librarySectionID || '');
-      const prev = byKey.get(k) || {};
-      let title = String(a.title || prev.title || '');
-      if (!title) {
-        const lu = albumLookup.get(k);
-        if (lu && lu.title) title = String(lu.title);
+      const response = await fetch(endpoint, { credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal });
+      if (!response.ok) return [];
+      const data = await response.json();
+      const results = new Map();
+      for (const item of Array.isArray(data?.items) ? data.items : []) {
+        const id = typeof item?.url === 'string' && item.url.startsWith('/watch?')
+          ? extractYouTubeVideoId('https://www.youtube.com' + item.url) : '';
+        if (item?.type !== 'stream' || !id || typeof item.title !== 'string' || results.has(id)) continue;
+        results.set(id, { id, title: item.title.slice(0, 240), author: String(item.uploaderName || 'YouTube').slice(0, 160) });
+        if (results.size === 12) break;
       }
-      if (!title) title = 'Album';
-      const sectionKey = sec || String(prev.sectionKey || '');
-      const libLabel =
-        (sec && plexSectionNameByKey[sec]) ||
-        (prev.sectionKey && plexSectionNameByKey[String(prev.sectionKey)]) ||
-        prev.subtitle ||
-        '';
-      const parentTitle = String(a.parentTitle || prev.parentTitle || '');
-      byKey.set(k, {
-        kind: 'album',
-        ratingKey: k,
-        sectionKey,
-        title,
-        parentTitle,
-        subtitle: libLabel
-      });
+      return [...results.values()];
+    } catch (_) {
+      return [];
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', cancel);
     }
+  }
 
-    const mergedAlbums = Array.from(byKey.values());
-    const trackSlice = hubTracks;
-    panel.innerHTML = buildUnifiedSearchHtml(radioHits, mergedAlbums, trackSlice, rawQuery);
+  async function runUnifiedSearchPanel(rawQuery, version) {
+    const panel = $('unifiedSearchPanel');
+    const isCurrent = () => version === filterVersion && $('inSearch').value.trim() === rawQuery;
+    if (!panel || !isCurrent()) return;
+    if (!radioStations.length) buildRadioData();
+    const radioHits = radioStations.filter((station) =>
+      searchMatchesBlob([station.title, station.id, ...station.tags].join(' '), rawQuery)).slice(0, 24);
+    let albums = [];
+    let tracks = [];
+    let videos = [];
+    let youtubePending = rawQuery.length >= 2;
+    const render = () => {
+      if (isCurrent()) {
+        panel.hidden = false;
+        panel.innerHTML = buildUnifiedSearchHtml(radioHits, albums, tracks, rawQuery, videos, youtubePending);
+      }
+    };
+    render();
+    const controller = new AbortController();
+    youtubeSearchRequest = controller;
+    const youtube = searchYouTubeTitles(rawQuery, controller.signal).then((results) => {
+      videos = results;
+      youtubePending = false;
+      render();
+    });
+    const plex = (async () => {
+      const { server, token } = cfg();
+      if (!server || !token || normalizeSearchText(rawQuery).length < 2) return;
+      const [cached, hubs] = await Promise.allSettled([
+        readAllSearchRecordsCached(),
+        plexHubSearchEverySection(rawQuery)
+      ]);
+      if (!isCurrent() || cfg().server !== server || cfg().token !== token) return;
+      const cachedHits = cached.status === 'fulfilled' ? idbRecordsMatchingQuery(cached.value, rawQuery) : [];
+      const merged = new Map(cachedHits.map((album) => [String(album.ratingKey), album]));
+      if (hubs.status === 'fulfilled') {
+        for (const item of hubs.value.albums) {
+          const ratingKey = String(item.ratingKey);
+          const previous = merged.get(ratingKey);
+          const sectionKey = String(item.librarySectionID || previous?.sectionKey || '');
+          merged.set(ratingKey, {
+            ratingKey, sectionKey,
+            title: item.title || previous?.title || albumLookup.get(ratingKey)?.title || 'Album',
+            parentTitle: item.parentTitle || previous?.parentTitle || '',
+            subtitle: plexSectionNameByKey[sectionKey] || previous?.subtitle || ''
+          });
+        }
+        tracks = hubs.value.tracks.slice(0, 20);
+      }
+      albums = [...merged.values()].slice(0, 20);
+      render();
+    })();
+    await Promise.all([youtube, plex]);
   }
 
   function updateFilterState() {
     const activeVersion = ++filterVersion;
     const searchInput = $('inSearch');
-    searchQuery = searchInput.value.trim().toLowerCase();
-    const query = searchQuery;
     const rawSearchInput = searchInput.value.trim();
     syncSearchUi();
-    if (!rawSearchInput || !searchAllSources) {
-      if (unifiedSearchTimer) {
-        clearTimeout(unifiedSearchTimer);
-        unifiedSearchTimer = 0;
-      }
-      unifiedSearchSeq++;
-      const usp = $('unifiedSearchPanel');
-      if (usp) {
-        usp.hidden = true;
-        usp.innerHTML = '';
-      }
-    } else {
+    youtubeSearchRequest?.abort();
+    if (unifiedSearchTimer) clearTimeout(unifiedSearchTimer);
+    unifiedSearchTimer = 0;
+    document.body.classList.toggle('searching-sources', Boolean(rawSearchInput));
+    const unifiedPanel = $('unifiedSearchPanel');
+    unifiedPanel.hidden = true;
+    unifiedPanel.innerHTML = '';
+    if (rawSearchInput) {
       scheduleUnifiedSearch(rawSearchInput, activeVersion);
+      return;
     }
-    const albumGrid = $('albumGrid');
-    const tracksWrap = $('viewTracks');
-    let albumMatches = 0;
-    let trackMatches = 0;
     const feedback = $('searchFeedback');
-    if (navView === 'favorites' || navView === 'recent') {
-      renderLibraryView();
-      if (feedback) feedback.textContent = '';
-      return;
-    }
-    if (navView === 'youtube') {
-      if (feedback) feedback.textContent = '';
-      return;
-    }
+    feedback.textContent = '';
     if (navView === 'radio') {
       renderRadioView();
-      if (feedback) {
-        const count = $('viewRadio').querySelectorAll('.radio-item').length;
-        const parts = [];
-        if (query) parts.push('query "' + query + '"');
-        parts.push(count + ' station' + (count === 1 ? '' : 's'));
-        feedback.textContent = parts.join(' · ');
-      }
-      return;
-    }
-
-    const updateAlbumCards = async () => {
-      if (!albumGrid) return;
-      if (trackPrefetchTriedForQuery !== query) {
-        trackPrefetchTriedForQuery = query;
-        trackPrefetchTried.clear();
-      }
-      const cards = Array.from(albumGrid.querySelectorAll('.album'));
-      if (query) await ensureActiveSearchIndexLoaded();
-      if (activeVersion !== filterVersion) return;
-
-      const prefetchKeys = [];
-      cards.forEach((card) => {
-        const key = String(card.dataset.key || '');
-        const albumHit = !query || searchMatchesBlob(card.dataset.search || '', query);
-        const trackData = query ? getCachedTrackSearchPayload(card.dataset.key) : null;
-        const trackHit = !albumHit && !!trackData && searchMatchesBlob(trackData.search, query);
-        const hit = albumHit || trackHit;
-        card.style.display = hit ? '' : 'none';
-        if (hit) albumMatches++;
-        renderAlbumSongMatches(card, query, trackData, albumHit);
-        if (query && !albumHit && !trackHit && key && !trackPrefetchTried.has(key)) {
-          const td = getCachedTrackSearchPayload(key);
-          if (!td) prefetchKeys.push(key);
-        }
-      });
-
-      if (query && prefetchKeys.length) {
-        const slice = prefetchKeys.slice(0, 56);
-        for (let pi = 0; pi < slice.length; pi++) trackPrefetchTried.add(slice[pi]);
-        Promise.all(slice.map((k) => ensureAlbumTrackSearch(k)))
-          .then(() => {
-            if (activeVersion === filterVersion) updateFilterState();
-          })
-          .catch(() => {});
-      }
-
-      let empty = $('albumFilterEmpty');
-      if (!empty) {
-        empty = document.createElement('p');
-        empty.className = 'empty-state';
-        empty.id = 'albumFilterEmpty';
-        empty.textContent = 'No albums or songs matched this search.';
-        albumGrid.parentElement.appendChild(empty);
-      }
-      empty.style.display = albumMatches ? 'none' : '';
-      scheduleAlbumAutoLoad(40);
-    };
-
-    const updateTrackRows = () => {
-      if (tracksWrap.style.display === 'none') return;
-      tracksWrap.querySelectorAll('.tracks li').forEach((row) => {
-        const hit = !query || searchMatchesBlob(row.dataset.search || '', query);
-        row.style.display = hit ? '' : 'none';
-        if (hit) trackMatches++;
-      });
-      let emptyTracks = $('trackFilterEmpty');
-      if (!emptyTracks) {
-        emptyTracks = document.createElement('p');
-        emptyTracks.className = 'empty-state';
-        emptyTracks.id = 'trackFilterEmpty';
-        emptyTracks.textContent = 'No tracks matched this search.';
-        const list = tracksWrap.querySelector('.tracks');
-        if (list) list.after(emptyTracks);
-      }
-      if (emptyTracks) emptyTracks.style.display = trackMatches ? 'none' : '';
-    };
-
-    if (navView === 'favorites' || navView === 'recent') {
+      const count = $('viewRadio').querySelectorAll('.radio-item').length;
+      feedback.textContent = count + (count === 1 ? ' station' : ' stations');
+    } else if (navView === 'favorites' || navView === 'recent') {
       renderLibraryView();
-    }
-    updateTrackRows();
-    updateAlbumCards().catch((err) => {
-      console.error(err);
-    });
-    if (feedback) {
-      const parts = [];
-      if (query) parts.push('query "' + query + '"');
-      const tracksPaneVisible = tracksWrap && tracksWrap.style.display !== 'none';
-      if (tracksPaneVisible) {
-        if (query) {
-          parts.push(trackMatches + ' track' + (trackMatches === 1 ? '' : 's'));
-        }
-      } else if (albumGrid || (navView === 'albums' && albumTotalCount > 0)) {
-        const showLibraryTotalOnly =
-          !query &&
-          navView === 'albums' &&
-          currentArtistKey == null &&
-          albumTotalCount > 0;
-        if (showLibraryTotalOnly) {
-          parts.push(albumTotalCount + ' album' + (albumTotalCount === 1 ? '' : 's'));
-        } else if (albumGrid) {
-          parts.push(albumMatches + ' album' + (albumMatches === 1 ? '' : 's'));
-        }
-      }
-      feedback.textContent = parts.join(' · ');
-    }
-
-    clearTimeout(hubSearchFallbackTimer);
-    if (navView === 'albums' && query && query.length > 2) {
-      hubSearchFallbackTimer = setTimeout(() => {
-        try {
-          const inp = $('inSearch');
-          if (!inp || normalizeSearchText(inp.value) !== query) return;
-          const albumsPane = $('viewAlbums');
-          const tracksPane = $('viewTracks');
-          if (!albumsPane || albumsPane.style.display === 'none') return;
-          if (tracksPane && tracksPane.style.display === 'block') return;
-          const grid = $('albumGrid');
-          if (!grid || !grid.querySelectorAll('.album').length) return;
-          if (countVisibleAlbumCards(grid) > 0) return;
-          const raw = inp.value;
-          plexSearchHubTracks(raw)
-            .then((tracks) => {
-              if (!tracks.length) return;
-              const t = tracks[0];
-              const ak = t && t.parentRatingKey;
-              if (!ak) return;
-              const iq = $('inSearch');
-              if (!iq || normalizeSearchText(iq.value) !== query) return;
-              return openAlbumByKey(String(ak)).then(() => {
-                const hint = normalizeSearchText(String(t.title || '').split('(')[0]).trim();
-                if (iq && hint.length > 2) {
-                  iq.value = hint;
-                  iq.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-                const fb = $('searchFeedback');
-                if (fb) fb.textContent = (fb.textContent || '') + ' · opened from server search';
-              });
-            })
-            .catch(() => {});
-        } catch (_) {}
-      }, 950);
+    } else if (navView === 'albums' && albumsViewVisible()) {
+      const count = currentArtistKey == null && albumTotalCount ? albumTotalCount
+        : $('albumGrid')?.querySelectorAll('.album').length;
+      if (count) feedback.textContent = count + (count === 1 ? ' album' : ' albums');
+      scheduleAlbumAutoLoad(40);
     }
   }
 
@@ -4909,87 +4560,8 @@
     const inp = $('inSearch');
     if (!inp) return;
     if (inp.value) inp.value = '';
-    if (filterDebounceTimer) {
-      clearTimeout(filterDebounceTimer);
-      filterDebounceTimer = 0;
-    }
     updateFilterState();
     if (opts && opts.focus) inp.focus();
-  }
-
-  async function ensureAlbumTrackSearch(albumKey) {
-    if (!albumKey) return { search: '', titles: [] };
-    if (albumTrackSearchCache.has(albumKey)) return albumTrackSearchCache.get(albumKey);
-    if (albumTrackFetchCache.has(albumKey)) return albumTrackFetchCache.get(albumKey);
-    const section = activeSectionKey();
-    if (section) {
-      const cached = await getSearchRecord(section, String(albumKey));
-      if (cached && cached.trackSearch) {
-        const payload = { search: String(cached.trackSearch || ''), titles: Array.isArray(cached.titles) ? cached.titles : [] };
-        albumTrackSearchCache.set(String(albumKey), payload);
-        albumSearchIndexCache.set(String(albumKey), {
-          albumSearch: String(cached.albumSearch || ''),
-          trackSearch: payload.search,
-          titles: payload.titles
-        });
-        return payload;
-      }
-    }
-    const promise = plexFetch('/library/metadata/' + albumKey + '/children')
-      .then((data) => {
-        const tracks = (data.MediaContainer.Metadata || []).filter(isPlexAudioLeafForPlayback);
-        const titles = tracks.map((t) => String(t.title || '').trim()).filter(Boolean);
-        const search = tracks.map((t) => makeSearchBlob(t)).join(' ');
-        const payload = { search, titles };
-        albumTrackSearchCache.set(albumKey, payload);
-        const existing = albumSearchIndexCache.get(String(albumKey)) || {};
-        albumSearchIndexCache.set(String(albumKey), {
-          albumSearch: String(existing.albumSearch || ''),
-          trackSearch: search,
-          titles
-        });
-        if (section) {
-          const record = {
-            id: searchRecordId(section, albumKey),
-            sectionKey: section,
-            albumKey: String(albumKey),
-            albumSearch: String(existing.albumSearch || ''),
-            trackSearch: search,
-            titles,
-            updatedAt: Date.now()
-          };
-          putSearchRecords([record]).catch(() => {});
-        }
-        albumTrackFetchCache.delete(albumKey);
-        return payload;
-      })
-      .catch((err) => {
-        albumTrackFetchCache.delete(albumKey);
-        throw err;
-      });
-    albumTrackFetchCache.set(albumKey, promise);
-    return promise;
-  }
-
-  function renderAlbumSongMatches(card, query, trackData, albumHit) {
-    const box = card.querySelector('.song-matches');
-    if (!box || !query || !trackData || !trackData.titles.length || albumHit) {
-      if (box) {
-        box.textContent = '';
-        box.style.display = 'none';
-      }
-      return;
-    }
-    const matches = trackData.titles.filter((title) => searchMatchesBlob(title, query));
-    if (!matches.length) {
-      box.textContent = '';
-      box.style.display = 'none';
-      return;
-    }
-    const top = matches.slice(0, 3).map(escapeHtml).join(' • ');
-    const extra = matches.length > 3 ? ' +' + (matches.length - 3) + ' more' : '';
-    box.innerHTML = 'Song match: ' + top + extra;
-    box.style.display = 'block';
   }
 
   function syncSidebarNavActive() {
@@ -5001,7 +4573,6 @@
     });
     document.body.dataset.source = navView;
     $('plexSetup').hidden = navView !== 'albums' || Boolean(cfg().token);
-    $('inSearch').disabled = !searchAllSources && (navView === 'youtube' || navView === 'playlists');
     updatePlexLibraryLinkActive();
   }
 
@@ -5104,14 +4675,14 @@
     const starredAlbumItems = getStarredAlbumItems();
     const starredTracks = [...getStarredTracks()]
       .map((key) => trackLookup.get(String(key)) || starredTrackItems[String(key)])
-      .filter((item) => item && searchMatchesBlob(trackDisplayText(item).toLowerCase(), searchQuery));
+      .filter(Boolean);
     const starredAlbums = [...getStarredAlbums()]
       .map((key) => albumLookup.get(String(key)) || starredAlbumItems[String(key)])
-      .filter((item) => item && searchMatchesBlob(String(item.title || '').toLowerCase(), searchQuery));
+      .filter(Boolean);
     const starredStations = [...getStarredStations()]
       .map((id) => radioStations.find((station) => station.id === id))
-      .filter((station) => station && searchMatchesBlob((station.title + ' ' + station.id).toLowerCase(), searchQuery));
-    const recent = getRecentTracks().filter((item) => searchMatchesBlob(trackDisplayText(item).toLowerCase(), searchQuery));
+      .filter(Boolean);
+    const recent = getRecentTracks();
     const showFavorites = navView === 'favorites';
     const showRecent = navView === 'recent';
 
@@ -5134,7 +4705,7 @@
       const station = id.startsWith('radio:') ? radioStations.find((item) => item.id === id.slice(6)) : null;
       const title = station?.title || (id.startsWith('youtube:') ? 'YouTube · ' + id.slice(8) : id.slice(6));
       return { id, station, title };
-    }).filter((item) => searchMatchesBlob(item.title.toLowerCase(), searchQuery));
+    });
     const listeningRows = listening.map(({ id, station, title }) => station ? stationRowHtml(station) :
       '<li class="radio-item"><button type="button" class="radio-row-main" data-history-id="' + escapeHtml(id) + '"' +
       (id.startsWith('radio:') ? ' disabled' : '') + '><img class="radio-thumb" alt="" src="' + fallbackThumbDataUrl() + '" />' +
@@ -5142,7 +4713,7 @@
     const config = historyConfig();
     const pendingClear = config && readHistoryState(config).clearPending;
     const listeningHtml = '<section class="library-card"><h3>Radio and YouTube</h3>' +
-      '<button type="button" class="btn" id="btnClearHistory">Clear history</button>' +
+      '<button type="button" class="btn" id="btnClearHistory">' + apkIconHtml('delete') + 'Clear history</button>' +
       '<p id="historyReplayStatus" role="status">' + (pendingClear ? 'History cleared here. Relay update pending.' : '') +
       '</p><ul class="radio-list">' +
       (listeningRows || '<li class="empty-state">No radio or YouTube plays yet.</li>') + '</ul></section>';
@@ -6212,29 +5783,13 @@
     const wrap = $('viewRadio');
     if (!wrap) return;
     if (!radioStations.length) buildRadioData();
-    const query = (searchQuery || '').trim();
-    const q = query.toLowerCase();
-    const filteredSections = radioSections
-      .map((section) => {
-        const items = section.items.filter((station) => {
-          if (!q) return true;
-          return (
-            station.title.toLowerCase().includes(q) ||
-            station.id.toLowerCase().includes(q) ||
-            station.tags.join(' ').toLowerCase().includes(q)
-          );
-        });
-        return { name: section.name, items };
-      })
-      .filter((section) => section.items.length > 0);
-    const hasItems = filteredSections.some((section) => section.items.length > 0);
-    if (!hasItems) {
-      wrap.innerHTML = '<p class="empty-state">No radio stations match this search.</p>';
+    if (!radioSections.length) {
+      wrap.innerHTML = '<p class="empty-state">No radio stations available.</p>';
       return;
     }
     wrap.innerHTML =
       '<div class="radio-view">' +
-      filteredSections
+      radioSections
         .map((section) => {
           return (
             '<section class="radio-section-card">' +
@@ -6421,7 +5976,7 @@
         '<img src="' + img + '" alt="" loading="lazy" /></div>' +
         '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
         '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
-        '<div class="song-matches"></div></div>';
+        '</div>';
       div.onclick = (ev) => {
         if (ev.target.closest('a[data-meta-link]')) return;
         if (ev.target.closest('.star-btn')) return;
@@ -6460,7 +6015,6 @@
               titleEl.textContent = folderName;
             }
             div.dataset.search = (div.dataset.search || '') + ' ' + folderName.toLowerCase();
-            if (searchQuery) updateFilterState();
           })
           .catch(() => {});
       }
@@ -6513,8 +6067,6 @@
       const ns = plexAlbumCacheNs();
       const sec = String(section);
       if (!append) {
-        activeSearchIndexSection = String(section);
-        albumTrackSearchCache.clear();
         libraryTrackTotalCache = { sectionKey: '', total: 0 };
         songShuffleRecentKeys = [];
         navView = 'albums';
@@ -6735,6 +6287,17 @@
       currentTracks.forEach((track) => {
         if (track && track.ratingKey) trackLookup.set(String(track.ratingKey), track);
       });
+      const section = activeSectionKey();
+      if (section) {
+        const trackSearch = currentTracks.map((track) => makeSearchBlob(track)).join(' ');
+        const albumSearch = makeSearchBlob(album);
+        const albumKey = String(album.ratingKey);
+        const indexed = { albumSearch, trackSearch, titles: currentTracks.map((track) => String(track.title || '')).filter(Boolean) };
+        albumSearchIndexCache.set(albumKey, indexed);
+        void putSearchRecords([{
+          id: searchRecordId(section, albumKey), sectionKey: section, albumKey, ...indexed, updatedAt: Date.now()
+        }]).catch(() => {});
+      }
       const displayTitle = albumDisplayTitleFromTracks(album, currentTracks);
       if (displayTitle && displayTitle !== album.title) albumFolderNameCache.set(album.ratingKey, displayTitle);
       const albumHref = albumHash(album.ratingKey);
@@ -6957,7 +6520,7 @@
           '<img src="' + img + '" alt="" loading="lazy" /></div>' +
           '<div class="meta"><div class="title">' + makeMetaLinkHtml(initialAlbumTitle, albumHref, 'album') + '</div>' +
           '<div class="artist">' + makeMetaLinkHtml(String(a.parentTitle || ''), artistHref, 'artist') + '</div>' +
-          '<div class="song-matches"></div></div>';
+          '</div>';
         div.onclick = (ev) => {
           if (ev.target.closest('a[data-meta-link]')) return;
           if (ev.target.closest('.star-btn')) return;
@@ -7424,7 +6987,7 @@
 
   async function publishNostrAudiobookProgress(state, forceSync) {
     if (!state || !state.audiobookBookId) return;
-    if (!nostrState.ready || !nostrState.secretKey || !nostrState.pool || !nostrState.pubkey) return;
+    if (!nostrState.ready || !nostrState.signer || !nostrState.pool || !nostrState.pubkey) return;
     const now = Date.now();
     const bookId = String(state.audiobookBookId || '');
     const position = Number(state.currentTime) || 0;
@@ -7449,7 +7012,7 @@
           audiobookBookId: bookId
         })
       };
-      const encrypted = await encryptNostrDmContent(tools, JSON.stringify(payload), nostrState.pubkey);
+      const encrypted = await encryptNostrDmContent(nostrState.signer, JSON.stringify(payload), nostrState.pubkey);
       const evKind = encrypted.algorithm === 'nip44' ? 14 : 4;
       const tags = [
         ['p', nostrState.pubkey],
@@ -7473,7 +7036,9 @@
         tags: tags,
         content: encrypted.content
       };
-      const signed = tools.finalizeEvent(eventTemplate, nostrState.secretKey);
+      const session = nostrState;
+      const signed = await RadioNostrSync.signVerified(session.signer, eventTemplate, tools);
+      if (nostrState !== session) return;
       safeNostrPoolPublish(nostrState.pool, NOSTR_RELAYS, signed);
       lastAudiobookSyncAt = now;
       lastAudiobookSyncPosition = position;
@@ -7608,9 +7173,7 @@
     const isPlaying = !audio.paused && !audio.ended;
     btn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
     btn.setAttribute('title', isPlaying ? 'Pause' : 'Play');
-    btn.innerHTML = isPlaying
-      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8z" fill="currentColor" stroke="none"></path><path d="M13 5h3v14h-3z" fill="currentColor" stroke="none"></path></svg>'
-      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"></path></svg>';
+    btn.innerHTML = apkIconHtml(isPlaying ? 'pause' : 'play');
   }
 
   function setupMediaSession() {
@@ -8252,7 +7815,7 @@
       : null;
     const localBookId = localAllowed ? String(localAllowed.audiobookBookId || computeAudiobookBookId(localAllowed)) : '';
     let remoteSaved = null;
-    if (nostrState.ready && nostrState.pubkey && nostrState.secretKey) {
+    if (nostrState.ready && nostrState.pubkey && nostrState.signer) {
       remoteSaved = await pickLatestNostrAudiobookProgress(localBookId, activeSection).catch(() => null);
       if (!remoteSaved && !localAllowed) {
         remoteSaved = await pickLatestNostrAudiobookProgress('', activeSection).catch(() => null);
@@ -8428,15 +7991,10 @@
   bindClick('viewModeToggleBtn', () => {
     setAlbumViewMode(getAlbumViewMode() === 'list' ? 'grid' : 'list');
   });
-  bindClick('logoHome', (e) => {
-    e.preventDefault();
-    const connected = !!(cfg().server && cfg().token);
-    if (!connected) {
-      if (location.hash !== '#radio') location.hash = '#radio';
-      return;
-    }
-    if (location.hash !== '#albums') location.hash = '#albums';
-    else backToAlbums({ fullLibrary: true });
+  bindClick('logoHome', (event) => {
+    event.preventDefault();
+    clearSearchInput();
+    setNavView('radio');
   });
   bindClick('btnPlexLogin', async () => {
     showError('');
@@ -8496,12 +8054,39 @@
   });
   bindEvent('inSearch', 'input', () => {
     syncSearchUi();
-    if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
-    filterDebounceTimer = setTimeout(updateFilterState, 200);
+    updateFilterState();
   });
+  for (const [button, mode] of [['btnConnectBrowserSigner', 'extension'], ['btnConnectAndroidSigner', 'android']]) {
+    bindClick(button, async () => {
+      try {
+        if (listeningSigner || readListeningSetting(remoteSignerKey, null) || remoteSignerConnection || signerConnectAttempt) {
+          throw new Error('Disconnect the current signer before connecting another one.');
+        }
+        const signer = await connectLocalListeningSigner(mode);
+        if (historyConfig()?.account === signer.pubkey) void syncListeningHistory();
+        if (localStorage.getItem(stationSyncAccountKey) === signer.pubkey) void syncStationFavorites();
+      } catch (error) {
+        $('remoteSignerStatus').textContent = error.message;
+      }
+    });
+  }
+
+  window.radioGuakaChatSigner = async () => {
+    if (!listeningSigner && !localStorage.getItem(signerModeKey) && !readListeningSetting(remoteSignerKey, null)) return null;
+    const signer = await getListeningSigner();
+    const tools = await getNostrTools();
+    return {
+      pubkey: signer.pubkey,
+      signEvent: async (template) => {
+        if (listeningSigner !== signer || ![1, 5, 7, 22242].includes(template.kind)) throw new Error('Connect your signer again.');
+        return RadioNostrSync.signVerified(signer, template, tools);
+      }
+    };
+  };
+
   bindClick('btnConnectRemoteSigner', async () => {
     try {
-      if (listeningSigner || readListeningSetting(remoteSignerKey, null)) {
+      if (listeningSigner || readListeningSetting(remoteSignerKey, null) || signerConnectAttempt) {
         throw new Error('Disconnect the saved remote signer before connecting another one.');
       }
       const config = RadioRemoteSigner.parseBunker($('inRemoteSigner').value);
@@ -8513,25 +8098,29 @@
       $('remoteSignerStatus').textContent = error.message || 'Could not connect to remote signer.';
     }
   });
-  bindClick('btnDisconnectRemoteSigner', async () => {
-    if (remoteSignerConnection) return;
+  bindClick('btnDisconnectSigner', async () => {
+    if (remoteSignerConnection || signerConnectAttempt) return;
     const saved = readListeningSetting(remoteSignerKey, null);
-    listeningSigner?.close();
+    listeningSigner?.close?.();
     listeningSigner = null;
+    nostrState = { ready: false, npub: '', pubkey: '', signer: null, pool: null, lastPostKey: '', lastPostAt: 0 };
     localStorage.removeItem(remoteSignerKey);
-    $('btnDisconnectRemoteSigner').hidden = true;
-    $('remoteSignerStatus').textContent = 'Remote signer disconnected.';
-    if (historyConfig()?.account === saved?.pubkey) disableListeningSync();
-    if (localStorage.getItem(stationSyncAccountKey) === saved?.pubkey) {
-      localStorage.removeItem(stationSyncAccountKey);
-      $('syncStationFavorites').checked = false;
-    }
+    localStorage.removeItem(signerModeKey);
+    localStorage.removeItem(androidSignerPubkeyKey);
+    localStorage.removeItem(LS.nostrActivity);
+    localStorage.removeItem(stationSyncAccountKey);
+    $('syncStationFavorites').checked = false;
+    disableListeningSync();
+    updateNostrIdentityUi();
+    syncSignerToChat();
+    $('remoteSignerStatus').textContent = 'Signer disconnected.';
     try {
       await RadioRemoteSigner.removeTransportKey(saved?.keyReference);
     } catch (_) {
-      $('remoteSignerStatus').textContent = 'Remote signer disconnected. Clear this site’s data to remove the encrypted connection key.';
+      $('remoteSignerStatus').textContent = 'Signer disconnected. Clear this site’s data to remove the encrypted connection key.';
     }
   });
+
   bindEvent('syncListeningHistory', 'change', async () => {
     const checkbox = $('syncListeningHistory');
     if (!checkbox.checked) { disableListeningSync(); return; }
@@ -8583,15 +8172,6 @@
   window.addEventListener('online', () => { if (localStorage.getItem(stationSyncAccountKey)) void syncStationFavorites(); });
   bindEvent('shareNowPlaying', 'change', () => localStorage.setItem('guakaShareNowPlaying', String($('shareNowPlaying').checked)));
   bindClick('btnPlexSetup', () => openSettingsModal());
-  bindClick('btnSearchAll', () => {
-    searchAllSources = !searchAllSources;
-    $('btnSearchAll').setAttribute('aria-pressed', String(searchAllSources));
-    $('inSearch').placeholder = searchAllSources ? 'Search all sources' : 'Filter';
-    $('inSearch').setAttribute('aria-label', searchAllSources ? 'Search all sources' : 'Filter current source');
-    syncSidebarNavActive();
-    updateFilterState();
-    if (!$('inSearch').disabled) $('inSearch').focus();
-  });
   bindClick('btnClearSearch', () => {
     clearSearchInput({ focus: true });
   });
@@ -8619,10 +8199,10 @@
   window.addEventListener('hashchange', applyHashRoute);
   window.addEventListener('message', (event) => {
     try {
-      if (!event || !event.data || typeof event.data !== 'object') return;
+      if (event.origin !== location.origin || event.source !== $('chatIframe')?.contentWindow || !event.data || typeof event.data !== 'object') return;
       if (event.data.type === 'chatReady') {
         sendChatContext();
-        syncNostrNsecToChatIframe();
+        syncSignerToChat();
       } else if (event.data.type === 'openSettingsModal') {
         openSettingsModal({ focusNostr: event.data.tab === 'nostr' });
       } else if (event.data.type === 'chatSearchQuery') {
@@ -8660,79 +8240,6 @@
   bindEvent('btnChatToggle', 'click', () => {
     setChatVisibility(!isChatVisibleMobile);
   });
-  bindClick('btnToggleNsecMask', () => {
-    const nsecInput = $('inNsec');
-    if (!nsecInput) return;
-    const isMasked = nsecInput.type === 'password';
-    nsecInput.type = isMasked ? 'text' : 'password';
-    const btn = $('btnToggleNsecMask');
-    if (btn) {
-      btn.textContent = isMasked ? '**' : 'Aa';
-      btn.title = isMasked ? 'Hide nsec' : 'Show nsec';
-      btn.setAttribute('aria-label', isMasked ? 'Hide nsec' : 'Show nsec');
-    }
-  });
-  bindClick('btnSaveNostr', async () => {
-    const ok = await initNostrFromNsec($('inNsec').value.trim());
-    if (ok) {
-      setSettingsStatus('Nostr key saved.', 'ok');
-      closeSettingsModal();
-    }
-  });
-  bindClick('btnGenerateNostr', async () => {
-    const existing = String(localStorage.getItem(LS.nostrNsec) || '').trim();
-    const typed = String(($('inNsec') && $('inNsec').value) || '').trim();
-    if (existing || typed) {
-      setNostrStatus('Remove existing nsec before generating a new one.', 'error');
-      updateNostrSaveButtonVisibility();
-      return;
-    }
-    try {
-      const tools = await getNostrTools();
-      let secretKey = null;
-      if (typeof tools.generateSecretKey === 'function') {
-        secretKey = tools.generateSecretKey();
-      } else if (typeof tools.generatePrivateKey === 'function') {
-        secretKey = tools.generatePrivateKey();
-      } else {
-        const bytes = new Uint8Array(32);
-        crypto.getRandomValues(bytes);
-        secretKey = bytes;
-      }
-      if (!tools.nip19 || typeof tools.nip19.nsecEncode !== 'function') {
-        throw new Error('nostr-tools nsec encoder unavailable');
-      }
-      const nsec = tools.nip19.nsecEncode(secretKey);
-      $('inNsec').value = nsec;
-      updateNostrSaveButtonVisibility();
-      const ok = await initNostrFromNsec(nsec);
-      if (ok) setSettingsStatus('Generated and saved new Nostr key.', 'ok');
-    } catch (err) {
-      setNostrStatus('Could not generate Nostr key: ' + (err && err.message ? err.message : String(err)), 'error');
-    }
-  });
-  bindEvent('inNsec', 'input', () => {
-    updateNostrSaveButtonVisibility();
-  });
-  bindEvent('inNsec', 'keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const btn = $('btnSaveNostr');
-    if (btn && btn.style.display !== 'none' && !btn.disabled) btn.click();
-  });
-  bindClick('btnClearNostr', () => {
-    const confirmed = window.confirm('Remove saved nsec from this browser?');
-    if (!confirmed) return;
-    localStorage.removeItem(LS.nostrNsec);
-    localStorage.removeItem(LS.nostrNpub);
-    localStorage.removeItem(LS.nostrActivity);
-    nostrState = { ready: false, nsec: '', npub: '', pubkey: '', secretKey: null, pool: null, lastPostKey: '', lastPostAt: 0 };
-    $('inNsec').value = '';
-    updateNostrIdentityUi();
-    setNostrStatus('Nostr key removed.', '');
-    syncNostrNsecToChatIframe();
-  });
-
   (function init() {
     const history = historyConfig();
     $('syncListeningHistory').checked = Boolean(history);
@@ -8743,18 +8250,27 @@
       localStorage.removeItem(remoteSignerKey);
       $('remoteSignerStatus').textContent = 'Reconnect your remote signer to use encrypted session storage.';
     }
-    $('btnDisconnectRemoteSigner').hidden = !savedSigner?.keyReference;
     $('syncStationFavorites').checked = Boolean(localStorage.getItem(stationSyncAccountKey));
     $('shareNowPlaying').checked = localStorage.getItem('guakaShareNowPlaying') === 'true';
     updateShortcutModifierLabels();
     buildRadioData();
     wireUnifiedSearchPanelOnce();
     setChatVisibility(false);
-    $('inNsec').value = localStorage.getItem(LS.nostrNsec) || '';
+    if (new URLSearchParams(location.search).get('connections') === '1') openSettingsModal({ focusNostr: true });
+    if (localStorage.getItem('guakaNostrNsec') || localStorage.getItem('radio_guaka_chat_private_key')) {
+      $('remoteSignerStatus').textContent = 'This browser’s saved private key was removed. Connect your account using a signer.';
+    }
+    for (const key of ['guakaNostrNsec', 'guakaNostrNpub', 'radio_guaka_chat_private_key', 'radio_guaka_chat_pubkey']) {
+      localStorage.removeItem(key);
+    }
+    $('btnConnectAndroidSigner').hidden = !/Android/i.test(navigator.userAgent);
     updateNostrIdentityUi();
-    const legacyConnection = $('inNsec').value ? initNostrFromNsec($('inNsec').value) : Promise.resolve();
-    if ($('syncStationFavorites').checked) legacyConnection.then(syncStationFavorites).catch(() => {});
-    if (history) legacyConnection.then(syncListeningHistory).catch(() => {});
+    if (savedSigner?.keyReference || localStorage.getItem(signerModeKey)) {
+      void getListeningSigner().then((signer) => {
+        if (historyConfig()?.account === signer.pubkey) void syncListeningHistory();
+        if (localStorage.getItem(stationSyncAccountKey) === signer.pubkey) void syncStationFavorites();
+      }).catch((error) => { $('remoteSignerStatus').textContent = error.message; });
+    }
     playbackMode = getPlaybackMode();
     applyPlaybackModeUI();
     updateNowPlayingFavButton('');
@@ -8762,7 +8278,7 @@
     setupMediaSession();
     const c = cfg();
     $('inToken').value = c.token;
-    probeSameOriginBackend().catch(() => {});
+    void probeSameOriginBackend().then((ready) => { youtubeAudioAvailable = ready; });
     const initialHash = (location.hash || '').trim();
     if (!initialHash || /^#(radio|youtube|favorites|recent|playlists)$/.test(initialHash)) applyHashRoute();
     const initialSaved = loadPlaybackState();

@@ -204,22 +204,18 @@ test('audiobook identity stays stable across chapter changes', () => {
   assert.equal(computeAudiobookBookId({ ...book, trackRatingKey: 'a' }), computeAudiobookBookId({ ...book, trackRatingKey: 'b' }));
 });
 
-test('NIP-44 uses a conversation key and falls back to NIP-04 for older data', async () => {
-  const key = new Uint8Array(32);
-  const conversation = new Uint8Array(32).fill(1);
-  const context = loadFunctions(['encryptNostrDmContent', 'decryptNostrDmContent'], { nostrState: { secretKey: key } });
-  const tools = { nip44: { v2: {
-    utils: { getConversationKey(secret, peer) { assert.equal(secret, key); assert.equal(peer, 'peer'); return conversation; } },
-    encrypt(plain, derived) { assert.equal(derived, conversation); return `encrypted:${plain}`; },
-    decrypt(cipher, derived) { assert.equal(derived, conversation); return cipher.slice(10); }
-  } } };
-  const result = await context.encryptNostrDmContent(tools, 'progress', 'peer');
+test('delegates audiobook encryption to the signer and reads legacy NIP-04 payloads', async () => {
+  const context = loadFunctions(['encryptNostrDmContent', 'decryptNostrDmContent']);
+  const signer = {
+    nip44Encrypt: async (peer, plain) => { assert.equal(peer, 'peer'); return 'encrypted:' + plain; },
+    nip44Decrypt: async (peer, cipher) => { assert.equal(peer, 'peer'); return cipher.slice(10); }
+  };
+  const result = await context.encryptNostrDmContent(signer, 'progress', 'peer');
   assert.equal(result.algorithm, 'nip44');
-  assert.equal(await context.decryptNostrDmContent(tools, result.content, 'peer', 'nip44'), 'progress');
-  const legacy = { nip04: { decrypt: async () => 'legacy progress' } };
+  assert.equal(await context.decryptNostrDmContent(signer, result.content, 'peer', 'nip44'), 'progress');
+  const legacy = { nip04Decrypt: async () => 'legacy progress' };
   assert.equal(await context.decryptNostrDmContent(legacy, 'old payload', 'peer', 'nip04'), 'legacy progress');
 });
-
 
 test('Radiostr applies verified station actions with the Android ordering and expiry', () => {
   const source = readFileSync(resolve(root, 'public/js/player/nostr-sync.js'), 'utf8');
@@ -305,4 +301,30 @@ test('remote signer identifies the user account separately from the bunker and e
   assert.equal(await signer.decryptHistory(cipher), plain);
   assert.equal((await signer.signEvent({ kind: 30078, created_at: 1750000000, tags: [], content: cipher })).pubkey, account);
   signer.close();
+});
+
+test('embedded chat delegates event signing to the connected player signer', async () => {
+  const source = readFileSync(resolve(root, 'public/js/chat/app.js'), 'utf8');
+  const pubkey = 'a'.repeat(64);
+  let requested;
+  const signer = {
+    pubkey,
+    async signEvent(draft) {
+      requested = draft;
+      return { ...draft, id: 'event-id', pubkey, sig: 'signature' };
+    }
+  };
+  const parent = { radioGuakaChatSigner: async () => signer };
+  const chat = vm.runInNewContext(source + '\nchatApp()', { window: { parent } });
+  await chat.connectChatSigner(true);
+  assert.equal(chat.isAuthenticated, true);
+  assert.equal(chat.currentUserPubkey, pubkey);
+  const event = { kind: 7, content: '👍', tags: [['e', 'original-event']] };
+  await chat.signChatEvent(event);
+  assert.equal(requested.kind, 7);
+  assert.deepEqual(requested.tags, [['e', 'original-event']]);
+  assert.equal(event.sig, 'signature');
+  chat.disconnectChatSigner();
+  assert.equal(chat.isAuthenticated, false);
+  assert.equal(chat.chatSigner, null);
 });

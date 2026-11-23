@@ -86,7 +86,6 @@
         // Get named exports - try multiple ways
         let NDKEvent = NDKModule.NDKEvent || NDK?.NDKEvent;
         let NDKUser = NDKModule.NDKUser || NDK?.NDKUser;
-        let NDKPrivateKeySigner = NDKModule.NDKPrivateKeySigner || NDK?.NDKPrivateKeySigner;
         
         // Try importing from specific paths if not found
         if (!NDKEvent) {
@@ -107,40 +106,8 @@
           }
         }
         
-        if (!NDKPrivateKeySigner) {
-          try {
-            const signerModule = await import('https://esm.sh/@nostr-dev-kit/ndk@2.0.0/signers/private-key');
-            NDKPrivateKeySigner = signerModule.NDKPrivateKeySigner || signerModule.default;
-          } catch (e) {
-            // Fallback import failed
-          }
-        }
-        
         if (!NDK || typeof NDK !== 'function') {
           throw new Error('NDK class not found or not a constructor');
-        }
-        
-        // Import crypto utilities for generatePrivateKey
-        let generatePrivateKey = null;
-        try {
-          const cryptoUtils = await import('https://esm.sh/@noble/secp256k1@1.7.1');
-          if (cryptoUtils && cryptoUtils.utils && cryptoUtils.utils.randomPrivateKey) {
-            generatePrivateKey = () => {
-              const bytes = cryptoUtils.utils.randomPrivateKey();
-              return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-            };
-          }
-        } catch (e) {
-          // Crypto utils import failed, will use fallback
-        }
-        
-        // Fallback generatePrivateKey using Web Crypto API
-        if (!generatePrivateKey) {
-          generatePrivateKey = () => {
-            const bytes = new Uint8Array(32);
-            crypto.getRandomValues(bytes);
-            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-          };
         }
         
         // Expose NDK classes globally for compatibility with existing code
@@ -148,9 +115,7 @@
         window.NDKModule = {
           NDK: NDK,
           NDKEvent: NDKEvent,
-          NDKUser: NDKUser,
-          NDKPrivateKeySigner: NDKPrivateKeySigner,
-          generatePrivateKey: generatePrivateKey
+          NDKUser: NDKUser
         };
         
         window.dispatchEvent(new CustomEvent('ndkReady', { 
