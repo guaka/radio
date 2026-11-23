@@ -1148,15 +1148,17 @@
     throw new Error('Connect a Nostr signer in Connections.');
   }
 
-  function presentAndroidSignerRequest({ url, method, cancel, acceptResult }) {
+  function presentAndroidSignerRequest({ url, clipboardUrl, method, cancel, acceptResult }) {
     const prompt = $('androidSignerPrompt');
     const link = $('androidSignerLink');
+    const copyLink = $('androidSignerCopyLink');
     const form = $('androidSignerPaste');
     const input = $('androidSignerResult');
     const previous = document.activeElement;
     $('androidSignerMessage').textContent = method === 'get_public_key'
       ? 'Connect your Android Nostr signer.' : 'Confirm this request in your Android signer.';
     link.href = url;
+    copyLink.href = clipboardUrl;
     $('androidSignerCancel').onclick = cancel;
     form.hidden = typeof acceptResult !== 'function';
     if (acceptResult) form.onsubmit = (event) => {
@@ -1168,6 +1170,7 @@
     return () => {
       prompt.hidden = true;
       link.removeAttribute('href');
+      copyLink.removeAttribute('href');
       $('androidSignerCancel').onclick = null;
       form.onsubmit = null;
       input.value = '';

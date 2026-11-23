@@ -8,7 +8,8 @@ const draft = { kind: 1, created_at: 1750000000, tags: [['t', 'radioguaka']], co
 function signerRequest(url: string) {
   const queryIndex = url.indexOf('?');
   const query = new URLSearchParams(url.slice(queryIndex + 1));
-  const callback = query.get('callbackUrl');
+  const amberParameters = decodeURIComponent(url).split('?').slice(1).flatMap((part) => part.split('&'));
+  const callback = amberParameters.find((part) => part.startsWith('callbackUrl='))?.slice('callbackUrl='.length);
   if (!callback) throw new Error('Missing NIP-55 callback');
   return { payload: decodeURIComponent(url.slice('nostrsigner:'.length, queryIndex)), query, callback };
 }
@@ -74,4 +75,18 @@ test('discards a signed event with altered content and cancels queued signer ope
   expect(await page.evaluate(() => window.decryptReply)).toContain('cancelled');
   expect(await page.evaluate(() => window.queuedReply)).toContain('disconnected');
   expect(await page.evaluate(() => !!window.signerPrompt)).toBe(false);
+});
+
+
+test('offers an Android signer request that copies the response when callbacks are unavailable', async ({ page }) => {
+  await page.evaluate(() => {
+    window.signerConnection = RadioAndroidSigner.connect(window.NostrTools, window.presentSignerRequest);
+  });
+  await expect.poll(() => page.evaluate(() => window.signerPrompt?.method)).toBe('get_public_key');
+  const copy = await page.evaluate(() => window.signerPrompt.clipboardUrl);
+  const query = new URLSearchParams(copy.slice(copy.indexOf('?') + 1));
+  expect(query.get('type')).toBe('get_public_key');
+  expect(query.has('callbackUrl')).toBe(false);
+  await page.evaluate((key) => window.signerPrompt.acceptResult(key), pubkey);
+  expect(await page.evaluate(async () => (await window.signerConnection).pubkey)).toBe(pubkey);
 });

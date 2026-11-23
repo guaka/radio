@@ -16,4 +16,4 @@ Each device publishes a signed NIP-78 kind 30078 event with an opaque per-instal
 
 Pending updates remain available for retry if the relay or signer is offline. A compatible relay must accept kind 30078 and support reading the user's events from both devices. History sync itself uses WebSockets from the browser and Android.
 
-The web player and chat use external signers. They remove private keys saved by older versions. A NIP-46 session stores an encrypted disposable transport key, while NIP-55 stores the public account identifier.
+The web player and chat use external signers. They remove private keys saved by older versions. A NIP-46 session stores an encrypted disposable transport key, while NIP-55 stores the public account identifier. If an Android signer does not return to the page automatically, use **ask it to copy the response** in the prompt and paste the result into **Signer response**.

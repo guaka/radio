@@ -220,5 +220,6 @@ body > header .app-icon { stroke: none; }
 }
 .android-signer-prompt p { margin-top: 0; }
 .android-signer-prompt form { margin-top: .75rem; }
+#androidSignerCopyLink { color: #c9ecf4; }
 body .player-controls .app-icon, .star-btn .app-icon, .album-card-play .app-icon { stroke: none; }
 #btnClearHistory .app-icon { vertical-align: middle; margin-right: .35rem; }

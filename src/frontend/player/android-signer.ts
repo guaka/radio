@@ -8,6 +8,7 @@ namespace RadioAndroidSigner {
   type Method = 'get_public_key' | 'sign_event' | 'nip44_encrypt' | 'nip44_decrypt' | 'nip04_encrypt' | 'nip04_decrypt';
   type Prompt = {
     url: string;
+    clipboardUrl: string;
     method: Method;
     cancel: () => void;
     acceptResult: (value: string) => void;
@@ -28,17 +29,20 @@ namespace RadioAndroidSigner {
     return 'radio-guaka-nip55-' + requestId;
   }
 
-  function requestUrl(method: Method, payload: string, peer: string, pubkey: string, requestId: string): string {
-    const callback = new URL('/nip55-return.html', location.origin);
-    // A fragment keeps the signer result out of HTTP requests and server logs.
-    callback.hash = new URLSearchParams({ request: requestId, result: '' }).toString();
+  function requestUrl(method: Method, payload: string, peer: string, pubkey: string, requestId?: string): string {
     const query = new URLSearchParams({
       type: method,
       returnType: 'signature',
       appName: 'Radio Guaka',
-      compressionType: 'none',
-      callbackUrl: callback.href
+      compressionType: 'none'
     });
+    if (requestId) {
+      const callback = new URL('/nip55-return.html', location.origin);
+      // Amber decodes the entire intent before splitting its parameters on "&".
+      // A single fragment keeps the correlation ID and result together and out of HTTP logs.
+      callback.hash = requestId + '.';
+      query.set('callbackUrl', callback.href);
+    }
     if (peer) query.set('pubkey', peer);
     if (pubkey) query.set('current_user', pubkey);
     return 'nostrsigner:' + encodeURIComponent(payload) + '?' + query.toString();
@@ -74,6 +78,7 @@ namespace RadioAndroidSigner {
         return new Promise<string>((resolve, reject) => {
           const requestId = crypto.randomUUID();
           const url = requestUrl(method, payload, peer, pubkey, requestId);
+          const clipboardUrl = requestUrl(method, payload, peer, pubkey);
           const channel = new BroadcastChannel(callbackChannel(requestId));
           let removePrompt;
           let settled = false;
@@ -100,11 +105,10 @@ namespace RadioAndroidSigner {
           cancelActive = () => finish(new Error('Android signer request cancelled.'));
           channel.onmessage = ({ data }) => {
             if (data?.request !== requestId) return;
-            if (data.rejected === true) finish(new Error('Android signer rejected the request.'));
-            else acceptResult(data.result);
+            acceptResult(data.result);
           };
           try {
-            removePrompt = presentRequest({ url, method, cancel: cancelActive, acceptResult });
+            removePrompt = presentRequest({ url, clipboardUrl, method, cancel: cancelActive, acceptResult });
             if (settled) removePrompt?.();
           } catch (error) {
             finish(error);
@@ -147,15 +151,21 @@ namespace RadioAndroidSigner {
   }
 
   export function deliverCallback() {
-    const params = new URLSearchParams(location.hash.slice(1) || location.search);
+    const fragment = location.hash.slice(1);
     history.replaceState(null, '', location.pathname);
-    const request = params.get('request');
-    if (!request || !requestPattern.test(request)) return false;
-    const result = params.get('result') ?? params.get('event');
-    const rejected = params.get('rejected') === 'true';
-    if ((!result && !rejected) || (result && result.length > maxResponseLength)) return false;
+    const separator = fragment.indexOf('.');
+    if (separator < 0) return false;
+    const request = fragment.slice(0, separator);
+    if (!requestPattern.test(request)) return false;
+    let result;
+    try {
+      result = decodeURIComponent(fragment.slice(separator + 1));
+    } catch (_) {
+      return false;
+    }
+    if (!result || result.length > maxResponseLength) return false;
     const channel = new BroadcastChannel(callbackChannel(request));
-    channel.postMessage({ request, result, rejected });
+    channel.postMessage({ request, result });
     channel.close();
     return true;
   }
