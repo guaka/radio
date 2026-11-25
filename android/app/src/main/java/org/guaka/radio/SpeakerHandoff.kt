@@ -1,6 +1,7 @@
 package org.guaka.radio
 
 import org.json.JSONObject
+import java.io.IOException
 
 internal enum class SpeakerHandoffAction { KEEP, TRANSFER, PLAY }
 
@@ -19,6 +20,25 @@ internal fun speakerHandoffAction(
 }
 
 internal data class SpeakerQueueSnapshot(val queueId: String)
+
+/** A signed YouTube URL may only work from the phone or with YouTube-specific HTTP requests. */
+internal suspend fun prepareDirectYouTubeSpeakerMedia(
+    streamUrl: String,
+    checkTrack: suspend (String) -> Unit,
+    prepareRelay: suspend () -> SpeakerMedia,
+): SpeakerMedia {
+    val uri = "builtin://track/$streamUrl"
+    try {
+        checkTrack(uri)
+    } catch (_: IOException) {
+        try {
+            return prepareRelay()
+        } catch (error: IOException) {
+            throw IOException("Music Assistant could not fetch YouTube directly or through this phone. Check Nebula or LAN connectivity.", error)
+        }
+    }
+    return SpeakerMedia(uri)
+}
 
 internal fun handoffResumePosition(mediaId: String, phonePositionMs: Long, remote: SpeakerProgress?, nowMs: Long): Long =
     if (mediaId.startsWith("radio:")) 0L else

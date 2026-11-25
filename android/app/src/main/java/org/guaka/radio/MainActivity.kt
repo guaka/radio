@@ -619,6 +619,7 @@ class MainModel(application: Application) : AndroidViewModel(application) {
         val chosen = activeSpeakerSelection.ifEmpty { activeSpeakers }
         val request = beginSpeakerOperation()
         speakerJob = action {
+            setStatus("Preparing audio for ${chosen.joinToString { it.name }}…")
             PlaybackOutputRouting.selectOnSpeakers(
                 mediaId = mediaId,
                 speakers = chosen,

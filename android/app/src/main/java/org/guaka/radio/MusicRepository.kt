@@ -515,33 +515,52 @@ class MusicRepository(private val context: Context) {
         var ownedRelay: PhoneAudioRelaySession? = null
         return try {
             withContext(Dispatchers.IO) {
-                if (speakerSourceMode() == SpeakerSourceMode.PHONE_RELAY && (entry.id.startsWith("track:") || entry.id.startsWith("youtube:"))) {
+                val mode = speakerSourceMode()
+                val isYouTube = entry.id.startsWith("youtube:")
+                if (isYouTube || (mode == SpeakerSourceMode.PHONE_RELAY && entry.id.startsWith("track:"))) {
                     val resolved = playable(entry.id)
-                    val generation = resolved.credentialGeneration
-                    check(resolved.token.isBlank() || generation == listening.plexGeneration()) { "Plex sign-in changed. Choose the track again." }
-                    var selected: PhoneAudioRelaySession? = null
-                    for (address in phoneRelayAddresses()) {
-                        val relay = phoneRelay.prepare(resolved, api.http, address) { resolved.token.isBlank() || generation == listening.plexGeneration() }
-                        try {
-                            val item = assistantCommand("music/item_by_uri", JSONObject().put("uri", "builtin://track/${relay.uri}"))
-                            check(item is JSONObject && item.optString("media_type") == "track") { "Music Assistant did not recognize the relayed audio as a track." }
-                            relay.awaitReceiver()
-                            selected = relay
-                            break
-                        } catch (e: kotlinx.coroutines.CancellationException) { phoneRelay.discard(relay); throw e }
-                        catch (_: Exception) { phoneRelay.discard(relay) }
+                    suspend fun prepareRelay(): SpeakerMedia {
+                        val relay = prepareSpeakerRelay(resolved)
+                        ownedRelay = relay
+                        return SpeakerMedia("builtin://track/${relay.uri}", relay)
                     }
-                    val relay = selected ?: throw IOException("Music Assistant cannot reach this phone’s relay over Nebula or LAN. Check VPN routing and firewall access.")
-                    ownedRelay = relay
-                    SpeakerMedia("builtin://track/${relay.uri}", relay)
+                    if (isYouTube && mode == SpeakerSourceMode.MUSIC_ASSISTANT) {
+                        require(YouTubeIds.isAudioHost(resolved.url)) { "YouTube returned an unsupported speaker stream." }
+                        prepareDirectYouTubeSpeakerMedia(resolved.url, ::checkAssistantTrack, ::prepareRelay)
+                    } else prepareRelay()
                 } else {
-                    val uri = speakerStream(entry)
-                    SpeakerMedia(if (entry.id.startsWith("youtube:")) "builtin://track/$uri" else uri)
+                    require(entry.id.startsWith("radio:")) { "Choose a matching Music Assistant library track for Plex." }
+                    SpeakerMedia(stations.first { it.id == entry.id }.url)
                 }
             }
         } catch (error: Exception) {
             phoneRelay.discard(ownedRelay)
             throw error
+        }
+    }
+    private suspend fun prepareSpeakerRelay(entry: Entry): PhoneAudioRelaySession {
+        val generation = entry.credentialGeneration
+        fun credentialsAreCurrent() = entry.token.isBlank() || generation == listening.plexGeneration()
+        check(credentialsAreCurrent()) { "Plex sign-in changed. Choose the track again." }
+        for (address in phoneRelayAddresses()) {
+            val relay = phoneRelay.prepare(entry, api.http, address, ::credentialsAreCurrent)
+            try {
+                checkAssistantTrack("builtin://track/${relay.uri}")
+                relay.awaitReceiver()
+                return relay
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                phoneRelay.discard(relay)
+                throw e
+            } catch (_: Exception) {
+                phoneRelay.discard(relay)
+            }
+        }
+        throw IOException("Music Assistant cannot fetch audio from this phone’s relay. Check Nebula or LAN connectivity.")
+    }
+    private suspend fun checkAssistantTrack(uri: String) {
+        val item = assistantCommand("music/item_by_uri", JSONObject().put("uri", uri))
+        if (item !is JSONObject || item.optString("media_type") != "track") {
+            throw IOException("Music Assistant did not recognize the audio as a track.")
         }
     }
     suspend fun synchronizedSpeaker(speakers: List<Speaker>, previous: List<Speaker>): Speaker = withContext(Dispatchers.IO) {
@@ -560,15 +579,6 @@ class MusicRepository(private val context: Context) {
             readSpeakers = { this@MusicRepository.speakers() },
             wait = { kotlinx.coroutines.delay(500) },
         )
-    }
-    suspend fun speakerStream(entry: Entry): String = withContext(Dispatchers.IO) {
-        when {
-            entry.id.startsWith("radio:") -> stations.first { it.id == entry.id }.url
-            entry.id.startsWith("youtube:") -> runInterruptible { youtube.playable(entry.id) }.url.also {
-                require(YouTubeIds.isAudioHost(it)) { "YouTube returned an unsupported speaker stream." }
-            }
-            else -> throw IOException("Choose a matching Music Assistant library track for Plex.")
-        }
     }
     suspend fun speakerTracks(entry: Entry): List<SpeakerTrack> = withContext(Dispatchers.IO) {
         findSpeakerTracks(entry) { query, libraryOnly ->

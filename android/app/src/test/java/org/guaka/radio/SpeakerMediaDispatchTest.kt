@@ -14,6 +14,51 @@ import java.io.IOException
 class SpeakerMediaDispatchTest {
     private val kitchen = Speaker("kitchen", "Kitchen")
 
+    @Test fun directYouTubeChecksTheTrackBeforeReusingTheSpeakerQueue() = runBlocking {
+        val stream = "https://rr1.googlevideo.com/videoplayback?sig=signed"
+        val checked = mutableListOf<String>()
+        val media = prepareDirectYouTubeSpeakerMedia(stream, checkTrack = { checked += it },
+            prepareRelay = { error("The direct stream is playable") })
+
+        assertEquals(listOf("builtin://track/$stream"), checked)
+        assertEquals(checked.single(), media.uri)
+    }
+
+    @Test fun failedDirectYouTubeCheckDispatchesOnlyTheRelayToTheCurrentSpeakers() = runBlocking {
+        val stream = "https://rr1.googlevideo.com/videoplayback?sig=signed"
+        val relayed = SpeakerMedia("builtin://track/http://phone.example/audio/capability")
+        val queued = mutableListOf<SpeakerMedia>()
+        val completed = PlaybackOutputRouting.selectOnSpeakers(
+            mediaId = "youtube:aqz-KE-bpKQ",
+            speakers = listOf(kitchen),
+            sourceMode = SpeakerSourceMode.MUSIC_ASSISTANT,
+            isCurrent = { true },
+            resolveEntry = ::entry,
+            prepareMedia = {
+                prepareDirectYouTubeSpeakerMedia(stream, checkTrack = { throw IOException("Direct stream rejected") },
+                    prepareRelay = { relayed })
+            },
+            findTracks = { error("YouTube should not search for Plex tracks") },
+            startPlayback = { _, media, speakers ->
+                assertEquals(listOf(kitchen), speakers)
+                queued += media
+            },
+            discardMedia = {},
+            showTracks = { _, _, _ -> error("YouTube should not need Plex confirmation") },
+        )
+        assertTrue(completed)
+        assertEquals(listOf(relayed), queued)
+    }
+
+    @Test fun cancellingDirectYouTubeCheckDoesNotStartTheRelay() = runBlocking {
+        val result = runCatching {
+            prepareDirectYouTubeSpeakerMedia("https://rr1.googlevideo.com/videoplayback",
+                checkTrack = { throw CancellationException() },
+                prepareRelay = { error("A cancelled selection must not start the relay") })
+        }
+        assertTrue(result.exceptionOrNull() is CancellationException)
+    }
+
     @Test fun radioToYouTubePreparesAndDispatchesEachItemToTheSameSpeaker() = runBlocking {
         val prepared = mutableListOf<String>()
         val starts = mutableListOf<Pair<String, String>>()

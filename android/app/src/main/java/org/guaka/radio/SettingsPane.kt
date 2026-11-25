@@ -130,7 +130,7 @@ internal fun SettingsPane(
                         onClick = { model.setSpeakerSourceMode(SpeakerSourceMode.MUSIC_ASSISTANT) })
                     Text("Music Assistant sources / direct URLs")
                 }
-                Text("Uses Music Assistant library matching for Plex and direct stream URLs for YouTube. Changes apply to the next speaker selection.")
+                Text("Matches Plex tracks in Music Assistant. For YouTube, tries a direct stream first, then relays through this phone if needed.")
                 if (saveAttempted && model.status.isNotBlank()) {
                     Text(model.status, color = MaterialTheme.colorScheme.error)
                 }

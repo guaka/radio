@@ -120,6 +120,15 @@ class IntegrationTest {
         """))
         assertEquals(setOf("leader", "bedroom"), speakers.single().groupMembers)
     }
+    @Test fun speakersAreSortedByDisplayNameRegardlessOfCase() {
+        val speakers = IntegrationParser.speakers(JSONArray("""[
+          {"player_id":"a","display_name":"Office","available":true},
+          {"player_id":"b","display_name":"bedroom","available":true},
+          {"player_id":"c","name":"Kitchen","available":true},
+          {"player_id":"d","display_name":"Attic","available":false}]
+        """))
+        assertEquals(listOf("bedroom", "Kitchen", "Office"), speakers.map { it.name })
+    }
     @Test fun plexTokenIsInHeaderAndRedirectsAreNotFollowed() = runBlocking {
         val server = MockWebServer(); server.start()
         try {
