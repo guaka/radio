@@ -113,7 +113,7 @@ object IntegrationParser {
             Speaker(row.getString("player_id"), row.optString("display_name", row.optString("name", "Speaker")),
                 (0 until members.length()).mapNotNull { members.optString(it).takeIf(String::isNotBlank) }.toSet())
         }
-    }
+    }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
 
     fun speakerTracks(result: JSONObject): List<SpeakerTrack> {
         val rows = result.optJSONArray("tracks") ?: JSONArray()

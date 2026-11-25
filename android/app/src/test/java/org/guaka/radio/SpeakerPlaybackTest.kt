@@ -25,7 +25,7 @@ class SpeakerPlaybackTest {
             reads++
             listOf(a.copy(groupMembers = if (reads == 1) setOf("b") else setOf("b", "c")))
         }, wait = { waits++ })
-        assertEquals(a, target)
+        assertEquals(a.copy(groupMembers = setOf("b", "c")), target)
         assertEquals(listOf(listOf(b, c)), groups)
         assertEquals(1, waits)
     }
@@ -41,6 +41,38 @@ class SpeakerPlaybackTest {
         val target = synchronizedSpeakerTarget(listOf(a), group = { _, _ -> fail("unexpected grouping") },
             readSpeakers = { fail("unexpected read"); emptyList() }, wait = { fail("unexpected wait") })
         assertEquals(a, target)
+    }
+    @Test fun switchingFromRadioToYouTubeReusesTheConfirmedSpeakerGroup() = runBlocking {
+        val selected = listOf(a, b)
+        var serverLeader = a
+        var groupingCommands = 0
+        val played = mutableListOf<Pair<String, String>>()
+
+        suspend fun play(mediaId: String, previous: List<Speaker>): SpeakerTransitionResult =
+            requireNotNull(transitionSpeakers(
+                previous = previous.firstOrNull(),
+                explicitMediaSelection = true,
+                isCurrent = { true },
+                readSourceQueue = { error("New media should replace the queue") },
+                synchronize = {
+                    synchronizedSpeakerTarget(previous.ifEmpty { selected }, previous,
+                        group = { leader, followers ->
+                            check(++groupingCommands == 1) { "The players are already grouped" }
+                            serverLeader = leader.copy(groupMembers = followers.map { it.id }.toSet())
+                        },
+                        readSpeakers = { listOf(serverLeader, b) },
+                        wait = { error("The group is already synchronized") })
+                },
+                play = { played += it.id to mediaId },
+                transfer = { _, _ -> error("New media should replace the queue") },
+                pausePrevious = { error("The speaker destination did not change") },
+            ))
+
+        val radio = play("radio:one", emptyList())
+        play("youtube:aqz-KE-bpKQ", listOf(radio.target, b))
+
+        assertEquals(1, groupingCommands)
+        assertEquals(listOf(a.id to "radio:one", a.id to "youtube:aqz-KE-bpKQ"), played)
     }
     @Test fun deselectingSpeakerRemovesItBeforePlayback() = runBlocking {
         val removed = mutableListOf<Speaker>()
@@ -59,7 +91,7 @@ class SpeakerPlaybackTest {
             group = { leader, followers -> operations += "group:${leader.id}:${followers.single().id}" },
             readSpeakers = { listOf(a, b.copy(groupMembers = setOf("b", "c"))) },
             wait = { fail("already synchronized") })
-        assertEquals(b, target)
+        assertEquals(b.copy(groupMembers = setOf("b", "c")), target)
         assertEquals(listOf("ungroup:b, c", "group:b:c"), operations)
     }
     @Test fun failedDetachDoesNotProceedToPlayback() = runBlocking {

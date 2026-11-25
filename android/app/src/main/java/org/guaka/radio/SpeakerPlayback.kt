@@ -38,12 +38,18 @@ internal suspend fun synchronizedSpeakerTarget(
     }
     if (followers.isEmpty()) return leader
     val removedIds = removed.map { it.id }.toSet()
-    val ungrouped = followers.filterNot { it.id in leader.groupMembers && it.id !in removedIds }
-    if (ungrouped.isNotEmpty()) group(leader, ungrouped)
+    val currentLeader = if (leader.id == oldLeader?.id) {
+        readSpeakers().firstOrNull { it.id == leader.id }
+    } else null
+    val knownLeader = currentLeader ?: leader
+    val ungrouped = followers.filterNot { it.id in knownLeader.groupMembers && it.id !in removedIds }
+    currentCoroutineContext().ensureActive()
+    if (ungrouped.isNotEmpty()) group(knownLeader, ungrouped)
+    else if (currentLeader != null) return currentLeader
     repeat(10) {
         currentCoroutineContext().ensureActive()
         val current = readSpeakers().firstOrNull { it.id == leader.id }
-        if (current != null && followers.all { it.id in current.groupMembers }) return leader
+        if (current != null && followers.all { it.id in current.groupMembers }) return current
         wait()
     }
     throw IllegalStateException("Music Assistant could not synchronize these speakers. Choose compatible speakers or a Music Assistant group.")
